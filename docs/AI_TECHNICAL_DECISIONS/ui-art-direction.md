@@ -51,3 +51,7 @@ It's a card game and the home screen didn't say so. Rather than one loud card el
 - All texture is baked. The canvas used SVG filters as stand-ins; the engine draws nine-sliced textures from resident atlases and stays at one GPU draw per flush, so the highlighter is baked, not drawn with a multiply blend.
 - The main menu's primary is Continue when a save exists, which changes [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) 1.1 (New Campaign was always the most prominent).
 - Provisional by design. After the playtest the direction gets another pass; nothing here should be cited as the final UI.
+
+## In the C++ alpha
+
+The direction holds; how it's built changed (2026-10-31, [procedural-paper.md](./procedural-paper.md)). Nothing is baked: the paper and its wear are computed in the shader per surface, highlighter is a second shader fill, and the rest of the new art is flat-fill vector or icons. One GPU draw per flush still holds, since a shader fill is one more rect in the batch.
