@@ -18,10 +18,6 @@ namespace {
 
 	constexpr double kInfinity = std::numeric_limits<double>::infinity();
 
-	Ground groundFor(const MapParams& params) {
-		return {fixtures::terrainFor(params), fixtures::waterFor(params), fixtures::hazardsFor(params)};
-	}
-
 	// A river running north through x, the same width all along.
 	RiverIndex straightRiver(const Ground& ground, double x, double width) {
 		River river;
@@ -86,7 +82,7 @@ namespace {
 	}
 
 	TEST(MoveCost, CostsTheDistanceOnFlatGroundAndNothingForNoMove) {
-		const Ground   ground = groundFor(fixtures::mixed());
+		const Ground   ground = fixtures::groundFor(fixtures::mixed());
 		const MoveCost costs(ground, fixtures::mixed().curviness);
 		EXPECT_EQ(costs.cost(0, 0, 0, 0, RoadClass::Highway).cost, 0);
 		const double flat = costs.cost(0, 0, 6, 8, RoadClass::Trail).cost;
@@ -95,7 +91,7 @@ namespace {
 	}
 
 	TEST(MoveCost, FavoursContoursAndHighwaysMindTheClimbMost) {
-		const Ground   ground = groundFor(fixtures::mixed());
+		const Ground   ground = fixtures::groundFor(fixtures::mixed());
 		const MoveCost costs(ground, fixtures::mixed().curviness);
 		const Terrain& terrain = ground.terrain();
 		int			   checked = 0;
@@ -118,7 +114,7 @@ namespace {
 	}
 
 	TEST(MoveCost, WeighsTheClimbByCurvinessSoWindingRoadsMindGradesMore) {
-		const Ground   ground = groundFor(fixtures::mixed());
+		const Ground   ground = fixtures::groundFor(fixtures::mixed());
 		const MoveCost straight(ground, 0);
 		const MoveCost winding(ground, 1);
 		int			   checked = 0;
@@ -138,7 +134,7 @@ namespace {
 	}
 
 	TEST(MoveCost, TurnsHighwaysAndBackRoadsBackFromTooSteepAClimbButNotTrails) {
-		const Ground   ground = groundFor(fixtures::rugged());
+		const Ground   ground = fixtures::groundFor(fixtures::rugged());
 		const MoveCost costs(ground, fixtures::rugged().curviness);
 		const Terrain& terrain = ground.terrain();
 		int			   checked = 0;
@@ -162,7 +158,7 @@ namespace {
 	}
 
 	TEST(MoveCost, BridgesARiverDearerTheWiderAndLessSquareOnAndNeverPastTheLongestBridgeOrUnder30Degrees) {
-		const Ground ground = groundFor(fixtures::mixed());
+		const Ground ground = fixtures::groundFor(fixtures::mixed());
 		const auto [x, y] = openGround(ground, 40);
 		const RiverIndex nothing;
 		const RiverIndex narrowWater = straightRiver(ground, x, 2);
@@ -199,7 +195,7 @@ namespace {
 	}
 
 	TEST(MoveCost, SpansABridgeOverTheWaterAndAUnitEitherSideAndNowhereElse) {
-		const Ground ground = groundFor(fixtures::mixed());
+		const Ground ground = fixtures::groundFor(fixtures::mixed());
 		const auto [x, y] = openGround(ground, 40);
 		const RiverIndex water = straightRiver(ground, x, 4);
 		const Ground	 wet = ground.withRivers(water);
@@ -219,7 +215,7 @@ namespace {
 	}
 
 	TEST(MoveCost, BridgesTheMetrosRiversEverywhereAtNoCostButNotDownTheirLine) {
-		const Ground	 ground = groundFor(fixtures::mixed());
+		const Ground	 ground = fixtures::groundFor(fixtures::mixed());
 		const RiverIndex water = straightRiver(ground, 10, 6);
 		const Ground	 wet = ground.withRivers(water);
 		const MoveCost	 costs(wet, fixtures::mixed().curviness);
@@ -234,7 +230,7 @@ namespace {
 	}
 
 	TEST(MoveCost, StandsCratersLakesRiversAndCliffsInTheWay) {
-		const Ground   ground = groundFor(fixtures::mixed());
+		const Ground   ground = fixtures::groundFor(fixtures::mixed());
 		const MoveCost costs(ground, fixtures::mixed().curviness);
 		const Hotspot& site = fixtures::hazardsFor(fixtures::mixed()).hotspots().front();
 		const double   cell = ground.terrain().surface().grid.cellSize;
@@ -252,14 +248,14 @@ namespace {
 		ASSERT_TRUE(river.has_value());
 		EXPECT_EQ(ground.obstacle(river->first, river->second), Obstacle::River);
 
-		const Ground	flood = groundFor(fixtures::floodlands());
+		const Ground	flood = fixtures::groundFor(fixtures::floodlands());
 		const LandGrid& grid = flood.terrain().surface().grid;
 		const auto		lakeCell = std::ranges::find_if(flood.water().lakeOf(), [](int lake) { return lake >= 0; });
 		ASSERT_NE(lakeCell, flood.water().lakeOf().end());
 		const auto lake = static_cast<int>(lakeCell - flood.water().lakeOf().begin());
 		EXPECT_EQ(flood.obstacle(cellCentre(grid, lake % grid.size), cellCentre(grid, lake / grid.size)), Obstacle::Lake);
 
-		const Ground   rugged = groundFor(fixtures::rugged());
+		const Ground   rugged = fixtures::groundFor(fixtures::rugged());
 		const Terrain& steep = rugged.terrain();
 		int			   cliffs = 0;
 		for (double x = -steep.radius(); x <= steep.radius(); x += 7) {

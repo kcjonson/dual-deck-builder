@@ -292,10 +292,10 @@ namespace {
 		const PipelineResult<AreaMap> result = generateAreaMap(
 			params, fixtures::placeNames(), {.onProgress = [&](const StageAttempt& attempt) { started.emplace_back(attempt.stage); }}
 		);
-		EXPECT_EQ(started, (std::vector<std::string>{"terrain", "water", "hazards", "places"}));
+		EXPECT_EQ(started, (std::vector<std::string>{"terrain", "water", "hazards", "places", "roads"}));
 		EXPECT_EQ(result.mapAttempt, 0U);
 		EXPECT_TRUE(result.failures.empty());
-		ASSERT_EQ(result.stages.size(), 4U);
+		ASSERT_EQ(result.stages.size(), 5U);
 		EXPECT_EQ(result.stages[0].stream, fixtures::terrainStream(params).seed());
 		EXPECT_EQ(result.stages[1].name, "water");
 		EXPECT_EQ(result.stages[1].stream, fixtures::waterStream(params).seed());
@@ -316,6 +316,8 @@ namespace {
 				EXPECT_EQ(water.rivers()[id].line[index].y, direct.rivers()[id].line[index].y);
 			}
 		}
+		ASSERT_TRUE(result.products.roads.has_value());
+		EXPECT_TRUE(fixtures::sameRoads(result.products.roads->links(), fixtures::roadsFor(params).links()));
 	}
 
 } // namespace

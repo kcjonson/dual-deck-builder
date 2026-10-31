@@ -2,13 +2,16 @@
 
 // The maps the map tests share, each built once a run. Tests only: nothing in the library includes it.
 
+#include "Ground.h"
 #include "Hazards.h"
 #include "Lakes.h"
 #include "LandGrid.h"
 #include "MapParams.h"
+#include "MoveCost.h"
 #include "ParamValidator.h"
 #include "PlaceNames.h"
 #include "Places.h"
+#include "Roads.h"
 #include "Terrain.h"
 #include "Water.h"
 
@@ -164,6 +167,82 @@ namespace rules::map::fixtures {
 			std::make_unique<Places>(params, terrainFor(params), waterFor(params), hazardsFor(params), placeNames(), placesStream(params))
 		);
 		return *built.back().second;
+	}
+
+	// The roads stage's stream over placesStream(params).
+	inline foundation::Rng roadsStream(const MapParams& params, uint32_t attempt = 0) {
+		return foundation::Rng(placesStream(params).seed()).fork("roads", attempt);
+	}
+
+	// The roads over the fixture's other layers, built the first time they're asked for.
+	inline const Roads& roadsFor(const MapParams& params) {
+		static std::vector<std::pair<MapParams, std::unique_ptr<Roads>>> built;
+		for (const auto& [key, roads] : built) {
+			if (key == params) {
+				return *roads;
+			}
+		}
+		built.emplace_back(
+			params,
+			std::make_unique<Roads>(
+				params, terrainFor(params), waterFor(params), hazardsFor(params), placesFor(params), roadsStream(params)
+			)
+		);
+		return *built.back().second;
+	}
+
+	// Whether two sets of links laid the same roads, move for move.
+	inline bool sameRoads(const RoadLinks& a, const RoadLinks& b) {
+		return std::ranges::equal(a.moves, b.moves, [](const RoadMove& left, const RoadMove& right) {
+			return left.from == right.from && left.direction == right.direction && left.roadClass == right.roadClass &&
+				   left.highway == right.highway;
+		});
+	}
+
+	// The ground under the fixture's roads: the land with its water and hazards.
+	inline Ground groundFor(const MapParams& params) {
+		return {terrainFor(params), waterFor(params), hazardsFor(params)};
+	}
+
+	// Whether a road along the segment passes, sampled at its ends and every half unit from its lower-left end
+	// between, as the edge cost field samples a move: no sample on impassable ground bar river water under one
+	// of its bridges, the metro's rivers counting though obstacle passes them, bar on Home's own cells. Asks
+	// every sample everything, where the field asks only after what could be there.
+	inline bool passableAlong(const Ground& ground, double x0, double y0, double x1, double y1) {
+		const MoveCost				  costs(ground, 0.5);
+		const std::vector<BridgeSpan> spans = costs.bridgeSpans(x0, y0, x1, y1);
+		const double				  home = ground.terrain().surface().grid.cellSize;
+		const double				  length = std::sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0));
+		const bool					  forward = x0 < x1 || (x0 == x1 && y0 <= y1);
+		const double				  startX = forward ? x0 : x1;
+		const double				  startY = forward ? y0 : y1;
+		const double				  endX = forward ? x1 : x0;
+		const double				  endY = forward ? y1 : y0;
+		const auto					  blocked = [&](double x, double y, double along) {
+			   const Obstacle obstacle = ground.obstacle(x, y);
+			   const bool	  metroRiver = obstacle == Obstacle::None && ground.bridged(x, y) && ground.waterAt(x, y) == WaterKind::River;
+			   if (obstacle == Obstacle::None && !metroRiver) {
+				   return false;
+			   }
+			   if (obstacle != Obstacle::None && obstacle != Obstacle::River) {
+				   return true;
+			   }
+			   if (std::abs(x) <= home && std::abs(y) <= home) {
+				   return false;
+			   }
+			   return std::ranges::none_of(spans, [&](const BridgeSpan& span) { return along >= span.from && along <= span.to; });
+		};
+		if (blocked(x0, y0, 0) || blocked(x1, y1, 1)) {
+			return false;
+		}
+		const auto inner = static_cast<int>(std::ceil(length / 0.5)) - 1;
+		for (int sample = 1; sample <= inner; ++sample) {
+			const double share = sample * 0.5 / length;
+			if (blocked(startX + (endX - startX) * share, startY + (endY - startY) * share, forward ? share : 1 - share)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	// What holding behind a dam means: every lake cell stands under the level and drains into the lake, the

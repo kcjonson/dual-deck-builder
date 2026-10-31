@@ -2,6 +2,7 @@ target_sources(ddb_rules PRIVATE
     AreaMapPipeline.cpp
     Biome.cpp
     Drainage.cpp
+    EdgeCostField.cpp
     Erosion.cpp
     Ground.cpp
     Hazards.cpp
@@ -18,6 +19,9 @@ target_sources(ddb_rules PRIVATE
     Places.cpp
     RiverIndex.cpp
     Rivers.cpp
+    RoadLinks.cpp
+    Roads.cpp
+    RoadSearch.cpp
     RollParams.cpp
     Terrain.cpp
     Uplift.cpp

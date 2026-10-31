@@ -5,6 +5,8 @@
 #include "Terrain.h"
 #include "Water.h"
 
+#include <span>
+
 namespace rules::map {
 
 	enum class WaterKind { None, Lake, River };
@@ -50,6 +52,8 @@ namespace rules::map {
 		[[nodiscard]] double contamination(double x, double y) const;
 		// True inside a crater: none before the hazards are laid.
 		[[nodiscard]] bool crater(double x, double y) const;
+		// The hazards' hotspots, none before they're laid.
+		[[nodiscard]] std::span<const Hotspot> hotspots() const;
 		// A lake, a river, or neither; a lake where both are.
 		[[nodiscard]] WaterKind waterAt(double x, double y) const;
 		// True where the metro's streets bridge whatever river they meet: inside it, and kMetroBridges past it.

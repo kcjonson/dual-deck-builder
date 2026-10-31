@@ -132,7 +132,7 @@ namespace {
 								return attempt.stage == "hazards" && attempt.attempt == 0 ? Problems{"no craters there"} : Problems{};
 							}});
 		EXPECT_EQ(result.mapAttempt, 0U);
-		ASSERT_EQ(result.stages.size(), 4U);
+		ASSERT_EQ(result.stages.size(), 5U);
 		EXPECT_EQ(result.stages[0].attempt, 0U);
 		EXPECT_EQ(result.stages[0].stream, fixtures::terrainStream(params).seed());
 		EXPECT_EQ(result.stages[1].attempt, 0U);
