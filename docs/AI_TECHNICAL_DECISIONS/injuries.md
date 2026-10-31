@@ -54,6 +54,14 @@ Two values beside the day clock's in `compound-rules.json`, read by the same str
 
 Nothing here draws randomness.
 
+## In the C++ alpha
+
+`libs/rules/campaign/Infirmary.h` (2026-10-31, DDB-573) keeps these rules and calls, and [campaign.md](./campaign.md) has how. What differs:
+
+- `unloadRun` injures the run's seats itself, so a run home can't skip it; `endDay` after it is still the first day out.
+- Max HP is the archetype's (call 394), so the days count against it as it stands.
+- Seating, `seatBlocker`, is in `RunDecks.h` beside load out's start, with `CampaignOver` ahead of the rest.
+
 ## Provisional calls
 
 Each is a value or a line or two to change, and none is in the spec.
