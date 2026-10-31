@@ -115,6 +115,14 @@ The land is built from adds, multiplies, divides, compares, square roots, and fl
 
 The terrain stream forks by feature: `hills`, `ranges`, `rangeWarp`, `rangeBreaks`, `grain`, `outlets`, and `initial` for the land, and `detail`, `roughness`, `contamination`, `hotspots`, and `towns` for the rest; moisture's noise moved to the water stream. So towns, hotspots, contamination, and anything past the terrain stage never move the land; a test changes six such parameters and gets the same grid.
 
+## In the C++ alpha
+
+`libs/rules/map/` (`LandGrid`, `Uplift`, `Drainage`, `Erosion`, `Land`, `Terrain`; 2026-10-30, DDB-571) builds this record's land with its numbers, three things apart:
+
+- Drainage finds the levels with a plain priority flood over the whole grid: cells reached at their own height wait in a heap by level and index, cells reached under water in a FIFO a flood rise above the level just settled, and the lower front settles first. The levels are the one solution of the rule above, so they're the TypeScript router's to the bit on the same heights, and the tests hold the router to a flood written by its definition on random, terraced, and near-level grids. The linear-time router, flooding only where water stands, is the lever if the full-size timings ask for it.
+- The noise is salal's (terrain-fields.md, Noise is the engine's), and the grain is a unit vector from salal's `det_math` sine and cosine rather than Geometry.ts's polynomial. Fine relief in range country (provisional call 11) waits on salal's noise giving derivatives, so the alpha's elevation is the bicubic grid, terraced.
+- No hash of the land is pinned. The tests hold that the same params and stream erode the same bits, that the pipeline's terrain is the one built straight from its stream, that another stage attempt erodes other land, and that the parameters later stages read don't move it. That a seed erodes the same bits on another platform rests on the arithmetic above and `-ffp-contract=off`; no test compares platforms.
+
 ## Consequences
 
 - Every generated map moves. Nothing saved holds the land; it regenerates on load.

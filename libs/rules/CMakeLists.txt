@@ -15,6 +15,7 @@ add_library(ddb_rules STATIC
     packs/Pack.cpp
 )
 add_library(ddb::rules ALIAS ddb_rules)
+add_subdirectory(map)
 
 add_subdirectory(battle)
 
