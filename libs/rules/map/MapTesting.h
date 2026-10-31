@@ -247,6 +247,40 @@ namespace rules::map::fixtures {
 		return *built.back().second;
 	}
 
+	// The stops stage's stream over poisStream(params).
+	inline foundation::Rng stopsStream(const MapParams& params, uint32_t attempt = 0) {
+		return foundation::Rng(poisStream(params).seed()).fork("stops", attempt);
+	}
+
+	// The stops over the fixture's POIs on the stops stage's stream at an attempt.
+	inline StopLayer stopsOn(const MapParams& params, uint32_t attempt) {
+		const Ground  ground = Ground(terrainFor(params), waterFor(params), hazardsFor(params));
+		const BiomeAt biomeAt = [ground](Point at) {
+			return ground.biome(at.x, at.y);
+		};
+		return placeStops({
+			.network = roadsFor(params).network(),
+			.pois = poisFor(params),
+			.biomeAt = biomeAt,
+			.params = params,
+			.tuning = content().stops,
+			.tables = content().stopTables,
+			.stream = stopsStream(params, attempt),
+		});
+	}
+
+	// The stops over the fixture's POIs on stopsStream(params), built the first time they're asked for.
+	inline const StopLayer& stopsFor(const MapParams& params) {
+		static std::vector<std::pair<MapParams, std::unique_ptr<StopLayer>>> built;
+		for (const auto& [key, layer] : built) {
+			if (key == params) {
+				return *layer;
+			}
+		}
+		built.emplace_back(params, std::make_unique<StopLayer>(stopsOn(params, 0)));
+		return *built.back().second;
+	}
+
 	// Whether two roads stages laid the same roads, move for move, and drew the same network, point for point, its
 	// highways numbered alike.
 	inline bool sameRoads(const Roads& a, const Roads& b) {

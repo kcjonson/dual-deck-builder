@@ -6,6 +6,7 @@
 #include <rules/core/JsonReader.h>
 
 #include <array>
+#include <cstddef>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -43,8 +44,38 @@ namespace rules::map {
 		{"findSupplies", StopType::FindSupplies},
 	}};
 
+	inline constexpr size_t kStopTypeCount = kStopTypeNames.size();
+
 	[[nodiscard]] constexpr bool isFight(StopType type) {
 		return type == StopType::Ambush || type == StopType::Warband;
+	}
+
+	// A non-fight for the per-route rules: neither a fight nor a checkpoint, which can turn into one (call 4).
+	[[nodiscard]] constexpr bool isCalm(StopType type) {
+		return !isFight(type) && type != StopType::Checkpoint;
+	}
+
+	// A type the run has a screen for (Runs and Encounters, What a stop can be): the fights, the three finds, and the
+	// wreck and distress signal the event screen takes. The stop tables weigh every other type at 0, so a stop that
+	// does nothing is never placed; a type joins here once the run can resolve it.
+	[[nodiscard]] constexpr bool isResolvable(StopType type) {
+		switch (type) {
+			case StopType::Ambush:
+			case StopType::Warband:
+			case StopType::Wreck:
+			case StopType::Distress:
+			case StopType::FindDriver:
+			case StopType::FindCards:
+			case StopType::FindSupplies:
+				return true;
+			case StopType::Checkpoint:
+			case StopType::Garage:
+			case StopType::Hazard:
+			case StopType::FindSettlers:
+			case StopType::FindVehicle:
+				return false;
+		}
+		return false;
 	}
 
 	// Destination tiers, 1 to 5.
@@ -101,7 +132,7 @@ namespace rules::map {
 		double tightGap{0};
 		double jitter{0};
 		// By StopType.
-		std::array<StopKind, 12> types;
+		std::array<StopKind, kStopTypeCount> types;
 		// By tier from 1.
 		std::array<StopBand, kStopTiers> bands{};
 		// Game stages a route's dormant extras turn on at, rising.

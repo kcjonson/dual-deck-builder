@@ -5,6 +5,7 @@
 #include "StopData.h"
 
 #include <limits>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -39,6 +40,20 @@ namespace rules::map {
 
 	// World units a stop keeps from either end of a leg this long: the clearance, or a quarter of a short leg.
 	[[nodiscard]] double legEnds(double length, const StopTuning& tuning);
+
+	// World units along a leg, from its inner end.
+	struct LegSpan {
+		double from{0};
+		double to{0};
+	};
+
+	// Where on a leg this long a stop `gap` from its neighbours can stand: half a gap in from the ends' clearance.
+	[[nodiscard]] LegSpan legSpan(double length, double gap, const StopTuning& tuning);
+
+	// The point of [from, to] nearest `target` that keeps `clear` from every junction, the lower of two as near; none
+	// where there's none. The nearest such point is the target, an end, or a junction's clearance either side, so
+	// those are all it tries.
+	[[nodiscard]] std::optional<double> nearestClear(double target, double from, double to, std::span<const double> joins, double clear);
 
 	// The most points of [from, to] at least `gap` apart and `clear` from every junction, packed from `from`, at most
 	// `limit`: as many as any spacing fits.

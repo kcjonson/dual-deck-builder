@@ -35,8 +35,13 @@ target_sources(ddb_rules PRIVATE
     RouteDescriptors.cpp
     RouteLegs.cpp
     RouteTree.cpp
+    StopChecks.cpp
+    StopContents.cpp
     StopData.cpp
     StopRoom.cpp
+    StopRules.cpp
+    StopTables.cpp
+    Stops.cpp
     Terrain.cpp
     Uplift.cpp
     Water.cpp

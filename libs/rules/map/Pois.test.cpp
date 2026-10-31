@@ -1,16 +1,13 @@
 #include <rules/map/AreaMapPipeline.h>
 #include <rules/map/PoiChecks.h>
+#include <rules/map/PoiTesting.h>
 #include <rules/map/Pois.h>
-#include <rules/map/RouteTesting.h>
 #include <rules/map/StopRoom.h>
 
 #include <gtest/gtest.h>
 
 #include <algorithm>
 #include <cmath>
-#include <filesystem>
-#include <map>
-#include <memory>
 #include <set>
 #include <vector>
 
@@ -18,75 +15,15 @@ namespace {
 
 	using namespace rules::map;
 
+	using fixtures::kMeshRadius;
+	using Seated = fixtures::SeatedMesh;
+
 	const MapContent& base() {
-		static const MapContent content = readMapContent(std::filesystem::path(DDB_PACKS_DIR) / "base");
-		return content;
+		return fixtures::baseContent();
 	}
-
-	MapParams paramsAt(int radius, int strongholds = 4) {
-		MapParams params = environmentDefaults(0, Environment::Mixed);
-		params.radius = radius;
-		params.strongholds = strongholds;
-		return params;
-	}
-
-	// Land with its ruins round the compound and three towns, ranges in the far west, and wet ground in the south.
-	PoiGround fakeGround(double radius) {
-		const auto ruin = [](Point at) {
-			double most = 0;
-			for (const Point town :
-				 {Point{.x = 0, .y = 0}, Point{.x = 350, .y = 200}, Point{.x = -300, .y = -350}, Point{.x = 150, .y = -500}}) {
-				const double ratio = ((at.x - town.x) * (at.x - town.x) + (at.y - town.y) * (at.y - town.y)) / (60.0 * 60.0);
-				most = std::max(most, ratio <= 1 ? 1 : ratio >= 4 ? 0 : (4 - ratio) / 3);
-			}
-			return most;
-		};
-		return {
-			.radius = radius,
-			.metroRadius = 0.15 * radius,
-			.biome = [](Point at) { return at.x < -500	 ? Biome::Mountains
-										   : at.y < -400 ? Biome::Mire
-														 : Biome::Scrub; },
-			.elevation = [](Point at) { return at.x < -500 ? 0.8 : 0.4; },
-			.moisture = [](Point at) { return at.y < -400 ? 0.9 : 0.4; },
-			.ruin = ruin,
-		};
-	}
-
-	struct Seated {
-		RoadNetwork network;
-		RouteTree	tree;
-		MapParams	params;
-		PoiGround	ground;
-		PoiLayer	layer;
-
-		Seated(uint32_t seed, int radius, uint32_t stream = 0)
-			: network(fixtures::randomMesh({.seed = seed, .radius = static_cast<double>(radius)})),
-			  tree(buildRouteTree({.network = network})),
-			  params(paramsAt(radius)),
-			  ground(fakeGround(radius)),
-			  layer(placePois({
-				  .network = network,
-				  .tree = tree,
-				  .ground = ground,
-				  .params = params,
-				  .tuning = base().pois,
-				  .factions = base().factions,
-				  .stops = base().stops,
-				  .stream = foundation::Rng(stream).fork("pois"),
-			  })) {}
-	};
-
-	// Radius 800, each seated once a run.
-	constexpr int kMeshRadius = 800;
 
 	const Seated& seatedOn(uint32_t seed) {
-		static std::map<uint32_t, std::unique_ptr<Seated>> built;
-		std::unique_ptr<Seated>&						   seated = built[seed];
-		if (!seated) {
-			seated = std::make_unique<Seated>(seed, kMeshRadius);
-		}
-		return *seated;
+		return fixtures::seatedMesh(seed);
 	}
 
 	std::vector<PoiViolation> violations(const Seated& seated) {
@@ -169,8 +106,8 @@ namespace {
 
 	TEST(Pois, DrawTheSameLayerFromTheSameStreamAndAnotherFromAnother) {
 		const Seated& first = seatedOn(500);
-		const Seated  again(500, kMeshRadius);
-		const Seated  other(500, kMeshRadius, 1);
+		const Seated  again(500, fixtures::meshParams(kMeshRadius));
+		const Seated  other(500, fixtures::meshParams(kMeshRadius), 1);
 		const auto	  sites = [](const PoiLayer& layer) {
 			   std::vector<Point> at;
 			   for (const Poi& poi : layer.pois) {
@@ -187,8 +124,8 @@ namespace {
 		// A sparse mesh with few loops: few meeting points for four strongholds and thirty POIs.
 		RoadNetwork		network = fixtures::randomMesh({.seed = 40, .radius = 700, .spacing = 120, .loops = 0.15});
 		const RouteTree tree = buildRouteTree({.network = network});
-		const MapParams params = paramsAt(700);
-		const PoiGround ground = fakeGround(700);
+		const MapParams params = fixtures::meshParams(700);
+		const PoiGround ground = fixtures::fakePoiGround(700);
 		const PoiLayer	layer = placePois({
 			 .network = network,
 			 .tree = tree,
