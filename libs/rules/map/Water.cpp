@@ -291,6 +291,7 @@ namespace rules::map {
 		aboveWaterOf = near.above;
 		alongToWaterOf = near.along;
 		lakeDepthOf = lakeDepthField(grid, land.elevation, lakes);
+		index = RiverIndex(riverList, grid.halfExtent);
 		lakeIndex = std::move(lakes.lakeOf);
 		lakeList = std::move(lakes.lakes);
 	}

@@ -20,7 +20,8 @@ namespace rules::map {
 	Ground::Ground(const Terrain& terrain, const Water& water, const Hazards* layer)
 		: land(&terrain),
 		  wet(&water),
-		  hazards(layer) {
+		  hazards(layer),
+		  riverWater(&water.riverIndex()) {
 		assert(water.moisture().size() == static_cast<size_t>(terrain.surface().grid.cells()) && "Ground: the water is the terrain's");
 	}
 
@@ -64,6 +65,38 @@ namespace rules::map {
 
 	bool Ground::crater(double x, double y) const {
 		return hazards != nullptr && hazards->crater(x, y);
+	}
+
+	Ground Ground::withRivers(const RiverIndex& rivers) const {
+		Ground other = *this;
+		other.riverWater = &rivers;
+		return other;
+	}
+
+	WaterKind Ground::waterAt(double x, double y) const {
+		if (GridSampler(land->surface().grid, wet->lakeDepth()).bilinear(x, y) > 0) {
+			return WaterKind::Lake;
+		}
+		return riverWater->contains(x, y) ? WaterKind::River : WaterKind::None;
+	}
+
+	bool Ground::bridged(double x, double y) const {
+		const double reach = land->start().metro + kMetroBridges;
+		return x * x + y * y <= reach * reach;
+	}
+
+	Obstacle Ground::obstacle(double x, double y) const {
+		if (crater(x, y)) {
+			return Obstacle::Crater;
+		}
+		const WaterKind water = waterAt(x, y);
+		if (water == WaterKind::Lake) {
+			return Obstacle::Lake;
+		}
+		if (water == WaterKind::River && !bridged(x, y)) {
+			return Obstacle::River;
+		}
+		return land->fields().cliff(x, y) ? Obstacle::Cliff : Obstacle::None;
 	}
 
 } // namespace rules::map

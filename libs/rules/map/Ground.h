@@ -7,6 +7,15 @@
 
 namespace rules::map {
 
+	enum class WaterKind { None, Lake, River };
+
+	// Why ground is impassable.
+	enum class Obstacle { None, Crater, Lake, River, Cliff };
+
+	// World units past the metro's edge its streets bridge every river, so a highway leaving it over one leaves
+	// on a bridge.
+	inline constexpr double kMetroBridges = 1;
+
 	// Everything about one point of the ground.
 	struct GroundSample {
 		double		elevation{0};
@@ -26,8 +35,12 @@ namespace rules::map {
 		Ground(const Terrain& terrain, const Water& water);
 		Ground(const Terrain& terrain, const Water& water, const Hazards& layer);
 
-		[[nodiscard]] const Terrain& terrain() const { return *land; }
-		[[nodiscard]] const Water&	 water() const { return *wet; }
+		[[nodiscard]] const Terrain&	terrain() const { return *land; }
+		[[nodiscard]] const Water&		water() const { return *wet; }
+		[[nodiscard]] const RiverIndex& rivers() const { return *riverWater; }
+
+		// The same ground with other rivers' water in place of its own: what a test stands a river in with.
+		[[nodiscard]] Ground withRivers(const RiverIndex& rivers) const;
 
 		[[nodiscard]] GroundSample sample(double x, double y) const;
 		[[nodiscard]] Biome		   biome(double x, double y) const;
@@ -37,13 +50,20 @@ namespace rules::map {
 		[[nodiscard]] double contamination(double x, double y) const;
 		// True inside a crater: none before the hazards are laid.
 		[[nodiscard]] bool crater(double x, double y) const;
+		// A lake, a river, or neither; a lake where both are.
+		[[nodiscard]] WaterKind waterAt(double x, double y) const;
+		// True where the metro's streets bridge whatever river they meet: inside it, and kMetroBridges past it.
+		[[nodiscard]] bool bridged(double x, double y) const;
+		// Why (x, y) is impassable: a crater, then a lake, then a river outside the metro's bridges, then a cliff.
+		[[nodiscard]] Obstacle obstacle(double x, double y) const;
 
 	  private:
 		Ground(const Terrain& terrain, const Water& water, const Hazards* layer);
 
-		const Terrain* land;
-		const Water*   wet;
-		const Hazards* hazards;
+		const Terrain*	  land;
+		const Water*	  wet;
+		const Hazards*	  hazards;
+		const RiverIndex* riverWater;
 	};
 
 } // namespace rules::map

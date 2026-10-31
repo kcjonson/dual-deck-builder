@@ -3,6 +3,7 @@
 #include "Drainage.h"
 #include "Lakes.h"
 #include "MapParams.h"
+#include "RiverIndex.h"
 #include "Rivers.h"
 #include "Terrain.h"
 
@@ -53,6 +54,8 @@ namespace rules::map {
 		[[nodiscard]] std::span<const int>		lakeOf() const { return lakeIndex; }
 		[[nodiscard]] const std::vector<River>& rivers() const { return riverList; }
 		[[nodiscard]] const std::vector<Lake>&	lakes() const { return lakeList; }
+		// Where the rivers' water is.
+		[[nodiscard]] const RiverIndex& riverIndex() const { return index; }
 
 	  private:
 		double				streamThreshold{0};
@@ -66,6 +69,7 @@ namespace rules::map {
 		std::vector<int>	lakeIndex;
 		std::vector<River>	riverList;
 		std::vector<Lake>	lakeList;
+		RiverIndex			index;
 	};
 
 } // namespace rules::map
