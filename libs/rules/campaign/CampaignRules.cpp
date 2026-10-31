@@ -59,8 +59,9 @@ namespace rules::campaign {
 			return rules;
 		}
 
-		HaulRange readHaul(JsonReader reader) {
-			const int least = requireIntIn(reader, "min", 0, kMostRule);
+		// Fuel's least is at least 1, so every party brings some and the file can't be tuned into a soft-lock.
+		HaulRange readHaul(JsonReader reader, int fewest) {
+			const int least = requireIntIn(reader, "min", fewest, kMostRule);
 			HaulRange haul{.least = least, .most = requireIntIn(reader, "max", least, kMostRule)};
 			reader.finish();
 			return haul;
@@ -80,8 +81,8 @@ namespace rules::campaign {
 				.unrestPerUnit = requireIntIn(shortfall, "unrestPerUnit", 0, kMostRule),
 				.hitpointsPerDay = requireIntIn(infirmary, "hitpointsPerDay", 1, kMostRule),
 				.medsPerDay = requireIntIn(infirmary, "medsPerDay", 1, kMostRule),
-				.scavengedFuel = readHaul(scavenging.requireObject("fuel")),
-				.scavengedScrap = readHaul(scavenging.requireObject("scrap")),
+				.scavengedFuel = readHaul(scavenging.requireObject("fuel"), 1),
+				.scavengedScrap = readHaul(scavenging.requireObject("scrap"), 0),
 				.starveAtFood = requireIntIn(fall, "starveAtFood", 0, kMostRule),
 				.riotAtUnrest = requireIntIn(fall, "riotAtUnrest", 1, kMostRule),
 			};

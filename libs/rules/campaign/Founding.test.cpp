@@ -39,6 +39,7 @@ namespace {
 		EXPECT_TRUE(campaign.locker.empty());
 		EXPECT_TRUE(campaign.convoy.empty());
 		EXPECT_FALSE(campaign.run.has_value());
+		EXPECT_EQ(campaign.log, (std::vector{LogEntry{.day = 1, .text = "Founded the compound."}}));
 		EXPECT_EQ(campaign.packs, (std::vector{PackRef{.id = PackId{"base"}, .version = "0.1.0"}}));
 
 		// The deal is the seed's: pinned, so moving its stream, sort, or shuffle shows up here.

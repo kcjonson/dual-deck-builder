@@ -99,7 +99,7 @@ namespace {
 		const uint32_t		seed = nextFightSeed(campaign);
 		const CampaignFight fight = ended(startCampaignFight(campaign, testContent(), kTail).fight, Outcome::Won);
 
-		const FightWriteBack written = writeBackFight(campaign, testContent(), fight);
+		const FightWriteBack written = writeBackFight(campaign, testContent(), testRules(), fight);
 		EXPECT_EQ(written.outcome, Outcome::Won);
 		EXPECT_EQ(
 			written.seats,
@@ -130,16 +130,19 @@ namespace {
 		EXPECT_EQ(run.cargo, (Resources{.fuel = 1}));
 
 		EXPECT_EQ(run.fights, 1);
+		EXPECT_EQ(campaign.tally.fightsWon, 1);
 		EXPECT_NE(nextFightSeed(campaign), seed);
-		EXPECT_THROW((void)writeBackFight(campaign, testContent(), fight), std::invalid_argument) << "it's written back already";
+		EXPECT_THROW((void)writeBackFight(campaign, testContent(), testRules(), fight), std::invalid_argument)
+			<< "it's written back already";
 		EXPECT_EQ(readCampaign(writeCampaign(campaign, testContent()), testContent()), campaign);
 	}
 
 	TEST(CombatBridge, ABrokenOffFightRevivesAndPicksUpAsAWinDoesAndPaysNothing) {
 		Campaign	   campaign = onARun();
 		const CrewId   warrior = crewOf(campaign, "road_warrior");
-		FightWriteBack written =
-			writeBackFight(campaign, testContent(), ended(startCampaignFight(campaign, testContent(), kTail).fight, Outcome::BrokenOff));
+		FightWriteBack written = writeBackFight(
+			campaign, testContent(), testRules(), ended(startCampaignFight(campaign, testContent(), kTail).fight, Outcome::BrokenOff)
+		);
 		EXPECT_EQ(written.seats[0].fate, SeatFate::Revived) << "call 198";
 		EXPECT_EQ(written.seats[1].fate, SeatFate::PickedUp);
 		EXPECT_EQ(campaign.driver(warrior).hitpoints, kReviveHitpoints);
@@ -169,7 +172,7 @@ namespace {
 		fight.state.driver(DriverIndex{1}).crashedOut = true;
 		fight.state.phase = Phase::Over;
 		fight.state.outcome = Outcome::Lost;
-		const FightWriteBack written = writeBackFight(campaign, testContent(), fight);
+		const FightWriteBack written = writeBackFight(campaign, testContent(), testRules(), fight);
 
 		EXPECT_EQ(written.seats[0].fate, SeatFate::Dead);
 		EXPECT_EQ(written.seats[1].fate, SeatFate::Missing);
@@ -195,6 +198,9 @@ namespace {
 		EXPECT_EQ(missing.status, DriverStatus::Missing);
 		EXPECT_EQ(missing.hitpoints, 18);
 		EXPECT_EQ(missing.defaultDeck, interceptorDeck) << "call 138";
+		EXPECT_EQ(campaign.tally.runsFailed, 1);
+		EXPECT_EQ(campaign.log.back().text, "Cargo lost with the run: 30 scrap and Headshot.") << "call 23";
+		EXPECT_FALSE(campaign.end.has_value()) << "the Mechanic is still at home";
 
 		CardCounts left = owned;
 		for (const auto& [lostCard, count] : written.lost->cardsLost) {
@@ -204,16 +210,32 @@ namespace {
 		EXPECT_EQ(readCampaign(writeCampaign(campaign, testContent()), testContent()), campaign);
 	}
 
+	TEST(CombatBridge, ALostRunThatLeavesNobodyAtTheCompoundEndsTheCampaign) {
+		Campaign campaign = onARun();
+		campaign.driver(crewOf(campaign, "mechanic")).status = DriverStatus::Missing;
+		campaign.unrest = 12;
+		CampaignFight fight = startCampaignFight(campaign, testContent(), kTail).fight;
+		fight.state.driver(DriverIndex{0}).hitpoints = 0;
+		fight.state.driver(DriverIndex{1}).hitpoints = 0;
+		fight.state.phase = Phase::Over;
+		fight.state.outcome = Outcome::Lost;
+		(void)writeBackFight(campaign, testContent(), testRules(), fight);
+		EXPECT_EQ(campaign.end, (CampaignEnd{.ending = Ending::Rioted, .cause = EndCause::LastDriver})) << "fed, but past 10 unrest";
+		EXPECT_EQ(campaign.log.back().text, "No drivers are left, and the compound rioted.");
+		EXPECT_EQ(campaign.log.size(), 2U) << "the run carried nothing, so no cargo line";
+		EXPECT_EQ(readCampaign(writeCampaign(campaign, testContent()), testContent()), campaign);
+	}
+
 	TEST(CombatBridge, OnlyTheRunsNextFightWhenItsOverIsWrittenBack) {
 		Campaign	  campaign = onARun();
 		CampaignFight fight = startCampaignFight(campaign, testContent(), kTail).fight;
-		EXPECT_THROW((void)writeBackFight(campaign, testContent(), fight), std::invalid_argument) << "it's still on";
+		EXPECT_THROW((void)writeBackFight(campaign, testContent(), testRules(), fight), std::invalid_argument) << "it's still on";
 		fight = ended(std::move(fight), Outcome::Won);
 		CampaignFight elsewhere = fight;
 		elsewhere.run = RunId{"run-7"};
-		EXPECT_THROW((void)writeBackFight(campaign, testContent(), elsewhere), std::invalid_argument);
+		EXPECT_THROW((void)writeBackFight(campaign, testContent(), testRules(), elsewhere), std::invalid_argument);
 		giveUpLoadOut(campaign);
-		EXPECT_THROW((void)writeBackFight(campaign, testContent(), fight), std::invalid_argument) << "no run is out";
+		EXPECT_THROW((void)writeBackFight(campaign, testContent(), testRules(), fight), std::invalid_argument) << "no run is out";
 		EXPECT_THROW((void)startCampaignFight(campaign, testContent(), kTail), std::invalid_argument);
 	}
 

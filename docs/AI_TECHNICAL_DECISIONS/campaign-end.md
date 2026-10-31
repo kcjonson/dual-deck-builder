@@ -102,6 +102,14 @@ The rest of 6.3 isn't in the campaign, so the screen leaves it out: the last run
 
 A load refuses a tally that counts more runs ended than run ids handed out, less the run out.
 
+## In the C++ alpha
+
+`libs/rules/campaign/CampaignEnd.h` (2026-10-31, DDB-573) keeps these rules and calls, and [campaign.md](./campaign.md) has how. What differs:
+
+- A lost fight ends the run in the bridge's write-back, so that's where a run that leaves nobody at the compound ends the campaign, with the cargo's line first.
+- Nothing closes models: the campaign is a value, so every blocker gives `CampaignOver` and every action refuses once `end` is set.
+- `findMissingDriver` and `foundOnRun`, the store's checkpoints and history, the defeat screen, and `campaignStats` aren't built.
+
 ## Provisional calls
 
 None of these is written into a spec. Applied from the orchestrator's provisional calls, pending Kevin:

@@ -1,5 +1,7 @@
 #include "CampaignJson.h"
 
+#include "CampaignEnd.h"
+
 #include <rules/battle/Battle.h>
 #include <rules/core/ContentError.h>
 
@@ -59,12 +61,9 @@ namespace rules::campaign {
 			};
 		}
 
-		std::string_view nameOf(Building building) {
-			return std::ranges::find(kBuildingNames, building, &std::pair<std::string_view, Building>::second)->first;
-		}
-
-		std::string_view nameOf(DriverStatus status) {
-			return std::ranges::find(kDriverStatusNames, status, &std::pair<std::string_view, DriverStatus>::second)->first;
+		template <typename Enum, std::size_t Count>
+		std::string_view nameOf(Enum value, const EnumNames<Enum, Count>& names) {
+			return std::ranges::find(names, value, &std::pair<std::string_view, Enum>::second)->first;
 		}
 
 		std::vector<PackRef> readPacks(JsonReader& reader, const Content& content) {
@@ -181,7 +180,10 @@ namespace rules::campaign {
 				reader.failAt("driver", "names " + deck.driver.value + ", who isn't in the pool");
 			}
 			if (driver->status != DriverStatus::Ready) {
-				reader.failAt("driver", deck.driver.value + " is " + std::string(nameOf(driver->status)) + ", and only the ready go out");
+				reader.failAt(
+					"driver",
+					deck.driver.value + " is " + std::string(nameOf(driver->status, kDriverStatusNames)) + ", and only the ready go out"
+				);
 			}
 			if (!driver->defaultDeck.empty()) {
 				reader.failAt("driver", deck.driver.value + "'s default deck is in this run deck, so the record holds none");
@@ -246,6 +248,21 @@ namespace rules::campaign {
 			}
 			reader.finish();
 			return run;
+		}
+
+		// An end the state shows: no run out, and nobody left at the compound or no People, by its cause.
+		CampaignEnd readEnd(JsonReader reader, const Campaign& campaign) {
+			const CampaignEnd end{
+				.ending = reader.requireEnum("ending", kEndingNames), .cause = reader.requireEnum("cause", kEndCauseNames)
+			};
+			reader.finish();
+			if (campaign.run) {
+				reader.fail("is set with a run out, which has to be home or lost first");
+			}
+			if (end.cause == EndCause::LastDriver ? !nobodyAtCompound(campaign) : campaign.stores.people > 0) {
+				reader.failAt("cause", "isn't what the campaign shows: someone is still at the compound, or People is above 0");
+			}
+			return end;
 		}
 
 		nlohmann::json runJson(const Run& run) {
@@ -351,6 +368,31 @@ namespace rules::campaign {
 		if (!run.is_null()) {
 			campaign.run = readRun(JsonReader(run, reader.where() + ".run"), campaign, content);
 		}
+		for (JsonReader& entry : reader.requireObjects("log")) {
+			LogEntry line{.day = requireIntIn(entry, "day", 1, campaign.day), .text = entry.requireString("text")};
+			entry.finish();
+			if (!campaign.log.empty() && line.day < campaign.log.back().day) {
+				entry.failAt("day", "is before the line ahead of it; the log runs in day order");
+			}
+			if (line.text.empty()) {
+				entry.failAt("text", "can't be empty");
+			}
+			campaign.log.push_back(std::move(line));
+		}
+		JsonReader tally = reader.requireObject("tally");
+		campaign.tally = Tally{
+			.runsHome = requireIntIn(tally, "runsHome", 0),
+			.runsFailed = requireIntIn(tally, "runsFailed", 0),
+			.fightsWon = requireIntIn(tally, "fightsWon", 0),
+		};
+		tally.finish();
+		if (campaign.tally.runsHome + campaign.tally.runsFailed > campaign.nextRunNumber - 1 - (campaign.run ? 1 : 0)) {
+			reader.failAt("tally", "counts more runs ended than were handed ids, less the one out");
+		}
+		const nlohmann::json& end = reader.requireValue("end");
+		if (!end.is_null()) {
+			campaign.end = readEnd(JsonReader(end, reader.where() + ".end"), campaign);
+		}
 		reader.finish();
 		return campaign;
 	}
@@ -362,14 +404,14 @@ namespace rules::campaign {
 		}
 		nlohmann::json buildings = nlohmann::json::array();
 		for (const Building building : campaign.buildings) {
-			buildings.push_back(std::string(nameOf(building)));
+			buildings.push_back(std::string(nameOf(building, kBuildingNames)));
 		}
 		nlohmann::json drivers = nlohmann::json::array();
 		for (const DriverRecord& driver : campaign.drivers) {
 			drivers.push_back({
 				{"id", driver.id.value},
 				{"archetype", driver.archetype.value},
-				{"status", std::string(nameOf(driver.status))},
+				{"status", std::string(nameOf(driver.status, kDriverStatusNames))},
 				{"hitpoints", driver.hitpoints},
 				{"injuredDays", driver.injuredDays},
 				{"vehicle", {{"structure", driver.vehicle.structure}, {"armor", driver.vehicle.armor}}},
@@ -380,6 +422,14 @@ namespace rules::campaign {
 		for (const ConvoyEscort& escort : campaign.convoy) {
 			convoy.push_back({{"id", escort.id.value}, {"type", escort.type.value}, {"structure", escort.structure}});
 		}
+		nlohmann::json log = nlohmann::json::array();
+		for (const LogEntry& line : campaign.log) {
+			log.push_back({{"day", line.day}, {"text", line.text}});
+		}
+		const nlohmann::json end = campaign.end ? nlohmann::json{
+			{"ending", std::string(nameOf(campaign.end->ending, kEndingNames))},
+			{"cause", std::string(nameOf(campaign.end->cause, kEndCauseNames))},
+		} : nlohmann::json(nullptr);
 		const nlohmann::json json = {
 			{"version", kSaveVersion},
 			{"packs", std::move(packs)},
@@ -395,6 +445,10 @@ namespace rules::campaign {
 			{"nextEscortNumber", campaign.nextEscortNumber},
 			{"run", campaign.run ? runJson(*campaign.run) : nlohmann::json(nullptr)},
 			{"nextRunNumber", campaign.nextRunNumber},
+			{"log", std::move(log)},
+			{"tally",
+			 {{"runsHome", campaign.tally.runsHome}, {"runsFailed", campaign.tally.runsFailed}, {"fightsWon", campaign.tally.fightsWon}}},
+			{"end", end},
 		};
 		try {
 			if (readCampaign(json, content) != campaign) {

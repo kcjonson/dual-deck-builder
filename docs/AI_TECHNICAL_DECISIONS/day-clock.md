@@ -49,6 +49,10 @@ The rules are in `data/compound-rules.json`, a sibling of `campaign-start.json`:
 
 Nothing here draws randomness. A later step that needs a draw forks a stream per day end from the seed and the day, `new Rng({ seed }).fork('day', day)`: the day is already a saved counter that `Campaign.set` never turns back, so it needs nothing new in the save. A hook rerolling a stop forks the stop's own stream from its saved roll count ([seeded-prng.md](./seeded-prng.md)).
 
+## In the C++ alpha
+
+`endDay` and `forecastNeeds` in `libs/rules/campaign/DayClock.h` (2026-10-31, DDB-573) keep these steps and calls, and [campaign.md](./campaign.md), The day, the infirmary, and the end, has how. The day-end hooks wait for the map: stop cooldowns are the only one left, and they'll be a step over the map's state. The rules are pack content, `packs/base/campaign/compound-rules.json`.
+
 ## Provisional calls
 
 Each is a value or a line or two to change.

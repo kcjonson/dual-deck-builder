@@ -156,14 +156,14 @@ namespace {
 		EXPECT_THROW(addCardsWon(campaign, testContent(), {{card("top_off"), 1}}), std::invalid_argument);
 		EXPECT_THROW(addCardsWon(campaign, testContent(), {{card("chainsaw"), 1}}), std::invalid_argument);
 
-		const Unloaded unloaded = unloadRun(campaign);
+		const Unloaded unloaded = unloadRun(campaign, testContent(), testRules());
 		EXPECT_EQ(unloaded.resources.fuel, 3);
 		EXPECT_EQ(unloaded.cards, (CardCounts{{card("headshot"), 2}}));
 		EXPECT_FALSE(campaign.run.has_value());
 		EXPECT_EQ(campaign.stores.fuel, home.stores.fuel + 3);
 		EXPECT_EQ(campaign.locker, (CardCounts{{card("headshot"), 2}, {card("ram"), 1}})) << "the borrowed Ram back, the cards won in";
 		EXPECT_EQ(campaign.driver(start.seats[1]).defaultDeck, home.driver(start.seats[1]).defaultDeck);
-		EXPECT_THROW((void)unloadRun(campaign), std::invalid_argument);
+		EXPECT_THROW((void)unloadRun(campaign, testContent(), testRules()), std::invalid_argument);
 	}
 
 } // namespace

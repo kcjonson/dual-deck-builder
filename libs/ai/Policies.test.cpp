@@ -125,7 +125,7 @@ namespace {
 		const std::unique_ptr<Policy> standIn = ai::makePolicy(Behavior{.policy = "aggressive_flanker"}, Side::Player);
 		CampaignFight				  fight = startCampaignFight(campaign, testContent(), EncounterId{"scav_tail"}).fight;
 		ai::playFight(fight.state, testContent(), every(*standIn), basePolicies().forRaiders());
-		const FightWriteBack written = writeBackFight(campaign, testContent(), fight);
+		const FightWriteBack written = writeBackFight(campaign, testContent(), testRules(), fight);
 		EXPECT_EQ(written.outcome, fight.state.outcome);
 
 		// No hauler heals here, so a seat's record holds what the fight left them, or the revival.

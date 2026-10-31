@@ -1,10 +1,13 @@
 target_sources(ddb_rules
     PRIVATE
         Campaign.cpp
+        CampaignEnd.cpp
         CampaignJson.cpp
         CampaignRules.cpp
         CombatBridge.cpp
+        DayClock.cpp
         Founding.cpp
+        Infirmary.cpp
         Locker.cpp
         RunDecks.cpp
 )

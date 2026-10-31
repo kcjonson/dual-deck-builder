@@ -167,11 +167,52 @@ namespace rules::campaign {
 		bool operator==(const PackRef&) const = default;
 	};
 
+	// A line of the campaign's history, dated the day it happened.
+	struct LogEntry {
+		int			day{1};
+		std::string text;
+
+		bool operator==(const LogEntry&) const = default;
+	};
+
+	// What the defeat screen counts that the rest of the campaign can't tell it (campaign-end.md), each only going up.
+	struct Tally {
+		int runsHome{0};
+		int runsFailed{0};
+		int fightsWon{0};
+
+		bool operator==(const Tally&) const = default;
+	};
+
+	// How the compound fell (campaign-end.md, How it fell), and what lost the campaign: nobody left at the compound to
+	// send out, every driver dead or missing (call 37), or no People left after a night with no run out (call 38).
+	enum class Ending { Starved, Rioted, Disbanded };
+	enum class EndCause { LastDriver, NoPeople };
+
+	inline constexpr EnumNames<Ending, 3> kEndingNames{{
+		{"starved", Ending::Starved},
+		{"rioted", Ending::Rioted},
+		{"disbanded", Ending::Disbanded},
+	}};
+
+	inline constexpr EnumNames<EndCause, 2> kEndCauseNames{{
+		{"last_driver", EndCause::LastDriver},
+		{"no_people", EndCause::NoPeople},
+	}};
+
+	struct CampaignEnd {
+		Ending	 ending{Ending::Disbanded};
+		EndCause cause{EndCause::LastDriver};
+
+		bool operator==(const CampaignEnd&) const = default;
+	};
+
 	struct Campaign {
 		// In load order.
 		std::vector<PackRef> packs;
 		// Every draw the campaign makes forks from it, by a name and a saved counter, so nothing is saved mid-stream.
-		uint32_t  seed{0};
+		uint32_t seed{0};
+		// The day it is, or the day the compound fell on once it's over.
 		int		  day{1};
 		Resources stores;
 		int		  unrest{0};
@@ -186,6 +227,11 @@ namespace rules::campaign {
 		int						  nextEscortNumber{1};
 		std::optional<Run>		  run;
 		int						  nextRunNumber{1};
+		// In day order, none after today.
+		std::vector<LogEntry> log;
+		Tally				  tally;
+		// Set once the campaign is lost, and final: nothing changes a campaign that's over.
+		std::optional<CampaignEnd> end;
 
 		// The driver in the pool, or nullptr.
 		[[nodiscard]] DriverRecord*		  findDriver(const CrewId& id);
@@ -204,5 +250,17 @@ namespace rules::campaign {
 
 		bool operator==(const Campaign&) const = default;
 	};
+
+	// Throws std::invalid_argument naming `action` once the campaign is over.
+	void refuseOver(const Campaign& campaign, std::string_view action);
+
+	// Adds a line to the log, dated today.
+	void addLog(Campaign& campaign, std::string text);
+
+	// What a log line calls the stores in `resources`, leaving out what's 0: "2 fuel", "1 med", "12 people".
+	[[nodiscard]] std::vector<std::string> resourceAmounts(const Resources& resources);
+
+	// "a", "a and b", "a, b, and c".
+	[[nodiscard]] std::string listed(const std::vector<std::string>& items);
 
 } // namespace rules::campaign

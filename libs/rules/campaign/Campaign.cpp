@@ -112,6 +112,43 @@ namespace rules::campaign {
 		return found == convoy.end() ? nullptr : &*found;
 	}
 
+	void refuseOver(const Campaign& campaign, std::string_view action) {
+		if (campaign.end) {
+			throw std::invalid_argument(std::string(action) + ": the campaign is over");
+		}
+	}
+
+	void addLog(Campaign& campaign, std::string text) {
+		campaign.log.push_back(LogEntry{.day = campaign.day, .text = std::move(text)});
+	}
+
+	std::vector<std::string> resourceAmounts(const Resources& resources) {
+		std::vector<std::string> amounts;
+		const auto				 add = [&](int amount, std::string_view one, std::string_view many) {
+			  if (amount > 0) {
+				  amounts.push_back(std::to_string(amount) + " " + std::string(amount == 1 ? one : many));
+			  }
+		};
+		add(resources.food, "food", "food");
+		add(resources.water, "water", "water");
+		add(resources.fuel, "fuel", "fuel");
+		add(resources.meds, "med", "meds");
+		add(resources.scrap, "scrap", "scrap");
+		add(resources.people, "person", "people");
+		return amounts;
+	}
+
+	std::string listed(const std::vector<std::string>& items) {
+		std::string text;
+		for (size_t index = 0; index < items.size(); ++index) {
+			if (index > 0) {
+				text += items.size() == 2 ? " and " : (index + 1 == items.size() ? ", and " : ", ");
+			}
+			text += items[index];
+		}
+		return text;
+	}
+
 	RunDeck* Campaign::runDeckOf(const CrewId& id) {
 		if (!run) {
 			return nullptr;

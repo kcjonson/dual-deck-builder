@@ -30,6 +30,8 @@ namespace rules::campaign {
 
 		std::string refusal(const CrewId& driver, const SeatBlocker& blocker) {
 			switch (blocker.reason) {
+				case SeatRefusal::CampaignOver:
+					return "the campaign is over";
 				case SeatRefusal::Injured:
 					return driver.value + " is injured, fit in " + std::to_string(blocker.injuredDays) + " days";
 				case SeatRefusal::DriverAway:
@@ -51,6 +53,9 @@ namespace rules::campaign {
 	std::optional<SeatBlocker> seatBlocker(const Campaign& campaign, const CrewId& driver, const std::optional<CrewId>& partner) {
 		const DriverRecord& record = campaign.driver(driver);
 		const DriverRecord* other = partner ? &campaign.driver(*partner) : nullptr;
+		if (campaign.end) {
+			return SeatBlocker{.reason = SeatRefusal::CampaignOver};
+		}
 		if (record.status == DriverStatus::Injured) {
 			return SeatBlocker{.reason = SeatRefusal::Injured, .injuredDays = record.injuredDays};
 		}
@@ -74,6 +79,7 @@ namespace rules::campaign {
 	}
 
 	void startRun(Campaign& campaign, const Content& content, const RunStart& start) {
+		refuseOver(campaign, "startRun");
 		if (campaign.run) {
 			throw std::invalid_argument("startRun: " + campaign.run->id.value + " is already out");
 		}
@@ -188,7 +194,7 @@ namespace rules::campaign {
 		addCards(run.cargoCards, cards);
 	}
 
-	Unloaded unloadRun(Campaign& campaign) {
+	Unloaded unloadRun(Campaign& campaign, const Content& content, const CampaignRules& rules) {
 		Run run = std::move(runOut(campaign, "unloadRun"));
 		campaign.run.reset();
 		for (const RunDeck& deck : run.seats) {
@@ -196,7 +202,16 @@ namespace rules::campaign {
 		}
 		campaign.stores = campaign.stores + run.cargo;
 		addCards(campaign.locker, run.cargoCards);
-		return Unloaded{.resources = run.cargo, .cards = std::move(run.cargoCards)};
+		++campaign.tally.runsHome;
+		std::vector<CrewId> seats;
+		for (const RunDeck& deck : run.seats) {
+			seats.push_back(deck.driver);
+		}
+		return Unloaded{
+			.resources = run.cargo,
+			.cards = std::move(run.cargoCards),
+			.injuries = injureOnArrival(campaign, content, rules.compound, seats),
+		};
 	}
 
 } // namespace rules::campaign

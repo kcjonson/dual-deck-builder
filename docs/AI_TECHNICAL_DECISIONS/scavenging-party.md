@@ -53,6 +53,10 @@ The reader holds fuel's min at 1 or more, so every party brings fuel and the fil
 - It can't save a starving compound. With no food or water People shrinks every night, and the compound can fall before it has a run's fuel; that's the campaign lost, not stuck.
 - Route costs aren't set, so the tests take 5 fuel, half the founding stores, as a run's. A founded compound with no fuel and no scrap gets there inside the week its food lasts. A sweep of 300 seeds and stranded states (1 to 200 people, stores from empty to a month's, any day and unrest, drivers ready, injured, dead, or missing) finds a party available every day People is above 0, adding its fuel and scrap and nothing else; every compound fed for the days it needs reaches that fuel with nobody lost, and every one that fell is refused.
 
+## In the C++ alpha
+
+`scavenge`, `scavengeBlocker`, and `rollHaul` in `libs/rules/campaign/DayClock.h` (2026-10-31, DDB-573) keep these rules and calls, the haul on the same `fork("scavenge", day)`, and [campaign.md](./campaign.md) has how. A refusal is a typed `ScavengeRefusal`, and `scavenge` throws `std::invalid_argument` rather than an error type of its own.
+
 ## Provisional calls
 
 Each is a value or a line or two to change.

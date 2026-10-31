@@ -85,6 +85,7 @@ namespace rules::campaign {
 		for (const EscortId& escort : rules.start.escorts) {
 			hire(campaign, content.escorts.at(escort));
 		}
+		addLog(campaign, "Founded the compound.");
 		return campaign;
 	}
 

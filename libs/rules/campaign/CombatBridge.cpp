@@ -1,5 +1,6 @@
 #include "CombatBridge.h"
 
+#include "CampaignEnd.h"
 #include "RunDecks.h"
 
 #include <rules/battle/Battle.h>
@@ -83,7 +84,19 @@ namespace rules::campaign {
 			return VehicleCondition{.structure = vehicle.structure, .armor = std::min(vehicle.armor, vehicle.baseArmor)};
 		}
 
-		FightWriteBack loseRun(Campaign& campaign, const BattleState& state) {
+		// "Cargo lost with the run: 2 fuel, 30 scrap, and Repair Kit x2." (call 23), or nothing for a run that carried nothing.
+		void logCargoLost(Campaign& campaign, const Content& content, const RunLost& lost) {
+			std::vector<std::string> items = resourceAmounts(lost.cargo);
+			for (const auto& [card, count] : lost.cargoCards) {
+				const std::string& name = content.cards.at(card).name;
+				items.push_back(count == 1 ? name : name + " x" + std::to_string(count));
+			}
+			if (!items.empty()) {
+				addLog(campaign, "Cargo lost with the run: " + listed(items) + ".");
+			}
+		}
+
+		FightWriteBack loseRun(Campaign& campaign, const Content& content, const CompoundRules& rules, const BattleState& state) {
 			Run			   run = std::move(*campaign.run);
 			FightWriteBack result{
 				.outcome = Outcome::Lost,
@@ -115,6 +128,11 @@ namespace rules::campaign {
 			std::erase_if(campaign.convoy, [&](const ConvoyEscort& escort) {
 				return std::ranges::find(run.escorts, escort.id) != run.escorts.end();
 			});
+			++campaign.tally.runsFailed;
+			logCargoLost(campaign, content, *result.lost);
+			if (nobodyAtCompound(campaign)) {
+				endCampaign(campaign, rules, EndCause::LastDriver);
+			}
 			return result;
 		}
 
@@ -173,7 +191,7 @@ namespace rules::campaign {
 		};
 	}
 
-	FightWriteBack writeBackFight(Campaign& campaign, const Content& content, const CampaignFight& fight) {
+	FightWriteBack writeBackFight(Campaign& campaign, const Content& content, const CampaignRules& rules, const CampaignFight& fight) {
 		const BattleState& state = fight.state;
 		if (state.phase != Phase::Over || !state.outcome) {
 			throw std::invalid_argument("writeBackFight: the fight is still on");
@@ -185,7 +203,7 @@ namespace rules::campaign {
 		}
 		checkFightOf(campaign, state);
 		if (*state.outcome == Outcome::Lost) {
-			return loseRun(campaign, state);
+			return loseRun(campaign, content, rules.compound, state);
 		}
 
 		Run&									run = *campaign.run;
@@ -245,6 +263,9 @@ namespace rules::campaign {
 			}
 		}
 		++run.fights;
+		if (won) {
+			++campaign.tally.fightsWon;
+		}
 		return result;
 	}
 
