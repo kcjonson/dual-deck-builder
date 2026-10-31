@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <optional>
 #include <span>
 #include <vector>
@@ -26,6 +27,18 @@ namespace sim {
 
 	// The mean, or none with nothing to average.
 	[[nodiscard]] std::optional<double> meanOf(std::span<const double> values);
+
+	// Whole numbers spread out: their mean, least and most, and how many of each.
+	struct Spread {
+		std::optional<double> mean;
+		int					  least{0};
+		int					  most{0};
+		std::map<int, int>	  counts;
+
+		bool operator==(const Spread&) const = default;
+	};
+
+	[[nodiscard]] Spread spreadOf(std::span<const int> values);
 
 	// `part` of `whole`, 0 of nothing.
 	[[nodiscard]] inline double share(int part, int whole) {

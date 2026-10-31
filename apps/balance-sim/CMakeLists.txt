@@ -5,6 +5,8 @@ add_library(ddb_balance_sim STATIC
     FightLog.cpp
     Fights.cpp
     FightsConfig.cpp
+    Gen.cpp
+    GenReport.cpp
     Measures.cpp
     Neighbors.cpp
     Report.cpp
