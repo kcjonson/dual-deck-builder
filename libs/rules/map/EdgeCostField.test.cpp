@@ -130,4 +130,42 @@ namespace {
 		EXPECT_GT(crossings, 5);
 	}
 
+	TEST(EdgeCostField, IsStricterThanMoveCostWhereWaterReachesAMoveBetweenItsClearEndsAndMiddle) {
+		const Ground	ground = fixtures::groundFor(fixtures::mixed());
+		const LandGrid& grid = ground.terrain().surface().grid;
+		const double	metro = ground.terrain().start().metro;
+		const int		east = moveBetween(1, 0);
+		EdgeCostField	dry(ground, 0.5);
+		// The first east move out from Home, past the metro's bridges, that a trail can take.
+		int cell = -1;
+		for (int column = grid.size / 2 + 1; column + 1 < grid.size && cell < 0; ++column) {
+			const int at = (grid.size / 2) * grid.size + column;
+			if (dry.x(at) > metro + 10 && dry.open(at) && dry.open(dry.step(at, east)) &&
+				dry.cost(dry.edge(at, east), RoadClass::Trail) < kInfinity) {
+				cell = at;
+			}
+		}
+		ASSERT_GE(cell, 0);
+		const double x0 = dry.x(cell);
+		const double y0 = dry.y(cell);
+		const double x1 = dry.x(dry.step(cell, east));
+		// A creek that ends half a unit short of the move a quarter of the way along it: its water reaches the move
+		// there, but it never crosses it, and its ends and middle stay dry.
+		const double			 quarter = x0 + grid.cellSize / 4;
+		const std::vector<River> rivers{
+			{.chain = {}, .area = 0, .line = {{.x = quarter, .y = y0 - 30, .width = 2}, {.x = quarter, .y = y0 - 0.5, .width = 2}}}
+		};
+		const RiverIndex water(rivers, grid.halfExtent);
+		const Ground	 wet = ground.withRivers(water);
+		EdgeCostField	 field(wet, 0.5);
+		const MoveCost	 costs(wet, 0.5);
+		ASSERT_TRUE(field.open(cell));
+		ASSERT_TRUE(field.open(field.step(cell, east)));
+		EXPECT_EQ(wet.waterAt(quarter, y0), WaterKind::River);
+		EXPECT_EQ(wet.obstacle((x0 + x1) / 2, y0), Obstacle::None);
+		EXPECT_LT(costs.cost(x0, y0, x1, y0, RoadClass::Trail).cost, kInfinity) << "MoveCost reads the end and the middle";
+		EXPECT_FALSE(field.cost(field.edge(cell, east), RoadClass::Trail) < kInfinity);
+		EXPECT_FALSE(fixtures::passableAlong(wet, x0, y0, x1, y0));
+	}
+
 } // namespace

@@ -58,14 +58,16 @@ namespace rules::campaigns {
 		return fight;
 	}
 
-	// The choice at the stop's event that needs and costs nothing and never turns into a fight: its Drive on.
+	// The choice at the stop's event that needs and costs nothing, never turns into a fight, and gives and takes nothing:
+	// its Drive on. A free choice can still give, as the tanker's siphon does, so freeness alone doesn't find it.
 	inline std::string passingChoice(const Campaign& campaign, const Events& events = testEvents()) {
 		const EventDefinition& event = stopEvent(campaign, events, testLayers());
 		const auto			   passing = std::ranges::find_if(event.choices, [](const EventChoice& choice) {
-			return isFree(choice) &&
-				   std::ranges::none_of(choice.outcomes, [](const EventOutcome& outcome) { return outcome.fight.has_value(); });
+			return isFree(choice) && std::ranges::all_of(choice.outcomes, [](const EventOutcome& outcome) {
+					   return !outcome.fight.has_value() && outcome.gains == EventGains{};
+				   });
 		});
-		EXPECT_NE(passing, event.choices.end()) << event.id.value << " has a way past that never fights";
+		EXPECT_NE(passing, event.choices.end()) << event.id.value << " has a way past that gives and takes nothing";
 		return passing->id;
 	}
 

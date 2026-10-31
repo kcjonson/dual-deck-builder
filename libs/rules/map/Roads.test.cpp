@@ -405,14 +405,16 @@ namespace {
 			}
 			return total;
 		};
+		// Only where the two classes part ways, from a town or village to the compound: where they don't, the climb is
+		// the same either way, and how many of those a map has would decide the sum.
 		double highwayClimb = 0;
 		double trailClimb = 0;
-		int	   pairs = 0;
-		for (const Place& town : places) {
-			if (town.kind != PlaceKind::Town) {
+		int	   parted = 0;
+		for (const Place& place : places) {
+			if (place.kind != PlaceKind::Town && place.kind != PlaceKind::Village) {
 				continue;
 			}
-			const int			   from = links.placeCells[static_cast<size_t>(town.id)];
+			const int			   from = links.placeCells[static_cast<size_t>(place.id)];
 			const int			   to = links.placeCells[0];
 			const std::vector<int> highway = cheapestPath(field, from, to, RoadClass::Highway);
 			const std::vector<int> trail = cheapestPath(field, from, to, RoadClass::Trail);
@@ -421,11 +423,13 @@ namespace {
 			// Each is the cheapest for its own class.
 			EXPECT_LE(cost(highway, RoadClass::Highway), cost(trail, RoadClass::Highway));
 			EXPECT_LE(cost(trail, RoadClass::Trail), cost(highway, RoadClass::Trail));
-			highwayClimb += climb(highway);
-			trailClimb += climb(trail);
-			pairs += 1;
+			if (highway != trail) {
+				highwayClimb += climb(highway);
+				trailClimb += climb(trail);
+				parted += 1;
+			}
 		}
-		EXPECT_GE(pairs, 2);
+		EXPECT_GE(parted, 3);
 		EXPECT_LT(highwayClimb, 0.8 * trailClimb);
 	}
 

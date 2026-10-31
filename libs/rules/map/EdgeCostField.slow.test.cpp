@@ -23,7 +23,6 @@ namespace {
 		EdgeCostField	 field(ground, params.curviness);
 		const MoveCost	 reference(ground, params.curviness);
 		int				 agreed = 0;
-		int				 stricter = 0;
 		for (int cell = 0; cell < field.grid().cells(); cell += 5) {
 			if (!field.open(cell)) {
 				continue;
@@ -49,15 +48,15 @@ namespace {
 						EXPECT_TRUE(passes()) << "cell " << cell << " direction " << direction;
 						agreed += 1;
 					} else if (expected < kInfinity) {
-						// MoveCost reads a move's end and middle, and knows nothing of the rim or the metro's rivers.
+						// MoveCost reads a move's end and middle, and knows nothing of the rim or the metro's rivers. A
+						// map has only a few such moves, so the fast lane plants one rather than counting on a fifth
+						// of them here.
 						EXPECT_TRUE(!field.open(next) || !passes()) << "cell " << cell << " direction " << direction;
-						stricter += field.open(next) ? 1 : 0;
 					}
 				}
 			}
 		}
 		EXPECT_GT(agreed, 5000);
-		EXPECT_GT(stricter, 0);
 	}
 
 } // namespace

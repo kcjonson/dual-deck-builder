@@ -72,8 +72,9 @@ namespace {
 		}
 	}
 
+	// On Floodlands, where three lines lay on every stream tried; Mixed's rivers often turn a second away.
 	TEST(Dressing, KeepsLaterRailsFromRunningBesideEarlierOnesForLong) {
-		const MapParams&			params = fixtures::mixed();
+		const MapParams&			params = fixtures::floodlands();
 		const Ground&				ground = fixtures::groundFor(params);
 		const std::vector<RailLine> rails = railLines({.ground = ground, .count = 3, .stream = foundation::Rng(8)});
 		ASSERT_GE(rails.size(), 2U);
@@ -260,8 +261,11 @@ namespace {
 		}
 		EXPECT_EQ(none.labels.size(), played);
 		EXPECT_TRUE(std::ranges::all_of(none.labels, [&](const MapLabel& label) { return play.contains(label.kind); }));
-		// More of the land's features are labelled as it rises, and the grids keep to streetGrids above the default.
-		EXPECT_GT(full.labels.size(), dressing.labels.size());
+		// More of the land's features are labelled as it rises, and the grids keep to streetGrids above the default. At
+		// 0.1, a sixth of the default, a map has features to lose; between the default and the top it may have none to gain.
+		const Dressing low = fixtures::dressingOver(params, fixtures::with(params, &MapParams::dressing, 0.1));
+		EXPECT_LT(low.labels.size(), dressing.labels.size());
+		EXPECT_GE(full.labels.size(), dressing.labels.size());
 		EXPECT_GT(full.stipple.size(), dressing.stipple.size());
 		EXPECT_EQ(full.districts.size(), dressing.districts.size());
 	}
