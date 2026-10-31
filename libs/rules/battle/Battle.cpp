@@ -223,13 +223,20 @@ namespace rules {
 		for (const PlayerSeat& seat : setup.players) {
 			const DriverDefinition& driver = driverDefinition(content, seat.driver);
 			checkDeck(content, seat.deck, driver.id.value);
+			const int hitpoints = seat.hitpoints.value_or(driver.maxHitpoints);
+			const int structure = seat.structure.value_or(driver.vehicle.maxStructure);
+			const int armor = seat.armor.value_or(driver.vehicle.armor);
+			if (hitpoints < 1 || hitpoints > driver.maxHitpoints || structure < 1 || structure > driver.vehicle.maxStructure || armor < 0 ||
+				armor > driver.vehicle.armor) {
+				throw std::invalid_argument("startBattle: " + driver.id.value + " can't open with that HP, structure, or armor");
+			}
 			const DriverIndex index{static_cast<int>(state.drivers.size())};
 			state.drivers.push_back(
 				BattleDriver{
 					.side = Side::Player,
 					.profile = driver.id,
 					.skills = driver.skills,
-					.hitpoints = driver.maxHitpoints,
+					.hitpoints = hitpoints,
 					.maxHitpoints = driver.maxHitpoints,
 					.adrenaline = 0,
 					.maxAdrenaline = driver.maxAdrenaline,
@@ -237,7 +244,10 @@ namespace rules {
 					.deck = seat.deck,
 				}
 			);
-			state.vehicles.push_back(vehicleFrom(Side::Player, index, driver.vehicle));
+			BattleVehicle vehicle = vehicleFrom(Side::Player, index, driver.vehicle);
+			vehicle.structure = structure;
+			vehicle.armor = armor;
+			state.vehicles.push_back(std::move(vehicle));
 			openings.push_back({.slot = seat.slot, .ambush = std::nullopt, .preferred = std::nullopt});
 		}
 		if (setup.escorts.size() > 4) {

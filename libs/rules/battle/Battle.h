@@ -30,6 +30,10 @@ namespace rules {
 		std::vector<BattleCard> deck;
 		// Where the vehicle opens; without one it takes the next free slot in the opening order.
 		std::optional<FormationSlot> slot;
+		// What a campaign driver and their vehicle carry from earlier fights; their archetype's full numbers without them.
+		std::optional<int> hitpoints;
+		std::optional<int> structure;
+		std::optional<int> armor;
 	};
 
 	// A raider, with the vehicle and deck its opponent definition gives it.

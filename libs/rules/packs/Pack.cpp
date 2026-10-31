@@ -278,4 +278,15 @@ namespace rules {
 		return Loader(std::move(manifests)).load();
 	}
 
+	bool packRequires(const Content& content, const PackId& pack, const PackId& required) {
+		const auto manifest = std::ranges::find(content.packs, pack, &PackManifest::id);
+		if (manifest == content.packs.end()) {
+			return false;
+		}
+		// loadPacks has every pack require only packs loaded before it, so this ends.
+		return std::ranges::any_of(manifest->requiredPacks, [&](const PackId& direct) {
+			return direct == required || packRequires(content, direct, required);
+		});
+	}
+
 } // namespace rules

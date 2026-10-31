@@ -9,6 +9,10 @@
 
 #include <rules/battle/BattleTesting.h>
 #include <rules/battle/Encounters.h>
+#include <rules/campaign/CampaignJson.h>
+#include <rules/campaign/CampaignTesting.h>
+#include <rules/campaign/CombatBridge.h>
+#include <rules/campaign/RunDecks.h>
 
 #include <gtest/gtest.h>
 
@@ -108,6 +112,30 @@ namespace {
 		EXPECT_EQ(fought.phase, Phase::Over);
 		ASSERT_TRUE(fought.outcome.has_value());
 		EXPECT_TRUE(played() == fought);
+	}
+
+	TEST(PlayFight, ACampaignFightPlaysOutAndWritesItsEndBack) {
+		using namespace rules::campaigns;
+		Campaign	 campaign = foundTestCampaign({"fuel_hauler", "outrider"});
+		const CrewId warrior = crewOf(campaign, "road_warrior");
+		const CrewId interceptor = crewOf(campaign, "interceptor");
+		startRun(
+			campaign, testContent(), RunStart{.seats = {warrior, interceptor}, .escorts = {ConvoyId{"escort-1"}, ConvoyId{"escort-2"}}}
+		);
+		const std::unique_ptr<Policy> standIn = ai::makePolicy(Behavior{.policy = "aggressive_flanker"}, Side::Player);
+		CampaignFight				  fight = startCampaignFight(campaign, testContent(), EncounterId{"scav_tail"}).fight;
+		ai::playFight(fight.state, testContent(), every(*standIn), basePolicies().forRaiders());
+		const FightWriteBack written = writeBackFight(campaign, testContent(), fight);
+		EXPECT_EQ(written.outcome, fight.state.outcome);
+
+		// No hauler heals here, so a seat's record holds what the fight left them, or the revival.
+		if (written.outcome != Outcome::Lost) {
+			for (int seat = 0; seat < 2; ++seat) {
+				const int left = fight.state.driver(DriverIndex{seat}).hitpoints;
+				EXPECT_EQ(campaign.driver(written.seats[static_cast<size_t>(seat)].driver).hitpoints, left > 0 ? left : kReviveHitpoints);
+			}
+		}
+		EXPECT_EQ(readCampaign(writeCampaign(campaign, testContent()), testContent()), campaign);
 	}
 
 	TEST(Mcts, ReplaysIdenticallyForASeedAndBeatsRandomOverAFixedSetOfFights) {
