@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <numeric>
 #include <set>
 #include <string>
 #include <utility>
@@ -62,6 +63,15 @@ namespace rules::map {
 			return count == nodes;
 		}
 
+		// A route number for each highway, none twice: every number shuffled, and the first `highways` of them.
+		std::vector<int> drawRouteNumbers(size_t highways, foundation::Rng& rng) {
+			std::vector<int> numbers(static_cast<size_t>(kMostRouteNumber - kLeastRouteNumber + 1));
+			std::iota(numbers.begin(), numbers.end(), kLeastRouteNumber);
+			rng.shuffle(numbers);
+			numbers.resize(highways);
+			return numbers;
+		}
+
 	} // namespace
 
 	Roads::Roads(
@@ -89,11 +99,15 @@ namespace rules::map {
 			 .radius = params.radius,
 			 .rng = breaking,
 		 });
+		const auto		highways =
+			std::ranges::count_if(list, [](const Place& place) { return place.kind == PlaceKind::Exit && place.highway; });
+		foundation::Rng numbering = stream.fork("numbers");
 		roadNetwork = {
 			.nodes = std::move(roadGraph.nodes),
 			.stretches = std::move(split.stretches),
 			.broken = std::move(split.broken),
 			.passes = roadLinks.passes,
+			.routeNumbers = drawRouteNumbers(static_cast<size_t>(highways), numbering),
 		};
 		graph = roadGraph.stats;
 		networkLoops = loopCount(roadNetwork.nodes.size(), roadNetwork.stretches);

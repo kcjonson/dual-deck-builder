@@ -46,10 +46,14 @@ namespace rules::map {
 		std::vector<RoadBridge> bridges;
 		// A city street: wholly inside the metro, charted from the start.
 		bool street{false};
-		// A highway stretch's number, which the shields show: its exit's order among the highway exits, from 0.
-		// Where highways merge into a trunk, the trunk is the first one laid's. -1 on any other class.
+		// A highway stretch's highway: its exit's order among the highway exits, from 0. Where highways merge into
+		// a trunk, the trunk is the first one laid's. -1 on any other class.
 		int highway{-1};
 	};
+
+	// The route numbers highways are drawn from, none twice on a map.
+	inline constexpr int kLeastRouteNumber = 2;
+	inline constexpr int kMostRouteNumber = 99;
 
 	// Every road on the map as plain data a save can hold (Area Map Generation, Pipeline, 5. Roads): nodes where
 	// something happens, and stretches between them. A real network with loops, not a tree: a stretch runs either
@@ -61,6 +65,8 @@ namespace rules::map {
 		// Highway spans that collapsed: drawn with their gap, never driven, in no node's stretches.
 		std::vector<RoadStretch> broken;
 		std::vector<RoadPass>	 passes;
+		// By highway (RoadStretch::highway), the number its shields and its routes' names carry.
+		std::vector<int> routeNumbers;
 	};
 
 	// Independent loops: stretches less nodes plus the pieces they make. What the POIs need one each of.

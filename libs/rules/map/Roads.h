@@ -21,7 +21,7 @@ namespace rules::map {
 	// Stage 5 of area map generation, the roads (Area Map Generation, Pipeline, 5. Roads; road-network.md),
 	// after the places, on the `roads` stream: the edge cost field over the land with its water and hazards, the
 	// road links between every place over it (the `links` and `spur` forks), the road graph from them, and the
-	// broken highways (the `broken` fork). Plain data.
+	// broken highways (the `broken` fork), and each highway's route number (the `numbers` fork). Plain data.
 	class Roads {
 	  public:
 		// The params are validated, and the layers are theirs; `stream` is this stage's.

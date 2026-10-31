@@ -65,6 +65,8 @@ namespace {
 			}
 		}
 		EXPECT_EQ(links.stats.highways, highwayExits);
+		// A route number for each highway, which checkRoads has held in range and none twice.
+		EXPECT_EQ(roads.network().routeNumbers.size(), static_cast<size_t>(highwayExits));
 		EXPECT_EQ(roads.inland(), static_cast<int>(places.size()) - 1 - static_cast<int>(fixtures::placesFor(params).exits().size()));
 	}
 

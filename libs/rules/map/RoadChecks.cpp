@@ -196,6 +196,10 @@ namespace rules::map {
 						id + ", a " + std::string(classNamed(stretch.roadClass)) + ", has highway number " + std::to_string(stretch.highway)
 					);
 				}
+				if (stretch.roadClass == RoadClass::Highway && numbered &&
+					std::cmp_greater_equal(stretch.highway, network.routeNumbers.size())) {
+					report(RoadRule::Structure, id + "'s highway " + std::to_string(stretch.highway) + " has no route number");
+				}
 				const auto& points = stretch.points;
 				const bool	finite =
 					std::ranges::all_of(points, [](const Point& point) { return std::isfinite(point.x) && std::isfinite(point.y); });
@@ -236,6 +240,12 @@ namespace rules::map {
 			}
 			for (size_t index = 0; index < network.broken.size(); ++index) {
 				check(network.broken[index], "broken span " + std::to_string(index));
+			}
+			std::set<int> numbers;
+			for (const int number : network.routeNumbers) {
+				if (number < kLeastRouteNumber || number > kMostRouteNumber || !numbers.insert(number).second) {
+					report(RoadRule::Structure, "route number " + std::to_string(number) + " is out of range or on two highways");
+				}
 			}
 		}
 
