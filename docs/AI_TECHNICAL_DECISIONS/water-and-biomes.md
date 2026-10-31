@@ -175,17 +175,17 @@ What differs:
   - `MoveCost` is the road's side: the class weights, curviness, the grade and bridge limits, and bridge spans, over a `Ground`. A cost comes with the bridges' share of it. `RoadClass` and its JSON names, `highway`, `backRoad`, and `trail`, live there for the roads to share.
   - With river widths held to 9 and no crossing under 30 degrees, no bridge over a generated river runs past 18 units, so the 24-unit limit never binds today; it guards water wider than the widths allow now.
 
-Seed 7 at radius 1000 under salal's noise, as shares of a lattice over the disc:
+Seed 7 at radius 1000 under salal v0.30.1's noise, as shares of a lattice over the disc, points a thirtieth of the radius apart, on the map's ground:
 
 | Environment | Mountains | Scrub | Desert | Mire | Badlands | Canyons |
 | --- | --- | --- | --- | --- | --- | --- |
-| Mixed | 24 | 52 | 1 | 15 | 5 | 3 |
-| High Desert | 33 | 13 | 39 | 0 | 9 | 6 |
-| Rust Belt | 15 | 58 | 0 | 25 | 3 | 0 |
-| Floodlands | 9 | 51 | 0 | 39 | 0 | 0 |
-| Badlands | 33 | 23 | 17 | 3 | 18 | 6 |
+| Mixed | 23 | 53 | 2 | 13 | 6 | 4 |
+| High Desert | 31 | 12 | 42 | 0 | 9 | 6 |
+| Rust Belt | 13 | 57 | 0 | 25 | 5 | 0 |
+| Floodlands | 9 | 51 | 0 | 40 | 0 | 0 |
+| Badlands | 31 | 22 | 20 | 4 | 17 | 6 |
 
-Close to the TypeScript's table above but for desert. Salal's gradient noise spreads less of its range than the simplex did, so moisture before the rivers swings less either side of the map's level: Mixed has almost no desert where it had a tenth, and the High Desert more. The spread (provisional call 1) is the Map Lab's to retune, not this build's.
+The bump from v0.19.0, whose `fractalNoise2` had every octave zero at the same points (terrain-fields.md, Noise is the engine's), moved no share by more than 3 points. Close to the TypeScript's table above but for desert. Salal's gradient noise spreads less of its range than the simplex did, so moisture before the rivers swings less either side of the map's level: Mixed has almost no desert where it had a tenth, and the High Desert more. The spread (provisional call 1) is the Map Lab's to retune, not this build's.
 
 The base contamination field, the calibrated noise under the plumes, stays on the terrain stream's `contamination` fork, as it was, and comes with the terrain's other land-only fields (rough country, cliffs, badlands) in stage 3; the hazards stage lays its plumes over it. The other way was to fork it from the hazards stream, since contamination is hazard country. But the base field depends on the seed and `contamination` alone, not on where the water or the craters go, so on the terrain stream a retry of the water or the hazards never moves it, and the badlands, which read it before the plumes, stay with the land they're cut from. On the hazards stream every hazards retry would redraw the toxic ground under the whole map, and with it the badlands and the mire, when all a retry needs is somewhere else for the craters.
 

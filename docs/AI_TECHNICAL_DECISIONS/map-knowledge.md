@@ -71,7 +71,7 @@ The fingerprint covers the POIs' tiers and the legs, which the starting knowledg
 
 ## Measured
 
-On 24 campaign maps `rollParams` made from seeds 1 to 24, radius 900 to 1200, every environment: 20 to 35 of 84 to 122 legs start charted and 2 rumored; 4 to 7 POIs are found at the start, the 3 to 6 in tier 1 and up to 2 more whose land or rumored road is seen; 7 to 13% of the disc is explored at a reveal of 1, 17 to 24% at 2. No stronghold is within sight at either reveal, and the validator rejected nothing, so no map moved: every one won on the attempts it won before. The starting knowledge takes 0.1 to 0.2 ms in RelWithDebInfo.
+On 24 campaign maps `rollParams` made from seeds 1 to 24, radius 900 to 1200, every environment, on salal v0.30.1's noise: 23 to 36 of 84 to 131 legs start charted and 2 rumored; 4 to 8 POIs are found at the start, the 4 to 6 in tier 1 and up to 3 more whose land or rumored road is seen; 8 to 13% of the disc is explored at a reveal of 1, 12 to 25% at 2. No stronghold is within sight at either reveal, and no map failed a stage attempt. On v0.19.0's maps it was 20 to 35 of 84 to 122 legs, 4 to 7 POIs, 7 to 13% and 17 to 24%, and there too the validator rejected nothing, so no map moved when it came in: every one won on the attempts it won before. The starting knowledge takes 0.1 to 0.2 ms in RelWithDebInfo.
 
 ## Provisional calls
 
