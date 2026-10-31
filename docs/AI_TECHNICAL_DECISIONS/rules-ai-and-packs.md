@@ -30,17 +30,21 @@ salal has no scripting runtime and keeps Lua out of its dependencies (salal `doc
 
 ## Decision
 
-**The battle is a value.** `BattleState` holds vehicles, drivers, decks, the road grid, statuses, and the fight's RNG streams. Objects refer to each other by id, not pointer, so copying the whole fight is cheap.
+**The battle is a value.** `BattleState` holds vehicles, drivers, decks, the road grid, statuses, and the fight's randomness. Objects refer to each other by id, not pointer, so copying the whole fight is cheap.
+
+**Randomness is counters, not live streams.** salal's `foundation::Rng` can't be copied, on purpose (a copy would replay its stream), so a state that copies can't hold one. It holds `RandomStreams` instead: a root seed and how many events each named stream has had. Each random event, a shuffle or a hit check, gets its own `Rng` forked from the seed by the stream's name and that count, so a copy draws exactly what the original would, and streams never move each other.
 
 **The rules are two functions.** `legalActions(state)` lists what can be done; `apply(state, action)` does it and returns the events it caused. It's deterministic, and it's the only place effects are interpreted. The planning projection, the aim preview, and the AI's lookahead are `apply` on a copy, reading the events back.
 
 **Effects are parsed once.** Card JSON becomes a typed `std::variant` of effects at load, and an unknown effect, field, or condition fails the load naming the file. A card whose logic data can't say names a script; the script reads a read-only view of the fight and emits the same basic operations data effects use (damage, move, apply a status, draw), which `apply` executes. A script never changes the state itself, so events, previews, and determinism stay in one place.
 
-**Each opponent is its own folder** in a pack, `packs/base/opponents/scav-bike/`: an `opponent.json` (vehicle, driver, deck, stats, faction, intent tier, target preference) and its behavior. The behavior names a C++ policy and its weights (the personalities in [AI System Technical Design](../specs/AI%20System%20Technical%20Design.md)), or a `behavior.lua`. Every raider plans with its own behavior; nothing is set per fight.
+The card format is the TypeScript's, tidied so it can be read strictly: fields in camelCase, a condition with a parameter written as an object (`{"type": "caster_row", "row": "ahead"}`), a bonus as `{"value", "condition"}`, a ram's formula as numbers instead of a string matched by substring, and `"duration": "fight"` instead of -1.
+
+**Each opponent is its own folder** in a pack, `packs/base/opponents/scav_bike/`, named for its id: an `opponent.json` (class, skills, vehicle, deck, intent tier, target preference) and its behavior. The behavior names a C++ policy and its weights (the personalities in [AI System Technical Design](../specs/AI%20System%20Technical%20Design.md)), or a `behavior.lua`. Every raider plans with its own behavior; nothing is set per fight.
 
 **A behavior is a policy:** `choose(view, legalActions, rng)` returns an action, and may play candidates out on copies of the fight. The balance sim's player stand-ins are policies too.
 
-**Content is packs.** The base game is `packs/base/`; an expansion or a mod is another pack. A pack has a manifest (id, version, the packs it needs) and folders for cards, vehicles, opponents, encounters, factions, events, art, and scripts. Packs load in order and add content or override it by id; two packs overriding the same id without one depending on the other fails the load, naming both. The TypeScript's data files move into `packs/base/`.
+**Content is packs.** The base game is `packs/base/`; an expansion or a mod is another pack. A pack has a manifest, `pack.json` (id, name, version, the packs it requires), and folders for cards, drivers, escorts, opponents, encounters, factions, events, the map, the campaign, art, and scripts. Cards, drivers, and escorts are arrays in any number of `.json` files in their folder. Packs load in order and add content or override it by id. A pack can only override content from a pack it requires, directly or through another, so two packs overriding the same id without one requiring the other fails the load, naming both. Every reference between content (a deck's cards, an escort's signature card) has to resolve once all packs are in. The TypeScript's data files move into `packs/base/`.
 
 **Lua is hosted by the game**, Lua 5.4 through sol2 as worldsim does, in its own library. The rules define the script interfaces and never depend on Lua; the scripting library implements them and the app wires them up. Scripts get Lua's base, table, string, and math libraries, without `math.random`, `io`, `os`, or loading files outside their pack. Randomness comes in through the game's RNG, and game numbers are integers, so seeds reproduce.
 

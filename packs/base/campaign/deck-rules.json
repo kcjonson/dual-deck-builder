@@ -1,0 +1,7 @@
+{
+	"deckSize": {
+		"min": 8,
+		"max": 20
+	},
+	"scrapPerCard": 5
+}

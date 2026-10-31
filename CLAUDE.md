@@ -61,7 +61,7 @@ libs/
   rules/          the game's rules: fight state, effects, packs, map, campaign; salal::foundation only
   ai/             opponent and stand-in policies, over the rules (once ported)
   scripting/      the Lua host for packs, over the rules (once needed)
-packs/            content: base/ is the game, expansions and mods are packs too (once ported)
+packs/            content: base/ is the game, expansions and mods are packs too
 apps/             executables, once there is one: the game, and the balance sim
 docs/             specs, decision records, design art, the port plan
 scripts/          Node tooling (format.mjs)
