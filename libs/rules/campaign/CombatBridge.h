@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Campaign.h"
+#include "CampaignRules.h"
 
 #include <rules/battle/BattleEvent.h>
 #include <rules/battle/BattleState.h>
@@ -85,8 +86,9 @@ namespace rules::campaign {
 	// leave the convoy and take their cards out of the run decks, the rest keep their structure, and after a win each
 	// surviving hauler pays its dividend: fuel and scrap into the cargo, HP to every seat still above 0. Lost, the run
 	// ends there: the down are dead and the rest missing, the dead lose their run decks and the missing get theirs back
-	// (call 138), and the cargo and every escort that came along are lost. Throws std::invalid_argument for a fight
+	// (call 138), the cargo and every escort that came along are lost, with a log line for the cargo (call 23), and the
+	// campaign ends if nobody is left at the compound (call 37). A won fight counts in the tally. Throws std::invalid_argument for a fight
 	// still on, one already written back or from another run, and one that doesn't seat the run's drivers and escorts.
-	FightWriteBack writeBackFight(Campaign& campaign, const Content& content, const CampaignFight& fight);
+	FightWriteBack writeBackFight(Campaign& campaign, const Content& content, const CampaignRules& rules, const CampaignFight& fight);
 
 } // namespace rules::campaign

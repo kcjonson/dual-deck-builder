@@ -51,10 +51,10 @@ namespace {
 		return message.find(part) != std::string::npos;
 	}
 
-	TEST(CampaignJson, ACampaignOnARunWritesAtVersion1NamingItsPacksAndReadsBackTheSame) {
+	TEST(CampaignJson, ACampaignOnARunWritesAtItsVersionNamingItsPacksAndReadsBackTheSame) {
 		const Campaign		 campaign = campaignOnARun();
 		const nlohmann::json save = writeCampaign(campaign, testContent());
-		EXPECT_EQ(save["version"], 1);
+		EXPECT_EQ(save["version"], kSaveVersion);
 		EXPECT_EQ(save["packs"], nlohmann::json::parse(R"([{"id": "base", "version": "0.1.0"}])"));
 		EXPECT_EQ(save["run"]["seats"][0]["escortCards"], nlohmann::json::parse(R"([{"card": "run_ahead", "broughtBy": "escort-2"}])"));
 
@@ -80,8 +80,8 @@ namespace {
 		EXPECT_TRUE(mentions(errorOf(notes), "campaign.run has fields nothing reads: notes"));
 
 		nlohmann::json later = save;
-		later["version"] = 2;
-		EXPECT_TRUE(mentions(errorOf(later), "campaign.version is 2, and this build reads version 1"));
+		later["version"] = kSaveVersion + 1;
+		EXPECT_TRUE(mentions(errorOf(later), "campaign.version is 3, and this build reads version 2"));
 	}
 
 	TEST(CampaignJson, ASaveFailsLoudWhenItBreaksTheCampaignsRules) {
@@ -106,6 +106,13 @@ namespace {
 			"is borrowed while the driver's own are left at home"
 		));
 		EXPECT_TRUE(mentions(broken([](nlohmann::json& json) { json["nextEscortNumber"] = 2; }), "escort-2 is past the counter"));
+		EXPECT_TRUE(mentions(
+			broken([](nlohmann::json& json) { json["log"][0]["day"] = 5; }), "campaign.log[0].day must be a whole number from 1 to 4"
+		));
+		EXPECT_TRUE(mentions(
+			broken([](nlohmann::json& json) { json["end"] = {{"ending", "starved"}, {"cause", "no_people"}}; }), "is set with a run out"
+		));
+		EXPECT_TRUE(mentions(broken([](nlohmann::json& json) { json["tally"]["runsHome"] = 1; }), "counts more runs ended"));
 	}
 
 	TEST(CampaignJson, WritingACampaignItsOwnSaveCantHoldThrows) {

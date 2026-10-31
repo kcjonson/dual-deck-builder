@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Campaign.h"
+#include "CampaignRules.h"
+#include "Infirmary.h"
 
 #include <rules/packs/Pack.h>
 
@@ -18,11 +20,12 @@ namespace rules::campaign {
 	[[nodiscard]] int gameStage(int day, int strongholdsTaken);
 
 	// Why load out won't seat a driver beside whoever holds the other seat (injuries.md, Seating), in the order checked:
+	//   CampaignOver   the campaign is over
 	//   Injured        they're in the infirmary for `injuredDays` more
 	//   DriverAway     they're dead or missing
 	//   AlreadySeated  they hold the other seat
 	//   SameArchetype  they're the other seat's archetype while two different archetypes are ready (call 35)
-	enum class SeatRefusal { Injured, DriverAway, AlreadySeated, SameArchetype };
+	enum class SeatRefusal { CampaignOver, Injured, DriverAway, AlreadySeated, SameArchetype };
 
 	struct SeatBlocker {
 		SeatRefusal reason{SeatRefusal::DriverAway};
@@ -45,7 +48,8 @@ namespace rules::campaign {
 	};
 
 	// Starts a run: each seat's default deck moves whole into their run deck, every escort going puts its signature card
-	// in Driver 1's, and the run takes the next run id. Throws std::invalid_argument with a run already out, for seats
+	// in Driver 1's, and the run takes the next run id. Throws std::invalid_argument once the campaign is over, with a
+	// run already out, for seats
 	// seatBlocker refuses, asked of each alone and then of the pair, for an escort not in the convoy or named twice, and
 	// for a stage outside 0 to 6.
 	void startRun(Campaign& campaign, const Content& content, const RunStart& start);
@@ -75,13 +79,16 @@ namespace rules::campaign {
 	CardCounts unwindRunDeck(Campaign& campaign, const RunDeck& deck);
 
 	struct Unloaded {
-		Resources  resources;
-		CardCounts cards;
+		Resources			resources;
+		CardCounts			cards;
+		std::vector<Injury> injuries;
 	};
 
 	// A run home: each seat's run deck unwinds, their own cards and those they left at home back in their default deck
 	// and what they borrowed back in the locker, the escort cards gone; then the cargo goes into the stores and the cards
-	// won into the locker. It returns what came home for the debrief. Throws std::invalid_argument with no run out.
-	Unloaded unloadRun(Campaign& campaign);
+	// won into the locker, the run is counted home, and each seat home hurt goes into the infirmary (injureOnArrival). It
+	// returns what came home for the debrief. The day ends after it, with endDay. Throws std::invalid_argument with no run
+	// out.
+	Unloaded unloadRun(Campaign& campaign, const Content& content, const CampaignRules& rules);
 
 } // namespace rules::campaign

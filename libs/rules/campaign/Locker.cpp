@@ -84,6 +84,8 @@ namespace rules::campaign {
 
 		std::string describe(const CardBlocker& blocker) {
 			switch (blocker.reason) {
+				case CardRefusal::CampaignOver:
+					return "the campaign is over";
 				case CardRefusal::DriverAway:
 					return blocker.driver->value + " is dead or missing";
 				case CardRefusal::OnRun:
@@ -127,6 +129,9 @@ namespace rules::campaign {
 			throw std::invalid_argument("cardMoveBlocker: a run deck trades with the locker only (call 137)");
 		}
 
+		if (campaign.end) {
+			return CardBlocker{.reason = CardRefusal::CampaignOver};
+		}
 		for (const End* end : {&from, &to}) {
 			if (!end->isLocker() && isAway(*end->driver)) {
 				return CardBlocker{.reason = CardRefusal::DriverAway, .driver = end->driver->id};
@@ -188,6 +193,9 @@ namespace rules::campaign {
 		if (count < 1) {
 			throw std::invalid_argument("scrapBlocker: scrapping takes 1 or more copies");
 		}
+		if (campaign.end) {
+			return CardBlocker{.reason = CardRefusal::CampaignOver};
+		}
 		const int held = countOf(campaign.locker, card);
 		if (held < count) {
 			return CardBlocker{.reason = CardRefusal::TooFew, .count = held};
@@ -197,7 +205,7 @@ namespace rules::campaign {
 
 	void scrapCards(Campaign& campaign, const DeckRules& rules, const CardId& card, int count) {
 		if (const std::optional<CardBlocker> blocker = scrapBlocker(campaign, card, count)) {
-			throw std::invalid_argument("scrapCards: the locker holds only " + std::to_string(blocker->count) + " " + card.value);
+			throw std::invalid_argument("scrapCards: the locker can't scrap " + std::to_string(count) + " " + card.value);
 		}
 		takeCards(campaign.locker, card, count);
 		campaign.stores.scrap += count * rules.scrapPerCard;

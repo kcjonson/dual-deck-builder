@@ -42,6 +42,7 @@ namespace rules::campaign {
 	};
 
 	// Why the rules refuse a move, in the order they're checked:
+	//   CampaignOver     the campaign is over
 	//   DriverAway       a driver at either end is dead or missing (`driver`)
 	//   OnRun            a default deck at either end is out on the run, in its driver's run deck (`driver`)
 	//   TooFew           the giving end holds fewer copies than the move takes (`count`, the copies there are)
@@ -51,7 +52,17 @@ namespace rules::campaign {
 	//   DeckFull         the receiving deck would hold more than the most a deck takes (`count`, the most)
 	//   DeckAtMinimum    the giving deck would hold fewer than the fewest (`count`, the fewest)
 	// A deck outside the limits, after a retune, can still move back toward them.
-	enum class CardRefusal { DriverAway, OnRun, TooFew, AlreadyBorrowed, CardLocked, OtherArchetype, DeckFull, DeckAtMinimum };
+	enum class CardRefusal {
+		CampaignOver,
+		DriverAway,
+		OnRun,
+		TooFew,
+		AlreadyBorrowed,
+		CardLocked,
+		OtherArchetype,
+		DeckFull,
+		DeckAtMinimum
+	};
 
 	struct CardBlocker {
 		CardRefusal				reason{CardRefusal::TooFew};
@@ -75,7 +86,7 @@ namespace rules::campaign {
 	// rules refuse, as cardMoveBlocker says.
 	void moveCards(Campaign& campaign, const Content& content, const DeckRules& rules, const CardMove& move);
 
-	// Why the locker can't scrap that many copies (TooFew), or nullopt when it can.
+	// Why the locker can't scrap that many copies (CampaignOver or TooFew), or nullopt when it can.
 	[[nodiscard]] std::optional<CardBlocker> scrapBlocker(const Campaign& campaign, const CardId& card, int count);
 
 	// Scraps locker copies for the scrap each pays (call 116). Throws std::invalid_argument for a count under 1 or more
