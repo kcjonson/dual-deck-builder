@@ -1,10 +1,12 @@
 # The balance sim (docs/specs/Balance Simulation.md). Its core is a library the command line tool and the tests share,
 # over the rules and the AI and nothing else; ddb_check_layering() in the root holds it.
 add_library(ddb_balance_sim STATIC
+    ConfigFields.cpp
     Fights.cpp
     FightsConfig.cpp
     Measures.cpp
     Report.cpp
+    ReportText.cpp
 )
 add_library(ddb::balance_sim ALIAS ddb_balance_sim)
 

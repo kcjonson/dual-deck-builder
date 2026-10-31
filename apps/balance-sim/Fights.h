@@ -6,12 +6,16 @@
 #include <ai/OpponentPolicies.h>
 
 #include <rules/battle/BattleState.h>
+#include <rules/battle/Policy.h>
 #include <rules/campaign/CampaignRules.h>
+#include <rules/campaign/CombatBridge.h>
+#include <rules/campaign/Events.h>
 #include <rules/core/Ids.h>
 #include <rules/packs/Pack.h>
 
 #include <array>
 #include <map>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -41,7 +45,30 @@ namespace sim {
 
 		const rules::Content&		   content;
 		rules::campaign::CampaignRules campaign;
+		rules::campaign::Events		   events;
 		ai::OpponentPolicies		   raiders;
+		// What a find or an event turns someone new up from.
+		std::vector<rules::DriverId> unlocked;
+	};
+
+	// The stand-in on every seat of the crew, as makePolicy builds it for the player's side, counting its choices, which
+	// is what a decision's cost is measured over.
+	class StandIn final : public rules::Policy {
+	  public:
+		explicit StandIn(const rules::Behavior& behavior);
+
+		[[nodiscard]] rules::Action choose(
+			const rules::BattleState&	   board,
+			const rules::Content&		   content,
+			std::span<const rules::Action> actions,
+			foundation::Rng&			   rng
+		) const override;
+
+		[[nodiscard]] int decisions() const { return made; }
+
+	  private:
+		std::unique_ptr<rules::Policy> inner;
+		mutable int					   made{0};
 	};
 
 	struct CardPlays {
@@ -79,6 +106,12 @@ namespace sim {
 
 		bool operator==(const FightRecord&) const = default;
 	};
+
+	// A fight the combat bridge built, played by the stand-in on each of the crew's seats and each raider on its own
+	// policy, to its end or until it opens a player turn past `turns`, unfinished, which has stalled it. It's recorded as
+	// it ended, before the bridge writes it back.
+	[[nodiscard]] FightRecord
+	playCampaignFight(rules::campaign::CampaignFight& fight, const SimRules& shared, const StandIn& standIn, int skulls, int turns);
 
 	// How a run came out: through every fight, each won or broken off; a fight lost; or a fight stalled.
 	enum class RunEnd { Home, Lost, Stalled };
@@ -132,6 +165,10 @@ namespace sim {
 
 		bool operator==(const FightRow&) const = default;
 	};
+
+	// Fights measured together: their outcomes over every one, and turns, what was lost, and drivers down over those won.
+	// The skulls are the first's.
+	[[nodiscard]] FightRow measureFights(std::span<const FightRecord> fights);
 
 	// A cell's measures (Balance Simulation, Measures). What was lost, turns, injury days, and drivers down are over the
 	// runs home; the rest over every run.

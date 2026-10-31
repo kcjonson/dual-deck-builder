@@ -7,6 +7,7 @@
 #include <rules/battle/Encounters.h>
 #include <rules/battle/Waves.h>
 #include <rules/campaign/CombatBridge.h>
+#include <rules/campaign/Founding.h>
 #include <rules/campaign/Recruits.h>
 #include <rules/campaign/RunDecks.h>
 
@@ -24,29 +25,6 @@ namespace sim {
 
 	namespace {
 
-		// The stand-in, counting its choices, which is what a decision's cost is measured over.
-		struct CountedStandIn final : Policy {
-			std::unique_ptr<Policy> inner;
-			mutable int				decisions{0};
-
-			explicit CountedStandIn(std::unique_ptr<Policy> policy)
-				: inner(std::move(policy)) {}
-
-			[[nodiscard]] Action
-			choose(const BattleState& board, const Content& content, std::span<const Action> actions, foundation::Rng& rng) const override {
-				++decisions;
-				return inner->choose(board, content, actions, rng);
-			}
-		};
-
-		std::string crewName(const CrewConfig& crew) {
-			std::string name;
-			for (const SeatConfig& seat : crew) {
-				name += (name.empty() ? "" : "+") + seat.archetype.value;
-			}
-			return name;
-		}
-
 		std::string routeName(const RouteConfig& route) {
 			std::string name;
 			for (const FightStep& step : route) {
@@ -55,10 +33,15 @@ namespace sim {
 			return name;
 		}
 
-		int crewHitpoints(const BattleState& state, size_t seats) {
+		// The player's seats come first among the drivers.
+		size_t seatsIn(const BattleState& state) {
+			return static_cast<size_t>(std::ranges::count(state.drivers, Side::Player, &BattleDriver::side));
+		}
+
+		int crewHitpoints(const BattleState& state, int BattleDriver::* field) {
 			int hitpoints = 0;
-			for (size_t seat = 0; seat < seats; ++seat) {
-				hitpoints += state.drivers[seat].hitpoints;
+			for (size_t seat = 0; seat < seatsIn(state); ++seat) {
+				hitpoints += state.drivers[seat].*field;
 			}
 			return hitpoints;
 		}
@@ -74,13 +57,13 @@ namespace sim {
 			return structure;
 		}
 
-		void finishFight(FightRecord& record, const BattleState& state, size_t seats) {
+		void finishFight(FightRecord& record, const BattleState& state) {
 			record.outcome = state.phase == Phase::Over ? state.outcome : std::nullopt;
 			record.rout = state.rout;
 			record.turns = state.phase == Phase::Over ? state.turn : state.turn - 1;
-			record.hitpointsAtEnd = crewHitpoints(state, seats);
+			record.hitpointsAtEnd = crewHitpoints(state, &BattleDriver::hitpoints);
 			record.structureAtEnd = crewStructure(state, &BattleVehicle::structure);
-			for (size_t seat = 0; seat < seats; ++seat) {
+			for (size_t seat = 0; seat < seatsIn(state); ++seat) {
 				record.driverDown = record.driverDown || !state.drivers[seat].isAlive();
 			}
 			for (int index = 0; index < static_cast<int>(state.vehicles.size()); ++index) {
@@ -108,34 +91,6 @@ namespace sim {
 			}
 		}
 
-		double share(int part, int whole) {
-			return whole == 0 ? 0.0 : static_cast<double>(part) / whole;
-		}
-
-		template <typename Record, typename Value>
-		std::optional<double> meanWhere(std::span<const Record> records, auto&& keep, Value&& value) {
-			std::vector<double> values;
-			for (const Record& record : records) {
-				if (keep(record)) {
-					values.push_back(static_cast<double>(value(record)));
-				}
-			}
-			return meanOf(values);
-		}
-
-		template <typename Record>
-		Rate rateWhere(std::span<const Record> records, auto&& among, auto&& counted) {
-			int of = 0;
-			int count = 0;
-			for (const Record& record : records) {
-				if (among(record)) {
-					++of;
-					count += counted(record) ? 1 : 0;
-				}
-			}
-			return rateOf(count, of);
-		}
-
 		int cardsPlayed(const FightRecord& fight) {
 			int cards = 0;
 			for (const auto& [card, plays] : fight.playerPlays) {
@@ -146,34 +101,6 @@ namespace sim {
 
 		bool won(const FightRecord& fight) {
 			return fight.outcome == Outcome::Won;
-		}
-
-		FightRow measureFights(std::span<const FightRecord> fights) {
-			const auto every = [](const FightRecord&) {
-				return true;
-			};
-			FightRow row{.skulls = fights.empty() ? 1 : fights.front().skulls};
-			for (const FightRecord& fight : fights) {
-				++row.encounters[fight.encounter];
-			}
-			row.won = rateWhere(fights, every, won);
-			row.lost = rateWhere(fights, every, [](const FightRecord& fight) { return fight.outcome == Outcome::Lost; });
-			row.brokenOff = rateWhere(fights, every, [](const FightRecord& fight) { return fight.outcome == Outcome::BrokenOff; });
-			row.stalled = rateWhere(fights, every, [](const FightRecord& fight) { return !fight.outcome; });
-			row.routed = rateWhere(fights, every, [](const FightRecord& fight) { return fight.rout.has_value(); });
-			row.driverDown = rateWhere(fights, won, [](const FightRecord& fight) { return fight.driverDown; });
-			row.turns = meanWhere(fights, won, [](const FightRecord& fight) { return fight.turns; });
-			row.hitpointsLost = meanWhere(fights, won, [](const FightRecord& fight) {
-				return share(fight.hitpointsAtStart - fight.hitpointsAtEnd, fight.mostHitpoints);
-			});
-			row.structureLost = meanWhere(fights, won, [](const FightRecord& fight) {
-				return share(fight.structureAtStart - fight.structureAtEnd, fight.mostStructure);
-			});
-			row.cardsPlayed = meanWhere(fights, every, cardsPlayed);
-			row.raidersKilled = meanWhere(fights, every, [](const FightRecord& fight) { return fight.raidersKilled; });
-			row.wavesSeen = meanWhere(fights, every, [](const FightRecord& fight) { return fight.wavesSeen; });
-			row.decisions = meanWhere(fights, every, [](const FightRecord& fight) { return fight.decisions; });
-			return row;
 		}
 
 		// The fights a route opened with, a fresh crew's, from each of `cells`' runs.
@@ -245,21 +172,14 @@ namespace sim {
 	} // namespace
 
 	std::vector<FightCell> fightCells(const FightsConfig& config) {
-		std::vector<std::string> names;
-		for (const CrewConfig& crew : config.crews) {
-			names.push_back(crewName(crew));
-		}
-		std::vector<FightCell> cells;
+		const std::vector<std::string> names = crewLabels(config.crews);
+		std::vector<FightCell>		   cells;
 		for (size_t crew = 0; crew < config.crews.size(); ++crew) {
-			std::string name = names[crew];
-			if (std::ranges::count(names, name) > 1) {
-				name += "#" + std::to_string(crew + 1);
-			}
 			for (size_t route = 0; route < config.routes.size(); ++route) {
 				for (const int stage : config.stages) {
 					cells.push_back(
 						FightCell{
-							.name = name + ":" + routeName(config.routes[route]) + "@" + std::to_string(stage),
+							.name = names[crew] + ":" + routeName(config.routes[route]) + "@" + std::to_string(stage),
 							.crew = crew,
 							.route = route,
 							.stage = stage,
@@ -274,7 +194,75 @@ namespace sim {
 	SimRules::SimRules(const Content& loaded)
 		: content(loaded),
 		  campaign(loadCampaignRules(loaded)),
-		  raiders(loaded) {}
+		  events(loadEvents(loaded)),
+		  raiders(loaded),
+		  unlocked(unlockedAtStart(loaded)) {}
+
+	StandIn::StandIn(const Behavior& behavior)
+		: inner(ai::makePolicy(behavior, Side::Player)) {}
+
+	Action StandIn::choose(const BattleState& board, const Content& content, std::span<const Action> actions, foundation::Rng& rng) const {
+		++made;
+		return inner->choose(board, content, actions, rng);
+	}
+
+	FightRecord playCampaignFight(CampaignFight& fight, const SimRules& shared, const StandIn& standIn, int skulls, int turns) {
+		FightRecord record{
+			.skulls = skulls,
+			.encounter = fight.encounter,
+			.hitpointsAtStart = crewHitpoints(fight.state, &BattleDriver::hitpoints),
+			.mostHitpoints = crewHitpoints(fight.state, &BattleDriver::maxHitpoints),
+			.structureAtStart = crewStructure(fight.state, &BattleVehicle::structure),
+			.mostStructure = crewStructure(fight.state, &BattleVehicle::maxStructure),
+		};
+		const PolicyFor standIns = [&](const BattleState&, DriverIndex) -> const Policy& {
+			return standIn;
+		};
+		const int decisionsBefore = standIn.decisions();
+		ai::playFight(
+			fight.state,
+			shared.content,
+			standIns,
+			shared.raiders.forRaiders(),
+			ai::PlayFightOptions{
+				.mostTurns = turns,
+				.onApplied = [&](const BattleState& after, const Action&, const std::vector<Event>& events) {
+					tallyPlays(record, after, events);
+				},
+			}
+		);
+		record.decisions = standIn.decisions() - decisionsBefore;
+		finishFight(record, fight.state);
+		return record;
+	}
+
+	FightRow measureFights(std::span<const FightRecord> fights) {
+		const auto every = [](const FightRecord&) {
+			return true;
+		};
+		FightRow row{.skulls = fights.empty() ? 1 : fights.front().skulls};
+		for (const FightRecord& fight : fights) {
+			++row.encounters[fight.encounter];
+		}
+		row.won = rateWhere(fights, every, won);
+		row.lost = rateWhere(fights, every, [](const FightRecord& fight) { return fight.outcome == Outcome::Lost; });
+		row.brokenOff = rateWhere(fights, every, [](const FightRecord& fight) { return fight.outcome == Outcome::BrokenOff; });
+		row.stalled = rateWhere(fights, every, [](const FightRecord& fight) { return !fight.outcome; });
+		row.routed = rateWhere(fights, every, [](const FightRecord& fight) { return fight.rout.has_value(); });
+		row.driverDown = rateWhere(fights, won, [](const FightRecord& fight) { return fight.driverDown; });
+		row.turns = meanWhere(fights, won, [](const FightRecord& fight) { return fight.turns; });
+		row.hitpointsLost = meanWhere(fights, won, [](const FightRecord& fight) {
+			return share(fight.hitpointsAtStart - fight.hitpointsAtEnd, fight.mostHitpoints);
+		});
+		row.structureLost = meanWhere(fights, won, [](const FightRecord& fight) {
+			return share(fight.structureAtStart - fight.structureAtEnd, fight.mostStructure);
+		});
+		row.cardsPlayed = meanWhere(fights, every, cardsPlayed);
+		row.raidersKilled = meanWhere(fights, every, [](const FightRecord& fight) { return fight.raidersKilled; });
+		row.wavesSeen = meanWhere(fights, every, [](const FightRecord& fight) { return fight.wavesSeen; });
+		row.decisions = meanWhere(fights, every, [](const FightRecord& fight) { return fight.decisions; });
+		return row;
+	}
 
 	RunRecord playRun(const FightsConfig& config, const SimRules& shared, const FightCell& cell, int run) {
 		if (run < 1) {
@@ -297,40 +285,12 @@ namespace sim {
 		}
 		startRun(campaign, content, RunStart{.seats = seats, .escorts = {}, .stage = cell.stage});
 
-		const CountedStandIn standIn(ai::makePolicy(config.standIn, Side::Player));
-		const PolicyFor		 standIns = [&](const BattleState&, DriverIndex) -> const Policy& {
-			 return standIn;
-		};
-		const PolicyFor raiders = shared.raiders.forRaiders();
+		const StandIn standIn(config.standIn);
 		for (const FightStep& step : config.routes[cell.route]) {
 			const EncounterId encounter =
 				step.encounter ? *step.encounter : pickEncounter(content, step.skulls, config.tier, nextFightSeed(campaign));
 			CampaignFight fight = startCampaignFight(campaign, content, encounter).fight;
-			FightRecord	  fought{
-				  .skulls = step.skulls,
-				  .encounter = encounter,
-				  .hitpointsAtStart = crewHitpoints(fight.state, seats.size()),
-				  .structureAtStart = crewStructure(fight.state, &BattleVehicle::structure),
-				  .mostStructure = crewStructure(fight.state, &BattleVehicle::maxStructure),
-			  };
-			for (size_t seat = 0; seat < seats.size(); ++seat) {
-				fought.mostHitpoints += fight.state.drivers[seat].maxHitpoints;
-			}
-			const int decisionsBefore = standIn.decisions;
-			ai::playFight(
-				fight.state,
-				content,
-				standIns,
-				raiders,
-				ai::PlayFightOptions{
-					.mostTurns = config.turns,
-					.onApplied = [&](const BattleState& after, const Action&, const std::vector<Event>& events) {
-						tallyPlays(fought, after, events);
-					},
-				}
-			);
-			fought.decisions = standIn.decisions - decisionsBefore;
-			finishFight(fought, fight.state, seats.size());
+			FightRecord	  fought = playCampaignFight(fight, shared, standIn, step.skulls, config.turns);
 			record.fights.push_back(std::move(fought));
 			if (fight.state.phase != Phase::Over) {
 				record.end = RunEnd::Stalled;

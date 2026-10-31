@@ -8,6 +8,7 @@
 
 #include <iosfwd>
 #include <span>
+#include <string>
 
 namespace sim {
 
@@ -15,6 +16,13 @@ namespace sim {
 	// rows by skull count. The same config, packs, and seed give the same JSON whatever the workers; the wall time isn't
 	// in it.
 	[[nodiscard]] nlohmann::ordered_json reportJson(const FightsReport& report, std::span<const rules::PackManifest> packs);
+
+	// Fights measured together, as a cell's places and run mode's stops write them.
+	[[nodiscard]] nlohmann::ordered_json fightRowJson(const FightRow& row);
+
+	// The packs as the reports list them, in load order.
+	[[nodiscard]] nlohmann::ordered_json packsJson(std::span<const rules::PackManifest> packs);
+	[[nodiscard]] std::string			 packsText(std::span<const rules::PackManifest> packs);
 
 	// The readable summary: every cell's runs and fights, the opening fights by skull count against Runs and Encounters'
 	// per-fight targets, the fairness spreads, what the raiders played, and what a stand-in's decision cost.

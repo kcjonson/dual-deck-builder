@@ -29,6 +29,7 @@ namespace rules::campaign {
 		RunId run;
 		// The run's fights before it.
 		int			number{0};
+		EncounterId encounter;
 		BattleState state;
 	};
 

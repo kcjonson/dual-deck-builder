@@ -1,5 +1,7 @@
 #include "Report.h"
 
+#include "ReportText.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -35,44 +37,6 @@ namespace sim {
 		constexpr double kFewestTurns = 4;
 		constexpr double kMostTurns = 8;
 
-		Json numberJson(const std::optional<double>& value) {
-			return value ? Json(*value) : Json(nullptr);
-		}
-
-		Json rateJson(const Rate& rate) {
-			Json json;
-			json["count"] = rate.count;
-			json["of"] = rate.of;
-			json["rate"] = numberJson(rate.rate);
-			json["low"] = numberJson(rate.low);
-			json["high"] = numberJson(rate.high);
-			return json;
-		}
-
-		Json fightJson(const FightRow& row) {
-			Json encounters = Json::object();
-			for (const auto& [encounter, count] : row.encounters) {
-				encounters[encounter.value] = count;
-			}
-			Json json;
-			json["skulls"] = row.skulls;
-			json["encounters"] = std::move(encounters);
-			json["won"] = rateJson(row.won);
-			json["lost"] = rateJson(row.lost);
-			json["brokenOff"] = rateJson(row.brokenOff);
-			json["stalled"] = rateJson(row.stalled);
-			json["routed"] = rateJson(row.routed);
-			json["driverDown"] = rateJson(row.driverDown);
-			json["turns"] = numberJson(row.turns);
-			json["hitpointsLost"] = numberJson(row.hitpointsLost);
-			json["structureLost"] = numberJson(row.structureLost);
-			json["cardsPlayed"] = numberJson(row.cardsPlayed);
-			json["raidersKilled"] = numberJson(row.raidersKilled);
-			json["wavesSeen"] = numberJson(row.wavesSeen);
-			json["decisions"] = numberJson(row.decisions);
-			return json;
-		}
-
 		Json cellJson(const CellRow& row) {
 			Json json;
 			json["cell"] = row.cell;
@@ -94,7 +58,7 @@ namespace sim {
 			json["raidersKilled"] = numberJson(row.raidersKilled);
 			Json fights = Json::array();
 			for (const FightRow& fight : row.fights) {
-				fights.push_back(fightJson(fight));
+				fights.push_back(fightRowJson(fight));
 			}
 			json["fights"] = std::move(fights);
 			Json raiders = Json::object();
@@ -133,25 +97,6 @@ namespace sim {
 			json["worstCrew"] = row.worstCrew;
 			json["worstWon"] = rateJson(row.worstWon);
 			return json;
-		}
-
-		std::string percent(const std::optional<double>& value) {
-			return value ? std::format("{}%", std::lround(*value * 100)) : "-";
-		}
-
-		std::string percent(const Rate& rate) {
-			return percent(rate.rate);
-		}
-
-		std::string interval(const Rate& rate) {
-			if (!rate.rate) {
-				return "-";
-			}
-			return std::format("{} [{}-{}]", percent(rate), std::lround(*rate.low * 100), std::lround(*rate.high * 100));
-		}
-
-		std::string fixed(const std::optional<double>& value, int digits = 1) {
-			return value ? std::format("{:.{}f}", *value, digits) : "-";
 		}
 
 		std::string routeLabel(const RouteConfig& route) {
@@ -387,14 +332,50 @@ namespace sim {
 
 	} // namespace
 
-	nlohmann::ordered_json reportJson(const FightsReport& report, std::span<const rules::PackManifest> packs) {
+	nlohmann::ordered_json fightRowJson(const FightRow& row) {
+		Json encounters = Json::object();
+		for (const auto& [encounter, count] : row.encounters) {
+			encounters[encounter.value] = count;
+		}
 		Json json;
-		json["mode"] = "fights";
+		json["skulls"] = row.skulls;
+		json["encounters"] = std::move(encounters);
+		json["won"] = rateJson(row.won);
+		json["lost"] = rateJson(row.lost);
+		json["brokenOff"] = rateJson(row.brokenOff);
+		json["stalled"] = rateJson(row.stalled);
+		json["routed"] = rateJson(row.routed);
+		json["driverDown"] = rateJson(row.driverDown);
+		json["turns"] = numberJson(row.turns);
+		json["hitpointsLost"] = numberJson(row.hitpointsLost);
+		json["structureLost"] = numberJson(row.structureLost);
+		json["cardsPlayed"] = numberJson(row.cardsPlayed);
+		json["raidersKilled"] = numberJson(row.raidersKilled);
+		json["wavesSeen"] = numberJson(row.wavesSeen);
+		json["decisions"] = numberJson(row.decisions);
+		return json;
+	}
+
+	nlohmann::ordered_json packsJson(std::span<const rules::PackManifest> packs) {
 		Json loaded = Json::array();
 		for (const rules::PackManifest& pack : packs) {
 			loaded.push_back(Json{{"id", pack.id.value}, {"version", pack.version}});
 		}
-		json["packs"] = std::move(loaded);
+		return loaded;
+	}
+
+	std::string packsText(std::span<const rules::PackManifest> packs) {
+		std::string loaded;
+		for (const rules::PackManifest& pack : packs) {
+			loaded += std::format("{}{} {}", loaded.empty() ? "" : ", ", pack.id.value, pack.version);
+		}
+		return loaded;
+	}
+
+	nlohmann::ordered_json reportJson(const FightsReport& report, std::span<const rules::PackManifest> packs) {
+		Json json;
+		json["mode"] = "fights";
+		json["packs"] = packsJson(packs);
 		json["config"] = Json(fightsConfigJson(report.config));
 		Json cells = Json::array();
 		for (const CellRow& row : report.cells) {
@@ -411,11 +392,7 @@ namespace sim {
 
 	void printReport(std::ostream& out, const FightsReport& report, std::span<const rules::PackManifest> packs) {
 		const FightsConfig& config = report.config;
-		std::string			loaded;
-		for (const rules::PackManifest& pack : packs) {
-			loaded += std::format("{}{} {}", loaded.empty() ? "" : ", ", pack.id.value, pack.version);
-		}
-		std::string stages;
+		std::string			stages;
 		for (const int stage : config.stages) {
 			stages += (stages.empty() ? "" : ",") + std::to_string(stage);
 		}
@@ -427,7 +404,7 @@ namespace sim {
 			config.turns,
 			config.tier,
 			stages,
-			loaded
+			packsText(packs)
 		);
 		const size_t width = cellWidth(report);
 		printRuns(out, report, width);
