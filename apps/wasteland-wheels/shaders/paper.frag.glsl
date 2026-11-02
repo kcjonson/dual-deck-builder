@@ -147,10 +147,10 @@ vec4 paper_fill(vec4 color, vec2 local, vec2 halfSize, uvec3 params, float pixel
 				vec2  offset = local - root;
 				float depth = dot(offset, inward);
 				float across = abs(dot(offset, vec2(inward.y, -inward.x)));
-				float notchDepth = band * 0.7;
+				float notchDepth = band * 0.4;
 				float width = max(notchDepth - depth, 0.0) * 0.35;
 				float notch = depth >= 0.0 && depth < notchDepth ? 1.0 - smoothstep(width, width + pixelSize, across) : 0.0;
-				amount = max(amount, notch);
+				amount = max(amount, notch * 0.6);
 			}
 
 			// What rides in the vehicle: dust in the band on the exposed side, and a tide line inside it.

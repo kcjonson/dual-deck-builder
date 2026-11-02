@@ -241,9 +241,17 @@ namespace game {
 			});
 		}
 
-		void drawRoad(Color casing, Color highway, int32_t key) {
-			static const std::vector<Vec2> kRoad = cubic({700.0F, 410.0F}, {780.0F, 404.0F}, {860.0F, 396.0F}, {930.0F, 390.0F}, 12);
-			static const std::vector<Vec2> kCentre = cubic({720.0F, 409.0F}, {790.0F, 403.0F}, {860.0F, 396.0F}, {930.0F, 390.0F}, 12);
+		// The road out of the gate, on to `east`, the plate box's east edge in the canvas's units, which is past the canvas
+		// when the box is wider than the yard.
+		void drawRoad(float east, Color casing, Color highway, int32_t key) {
+			static const std::vector<Vec2> kCurve = cubic({700.0F, 410.0F}, {780.0F, 404.0F}, {860.0F, 396.0F}, {930.0F, 390.0F}, 12);
+			static const std::vector<Vec2> kCentreCurve = cubic({720.0F, 409.0F}, {790.0F, 403.0F}, {860.0F, 396.0F}, {930.0F, 390.0F}, 12);
+			std::vector<Vec2>			   road = kCurve;
+			std::vector<Vec2>			   centre = kCentreCurve;
+			if (east > road.back().x) {
+				road.push_back({east + 30.0F, 390.0F - (east + 30.0F - 930.0F) * 0.08F});
+				centre.push_back(road.back());
+			}
 			static const std::array<std::vector<Vec2>, 2> kRuts{
 				[] {
 					std::vector<Vec2>		rut = cubic({690.0F, 400.0F}, {600.0F, 400.0F}, {520.0F, 420.0F}, {470.0F, 470.0F}, 10);
@@ -258,9 +266,9 @@ namespace game {
 					return rut;
 				}(),
 			};
-			polyline(kRoad, 46.0F, casing, key);
-			polyline(kRoad, 38.0F, art::kAsphalt, key);
-			dashAlong(kCentre, 18.0F, 16.0F, 3.0F, atlas::withAlpha(highway, 0.8F), key);
+			polyline(road, 46.0F, casing, key);
+			polyline(road, 38.0F, art::kAsphalt, key);
+			dashAlong(centre, 18.0F, 16.0F, 3.0F, atlas::withAlpha(highway, 0.8F), key);
 			for (const std::vector<Vec2>& rut : kRuts) {
 				polyline(rut, 7.0F, art::kRuts, key);
 			}
@@ -640,7 +648,7 @@ namespace game {
 		plate = glm::scale(plate, glm::vec3(fit.scale, fit.scale, 1.0F));
 		Primitives::PushTransform(plate);
 		drawDirt(key);
-		drawRoad(theme.get(palette::casing), theme.get(palette::highway), key);
+		drawRoad((size.x - fit.origin.x) / std::max(fit.scale, 1e-3F), theme.get(palette::casing), theme.get(palette::highway), key);
 		drawFence(key);
 		for (const Building building : kBuildings) {
 			if (std::ranges::find(built, building) != built.end()) {
@@ -680,7 +688,7 @@ namespace game {
 			);
 			const std::string state = standing ? "BUILT" : "not built";
 			const float		  stateSize = std::max(11.0F, 13.0F * labelScale);
-			const Vec2		  statePosition{name.x, name.y + nameSize * 1.02F};
+			const Vec2		  statePosition{name.x, name.y + nameSize * 1.28F};
 			const float		  stateWidth = atlas::printedWidth(state, fonts::kMono, stateSize);
 			fill(
 				{statePosition.x - 3.0F, statePosition.y - 1.0F, stateWidth + 6.0F, stateSize * 1.3F}, atlas::withAlpha(paper, 0.92F), key
