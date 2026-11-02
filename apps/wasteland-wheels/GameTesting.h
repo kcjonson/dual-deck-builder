@@ -5,7 +5,9 @@
 // own input, the way a player or a dev-server session does. The fast lane's maps are the map tests' fixture
 // (rules::campaigns::testMap and testLayers), handed back at once or held until cancelled; the slow lane makes real ones.
 
+#include "BaseShader.h"
 #include "GameContext.h"
+#include "atlas/Paper.h"
 #include "scenes/Scenes.h"
 
 #include <application/App.h>
@@ -115,12 +117,14 @@ namespace game::testing {
 			platform = headless.get();
 			app = app::App::create(
 				{.applicationName = "wasteland-wheels-tests",
+				 .baseShader = base_shader::source(),
 				 .settingsFile = dir.path() / "settings.json",
 				 .savesDirectory = dir.path() / "saves",
 				 .saveFormat = {.version = rules::campaign::kSaveVersion}},
 				std::move(headless)
 			);
 			ASSERT_NE(app, nullptr);
+			atlas::tunePaper();
 			context.emplace(
 				GameContext{
 					.rules = testRules(),

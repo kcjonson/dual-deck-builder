@@ -28,7 +28,7 @@ How the tests drive the scenes:
 
 ## Decision
 
-**The layout.** `apps/wasteland-wheels/` builds `ddb_game`, a library over `ddb::rules`, `ddb::ai`, and salal's `app` and `ui`, and `wasteland-wheels`, its `Main.cpp` alone, with salal's base shader and no hooks. `ddb_check_layering()` holds both, and every target under `libs/` to linking none of salal's renderer, ui, or app, tests included.
+**The layout.** `apps/wasteland-wheels/` builds `ddb_game`, a library over `ddb::rules`, `ddb::ai`, and salal's `app` and `ui`, and `wasteland-wheels`, its `Main.cpp` alone. The library carries the base shader with the game's fill hooks and the atlas tokens, so the tests draw with what the game does. `ddb_check_layering()` holds both, and every target under `libs/` to linking none of salal's renderer, ui, or app, tests included.
 
 | file | what it is |
 |---|---|
@@ -41,6 +41,8 @@ How the tests drive the scenes:
 | `Words` | what the scenes call things: names from the packs and the rules' blockers worded |
 | `DevRoutes` | the game's dev server routes |
 | `Fonts` | the game's faces, a font family each, and the theme that puts ui's font roles on them |
+| `shaders/`, `tokens/` | the base shader's fill hooks (`salal_base_shader`) and the atlas theme (`salal_tokens`), built into the library |
+| `atlas/` | the atlas look (UI Art Direction): its theme, the paper (procedural-paper.md), and the parts a meta scene is built from |
 | `scenes/` | one folder a scene, `GameScene.h` for what they share, `SceneKit` for the placeholder look, `Scenes` for their names |
 
 **The scenes.** Each is a salal `Scene` on the App's stack, its page rebuilt from the campaign whenever it changes. A scene with arguments is pushed by type and has no name; the rest are added by name, for `--scene`, the dev server's `scene` control, and each other.

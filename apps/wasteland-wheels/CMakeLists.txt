@@ -3,6 +3,8 @@
 find_package(nlohmann_json CONFIG REQUIRED)
 
 add_library(ddb_game STATIC
+    atlas/AtlasTheme.cpp
+    atlas/Paper.cpp
     CampaignStore.cpp
     DevRoutes.cpp
     Fonts.cpp
@@ -31,14 +33,18 @@ target_include_directories(ddb_game PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(ddb_game PUBLIC ddb::rules ddb::ai salal::app salal::ui)
 set_target_properties(ddb_game PROPERTIES FOLDER apps)
 
+# The base shader with the game's fill hooks (procedural-paper.md), on the library, so the scenes and the tests draw
+# with the hooks the game does.
+salal_base_shader(ddb_game HOOKS ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
+
+# The atlas theme (UI Art Direction, Tokens) over ui's own, checked and compiled in.
+salal_tokens(ddb_game ${CMAKE_CURRENT_SOURCE_DIR}/tokens NAMESPACE game::atlas HEADER atlas/Tokens.h)
+
 # The base pack is read from the source tree, as the balance sim reads it, until playtest builds ship their packs.
 add_executable(wasteland-wheels Main.cpp)
 target_link_libraries(wasteland-wheels PRIVATE ddb::game)
 target_compile_definitions(wasteland-wheels PRIVATE DDB_PACKS_DIR="${PROJECT_SOURCE_DIR}/packs")
 set_target_properties(wasteland-wheels PROPERTIES FOLDER apps)
-
-# The renderer's base shader with no hooks, as a game with none gets it.
-salal_base_shader(wasteland-wheels)
 
 # The game's faces (Fonts.h) and their licences, beside the exe on every build, where AppConfig::fontAtlases' paths resolve.
 set(game_fonts

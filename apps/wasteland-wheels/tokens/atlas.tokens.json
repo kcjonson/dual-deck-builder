@@ -1,0 +1,570 @@
+{
+	"$description": "The atlas theme (UI Art Direction): the palette as the game's base tokens, ui's semantic roles pointed at it, and the atlas's own text styles. The meta scenes load it; combat keeps ui's own.",
+	"palette": {
+		"$type": "color",
+		"$description": "UI Art Direction, Palette: the atlas and the hand that marks it.",
+		"table": {
+			"$value": { "colorSpace": "srgb", "components": [0.1412, 0.1294, 0.1098], "hex": "#24211C" }
+		},
+		"sheet": {
+			"$value": { "colorSpace": "srgb", "components": [0.9333, 0.9059, 0.8235], "hex": "#EEE7D2" }
+		},
+		"paper": {
+			"$value": { "colorSpace": "srgb", "components": [0.9569, 0.9333, 0.8667], "hex": "#F4EEDD" }
+		},
+		"freshPaper": {
+			"$value": { "colorSpace": "srgb", "components": [0.9647, 0.9451, 0.8941], "hex": "#F6F1E4" }
+		},
+		"index": {
+			"$value": { "colorSpace": "srgb", "components": [0.8941, 0.8627, 0.7686], "hex": "#E4DCC4" }
+		},
+		"ink": {
+			"$value": { "colorSpace": "srgb", "components": [0.1373, 0.1333, 0.1216], "hex": "#23221F" }
+		},
+		"inkBright": {
+			"$value": { "colorSpace": "srgb", "components": [0.0784, 0.0745, 0.0667], "hex": "#141311" }
+		},
+		"inkDim": {
+			"$value": { "colorSpace": "srgb", "components": [0.3647, 0.3529, 0.3216], "hex": "#5D5A52" }
+		},
+		"inkFaint": {
+			"$value": { "colorSpace": "srgb", "components": [0.4314, 0.4157, 0.3804], "hex": "#6E6A61" }
+		},
+		"fadedPrint": {
+			"$value": { "colorSpace": "srgb", "components": [0.5569, 0.5294, 0.4706], "hex": "#8E8778" }
+		},
+		"highway": {
+			"$value": { "colorSpace": "srgb", "components": [0.8471, 0.3765, 0.2118], "hex": "#D86036" }
+		},
+		"highwayBright": {
+			"$value": { "colorSpace": "srgb", "components": [0.9098, 0.4392, 0.2471], "hex": "#E8703F" }
+		},
+		"casing": {
+			"$value": { "colorSpace": "srgb", "components": [0.4078, 0.1725, 0.1176], "hex": "#682C1E" }
+		},
+		"onHighway": {
+			"$value": { "colorSpace": "srgb", "components": [1, 0.9725, 0.9333], "hex": "#FFF8EE" }
+		},
+		"backRoad": {
+			"$value": { "colorSpace": "srgb", "components": [0.4627, 0.4471, 0.4157], "hex": "#76726A" }
+		},
+		"river": {
+			"$value": { "colorSpace": "srgb", "components": [0.2431, 0.4353, 0.5961], "hex": "#3E6F98" }
+		},
+		"riverBright": {
+			"$value": { "colorSpace": "srgb", "components": [0.5255, 0.6824, 0.8275], "hex": "#86AED3" }
+		},
+		"riverDim": {
+			"$value": { "colorSpace": "srgb", "components": [0.6863, 0.8039, 0.8824], "hex": "#AFCDE1" }
+		},
+		"routeTeal": {
+			"$value": { "colorSpace": "srgb", "components": [0.3098, 0.651, 0.6392], "hex": "#4FA6A3" }
+		},
+		"routeTealCasing": {
+			"$value": { "colorSpace": "srgb", "components": [0.1216, 0.4314, 0.4157], "hex": "#1F6E6A" }
+		},
+		"stronghold": {
+			"$value": { "colorSpace": "srgb", "components": [0.6392, 0.1333, 0.1059], "hex": "#A3221B" }
+		},
+		"sage": {
+			"$value": { "colorSpace": "srgb", "components": [0.3098, 0.4196, 0.2275], "hex": "#4F6B3A" }
+		},
+		"rustHatch": {
+			"$value": { "colorSpace": "srgb", "components": [0.7098, 0.3922, 0.2353], "hex": "#B5643C" }
+		},
+		"builtUp": {
+			"$value": { "colorSpace": "srgb", "components": [0.898, 0.8314, 0.8], "hex": "#E5D4CC" }
+		},
+		"highlighter": {
+			"$value": { "colorSpace": "srgb", "components": [0.9569, 0.8549, 0.298], "hex": "#F4DA4C" }
+		},
+		"grease": {
+			"$value": { "colorSpace": "srgb", "components": [0.7843, 0.2157, 0.1765], "hex": "#C8372D" }
+		},
+		"ductTape": {
+			"$value": { "colorSpace": "srgb", "components": [0.5216, 0.5137, 0.4902], "hex": "#85837D" }
+		},
+		"white": {
+			"$value": { "colorSpace": "srgb", "components": [1, 1, 1], "hex": "#FFFFFF" }
+		},
+		"clear": {
+			"$value": { "colorSpace": "srgb", "components": [0, 0, 0], "alpha": 0, "hex": "#000000" }
+		},
+		"inkHairline": {
+			"$value": { "colorSpace": "srgb", "components": [0.1373, 0.1333, 0.1216], "alpha": 0.14, "hex": "#23221F" }
+		},
+		"inkEdge": {
+			"$value": { "colorSpace": "srgb", "components": [0.1373, 0.1333, 0.1216], "alpha": 0.4, "hex": "#23221F" }
+		},
+		"inkStrong": {
+			"$value": { "colorSpace": "srgb", "components": [0.1373, 0.1333, 0.1216], "alpha": 0.9, "hex": "#23221F" }
+		},
+		"inkHover": {
+			"$value": { "colorSpace": "srgb", "components": [0.1373, 0.1333, 0.1216], "alpha": 0.045, "hex": "#23221F" }
+		},
+		"inkPressed": {
+			"$value": { "colorSpace": "srgb", "components": [0.1373, 0.1333, 0.1216], "alpha": 0.1, "hex": "#23221F" }
+		},
+		"highlighterActive": {
+			"$value": { "colorSpace": "srgb", "components": [0.9569, 0.8549, 0.298], "alpha": 0.35, "hex": "#F4DA4C" }
+		},
+		"highlighterSelected": {
+			"$value": { "colorSpace": "srgb", "components": [0.9569, 0.8549, 0.298], "alpha": 0.55, "hex": "#F4DA4C" }
+		},
+		"tableScrim": {
+			"$value": { "colorSpace": "srgb", "components": [0.1412, 0.1294, 0.1098], "alpha": 0.6, "hex": "#24211C" }
+		},
+		"shadow": {
+			"$value": { "colorSpace": "srgb", "components": [0.0784, 0.0588, 0.0392], "alpha": 0.5, "hex": "#140F0A" }
+		},
+		"shadowStrong": {
+			"$value": { "colorSpace": "srgb", "components": [0.0784, 0.0588, 0.0392], "alpha": 0.75, "hex": "#140F0A" }
+		}
+	},
+	"face": {
+		"$type": "fontFamily",
+		"$description": "The game's faces by the names Fonts.cpp registers them under.",
+		"displayBold": {
+			"$value": "display-bold"
+		},
+		"display": {
+			"$value": "display"
+		},
+		"body": {
+			"$value": "body"
+		},
+		"mono": {
+			"$value": "mono"
+		}
+	},
+	"sheet": {
+		"margin": {
+			"$type": "dimension",
+			"$description": "The table showing round the screen sheet.",
+			"$value": { "value": 14, "unit": "px" }
+		}
+	},
+	"color": {
+		"$type": "color",
+		"surface": {
+			"base": {
+				"$value": "{palette.sheet}"
+			},
+			"raised": {
+				"$value": "{palette.paper}"
+			},
+			"sunken": {
+				"$value": "{palette.index}"
+			},
+			"overlay": {
+				"$value": "{palette.freshPaper}"
+			},
+			"control": {
+				"$value": "{palette.freshPaper}"
+			}
+		},
+		"text": {
+			"primary": {
+				"$value": "{palette.ink}"
+			},
+			"secondary": {
+				"$value": "{palette.inkDim}"
+			},
+			"disabled": {
+				"$value": "{palette.fadedPrint}"
+			},
+			"inverse": {
+				"$value": "{palette.onHighway}"
+			}
+		},
+		"line": {
+			"subtle": {
+				"$value": "{palette.inkHairline}"
+			},
+			"edge": {
+				"$value": "{palette.inkEdge}"
+			},
+			"strong": {
+				"$value": "{palette.inkStrong}"
+			}
+		},
+		"scrim": {
+			"$value": "{palette.tableScrim}"
+		},
+		"focus": {
+			"$value": "{palette.ink}"
+		}
+	},
+	"radius": {
+		"$type": "dimension",
+		"sm": {
+			"$value": { "value": 0, "unit": "px" }
+		},
+		"md": {
+			"$value": { "value": 0, "unit": "px" }
+		},
+		"lg": {
+			"$value": { "value": 0, "unit": "px" }
+		}
+	},
+	"tone": {
+		"$type": "color",
+		"accent": {
+			"color": {
+				"$value": "{palette.highway}"
+			},
+			"onColor": {
+				"$value": "{palette.onHighway}"
+			}
+		},
+		"info": {
+			"color": {
+				"$value": "{palette.river}"
+			},
+			"onColor": {
+				"$value": "{palette.onHighway}"
+			}
+		},
+		"positive": {
+			"color": {
+				"$value": "{palette.sage}"
+			},
+			"onColor": {
+				"$value": "{palette.onHighway}"
+			}
+		},
+		"warning": {
+			"color": {
+				"$value": "{palette.highway}"
+			},
+			"onColor": {
+				"$value": "{palette.onHighway}"
+			}
+		},
+		"danger": {
+			"color": {
+				"$value": "{palette.stronghold}"
+			},
+			"onColor": {
+				"$value": "{palette.onHighway}"
+			}
+		}
+	},
+	"state": {
+		"$type": "color",
+		"hover": {
+			"wash": {
+				"$value": "{palette.inkHover}"
+			}
+		},
+		"pressed": {
+			"wash": {
+				"$value": "{palette.inkPressed}"
+			}
+		},
+		"active": {
+			"wash": {
+				"$value": "{palette.highlighterActive}"
+			}
+		}
+	},
+	"styles": {
+		"screenTitle": {
+			"color": {
+				"$value": "{palette.ink}"
+			},
+			"fontFamily": {
+				"$value": "{face.displayBold}"
+			},
+			"fontSize": {
+				"$type": "dimension",
+				"$value": { "value": 34, "unit": "px" }
+			},
+			"letterSpacing": {
+				"$type": "dimension",
+				"$value": { "value": 5.44, "unit": "px" }
+			},
+			"$extensions": {
+				"salal": {
+					"textTransform": "uppercase"
+				}
+			}
+		},
+		"sectionHead": {
+			"color": {
+				"$value": "{palette.ink}"
+			},
+			"fontFamily": {
+				"$value": "{face.displayBold}"
+			},
+			"fontSize": {
+				"$type": "dimension",
+				"$value": { "value": 20, "unit": "px" }
+			},
+			"letterSpacing": {
+				"$type": "dimension",
+				"$value": { "value": 3.2, "unit": "px" }
+			},
+			"$extensions": {
+				"salal": {
+					"textTransform": "uppercase"
+				}
+			}
+		},
+		"tab": {
+			"color": {
+				"$value": "{palette.inkDim}"
+			},
+			"fontFamily": {
+				"$value": "{face.displayBold}"
+			},
+			"fontSize": {
+				"$type": "dimension",
+				"$value": { "value": 15, "unit": "px" }
+			},
+			"letterSpacing": {
+				"$type": "dimension",
+				"$value": { "value": 2.1, "unit": "px" }
+			},
+			"$extensions": {
+				"salal": {
+					"textTransform": "uppercase"
+				}
+			}
+		},
+		"tabActive": {
+			"color": {
+				"$value": "{palette.ink}"
+			},
+			"fontFamily": {
+				"$value": "{face.displayBold}"
+			},
+			"fontSize": {
+				"$type": "dimension",
+				"$value": { "value": 15, "unit": "px" }
+			},
+			"letterSpacing": {
+				"$type": "dimension",
+				"$value": { "value": 2.1, "unit": "px" }
+			},
+			"$extensions": {
+				"salal": {
+					"textTransform": "uppercase"
+				}
+			}
+		},
+		"boxTitle": {
+			"color": {
+				"$value": "{palette.ink}"
+			},
+			"fontFamily": {
+				"$value": "{face.displayBold}"
+			},
+			"fontSize": {
+				"$type": "dimension",
+				"$value": { "value": 28, "unit": "px" }
+			},
+			"letterSpacing": {
+				"$type": "dimension",
+				"$value": { "value": 0, "unit": "px" }
+			}
+		},
+		"body": {
+			"color": {
+				"$value": "{palette.ink}"
+			},
+			"fontFamily": {
+				"$value": "{face.body}"
+			},
+			"fontSize": {
+				"$type": "dimension",
+				"$value": { "value": 14.5, "unit": "px" }
+			},
+			"letterSpacing": {
+				"$type": "dimension",
+				"$value": { "value": 0, "unit": "px" }
+			}
+		},
+		"quiet": {
+			"color": {
+				"$value": "{palette.inkFaint}"
+			},
+			"fontFamily": {
+				"$value": "{face.body}"
+			},
+			"fontSize": {
+				"$type": "dimension",
+				"$value": { "value": 14.5, "unit": "px" }
+			},
+			"letterSpacing": {
+				"$type": "dimension",
+				"$value": { "value": 0, "unit": "px" }
+			}
+		},
+		"warning": {
+			"color": {
+				"$value": "{palette.stronghold}"
+			},
+			"fontFamily": {
+				"$value": "{face.body}"
+			},
+			"fontSize": {
+				"$type": "dimension",
+				"$value": { "value": 14.5, "unit": "px" }
+			},
+			"letterSpacing": {
+				"$type": "dimension",
+				"$value": { "value": 0, "unit": "px" }
+			}
+		},
+		"note": {
+			"color": {
+				"$value": "{palette.inkDim}"
+			},
+			"fontFamily": {
+				"$value": "{face.body}"
+			},
+			"fontSize": {
+				"$type": "dimension",
+				"$value": { "value": 13, "unit": "px" }
+			},
+			"letterSpacing": {
+				"$type": "dimension",
+				"$value": { "value": 0, "unit": "px" }
+			}
+		},
+		"subtitle": {
+			"color": {
+				"$value": "{palette.inkDim}"
+			},
+			"fontFamily": {
+				"$value": "{face.body}"
+			},
+			"fontSize": {
+				"$type": "dimension",
+				"$value": { "value": 16, "unit": "px" }
+			},
+			"letterSpacing": {
+				"$type": "dimension",
+				"$value": { "value": 0, "unit": "px" }
+			}
+		},
+		"figure": {
+			"color": {
+				"$value": "{palette.ink}"
+			},
+			"fontFamily": {
+				"$value": "{face.mono}"
+			},
+			"fontSize": {
+				"$type": "dimension",
+				"$value": { "value": 14, "unit": "px" }
+			},
+			"letterSpacing": {
+				"$type": "dimension",
+				"$value": { "value": 0, "unit": "px" }
+			}
+		},
+		"figureShort": {
+			"color": {
+				"$value": "{palette.stronghold}"
+			},
+			"fontFamily": {
+				"$value": "{face.mono}"
+			},
+			"fontSize": {
+				"$type": "dimension",
+				"$value": { "value": 14, "unit": "px" }
+			},
+			"letterSpacing": {
+				"$type": "dimension",
+				"$value": { "value": 0, "unit": "px" }
+			}
+		},
+		"kicker": {
+			"color": {
+				"$value": "{palette.inkDim}"
+			},
+			"fontFamily": {
+				"$value": "{face.mono}"
+			},
+			"fontSize": {
+				"$type": "dimension",
+				"$value": { "value": 11, "unit": "px" }
+			},
+			"letterSpacing": {
+				"$type": "dimension",
+				"$value": { "value": 1.32, "unit": "px" }
+			},
+			"$extensions": {
+				"salal": {
+					"textTransform": "uppercase"
+				}
+			}
+		},
+		"caption": {
+			"color": {
+				"$value": "{palette.inkDim}"
+			},
+			"fontFamily": {
+				"$value": "{face.mono}"
+			},
+			"fontSize": {
+				"$type": "dimension",
+				"$value": { "value": 12, "unit": "px" }
+			},
+			"letterSpacing": {
+				"$type": "dimension",
+				"$value": { "value": 0, "unit": "px" }
+			}
+		},
+		"highwayLabel": {
+			"color": {
+				"$value": "{palette.onHighway}"
+			},
+			"fontFamily": {
+				"$value": "{face.displayBold}"
+			},
+			"fontSize": {
+				"$type": "dimension",
+				"$value": { "value": 30, "unit": "px" }
+			},
+			"letterSpacing": {
+				"$type": "dimension",
+				"$value": { "value": 0, "unit": "px" }
+			}
+		},
+		"backRoadLabel": {
+			"color": {
+				"$value": "{palette.ink}"
+			},
+			"fontFamily": {
+				"$value": "{face.displayBold}"
+			},
+			"fontSize": {
+				"$type": "dimension",
+				"$value": { "value": 19, "unit": "px" }
+			},
+			"letterSpacing": {
+				"$type": "dimension",
+				"$value": { "value": 0, "unit": "px" }
+			}
+		},
+		"rowLabel": {
+			"color": {
+				"$value": "{palette.ink}"
+			},
+			"fontFamily": {
+				"$value": "{face.displayBold}"
+			},
+			"fontSize": {
+				"$type": "dimension",
+				"$value": { "value": 20, "unit": "px" }
+			},
+			"letterSpacing": {
+				"$type": "dimension",
+				"$value": { "value": 0, "unit": "px" }
+			}
+		}
+	}
+}

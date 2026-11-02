@@ -20,7 +20,7 @@ namespace game {
 	  public:
 		void onEnter(app::App& app) final {
 			owner = &app;
-			this->ui().setTheme(fonts::theme());
+			this->ui().setTheme(sceneTheme());
 			enter();
 		}
 
@@ -29,6 +29,9 @@ namespace game {
 	  protected:
 		// onEnter's work, with app() and game() there.
 		virtual void enter() = 0;
+
+		// ui's tokens on the game's faces; a meta scene opts into the atlas (UI Art Direction, Building it).
+		[[nodiscard]] virtual const ui::Theme& sceneTheme() const { return fonts::theme(); }
 
 		[[nodiscard]] app::App&	   app() const { return *owner; }
 		[[nodiscard]] GameContext& game() const { return owner->context<GameContext>(); }

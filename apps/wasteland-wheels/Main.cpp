@@ -6,6 +6,7 @@
 #include "DevRoutes.h"
 #include "Fonts.h"
 #include "GameContext.h"
+#include "atlas/Paper.h"
 #include "scenes/Scenes.h"
 
 #include <application/App.h>
@@ -67,6 +68,7 @@ int main(int argc, char* argv[]) {
 	if (app == nullptr) {
 		return 1;
 	}
+	game::atlas::tunePaper();
 
 	game::GameContext context{
 		.rules = *packs,
