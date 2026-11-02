@@ -54,7 +54,7 @@ Contrast is checked without a GPU. The hook darkens the tint by at most its wear
 
 ## Trade-offs and consequences
 
-- The real screens wait on salal's fill hooks. The game's own faces load since salal v0.35.0 ([game-app.md](./game-app.md)).
+- salal's fill hooks and the game's own faces are both in since salal v0.35.0 ([game-app.md](./game-app.md)); the paper hook itself is still to write.
 - The mottle is fractal noise in GLSL. It looks like the mocks' `feTurbulence`, not the same, and two GPUs can differ in its last bits. Nothing compares it pixel for pixel, and the seed is what holds a surface steady.
 - Every pixel of a hooked rect runs the hook, so it costs GPU time where the atlas cost a texture read. Most of a sheet is window and exits early, and the cost gets measured against main when the hook lands.
 - Paper is rects only. A non-rect paper shape is a rect with the hook cutting it by alpha.
