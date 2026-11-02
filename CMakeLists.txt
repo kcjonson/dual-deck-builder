@@ -58,7 +58,7 @@ include(cmake/DdbTesting.cmake)
 include(FetchContent)
 FetchContent_Declare(salal
     GIT_REPOSITORY https://github.com/kcjonson/salal.git
-    GIT_TAG        v0.30.1
+    GIT_TAG        v0.35.0
     GIT_SHALLOW    TRUE
 )
 # The game links app, which hosts ui; its dev server is compiled into Debug and RelWithDebInfo only, and needs

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Fonts.h"
 #include "GameContext.h"
 #include "scenes/SceneKit.h"
 #include "scenes/Scenes.h"
@@ -12,13 +13,14 @@
 
 namespace game {
 
-	// What every scene of the game shares: the App and the game's context from onEnter on, the page it shows, and a
-	// clear in the theme's base surface under it.
+	// What every scene of the game shares: the App and the game's context from onEnter on, ui's font roles on the
+	// game's faces, the page it shows, and a clear in the theme's base surface under it.
 	template <typename A = app::NoArgs, typename R = app::NoResult>
 	class GameScene : public app::TypedScene<A, R> {
 	  public:
 		void onEnter(app::App& app) final {
 			owner = &app;
+			this->ui().setTheme(fonts::theme());
 			enter();
 		}
 

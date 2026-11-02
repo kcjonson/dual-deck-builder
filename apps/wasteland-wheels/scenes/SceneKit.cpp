@@ -1,5 +1,7 @@
 #include "scenes/SceneKit.h"
 
+#include "Fonts.h"
+
 #include <ui/theme/Tokens.h>
 
 #include <utility>
@@ -30,7 +32,9 @@ namespace game::kit {
 		Page page;
 		page.frame =
 			root.addChild<ui::Component>({.id = "page", .size = {ui::percent(100.0F), ui::percent(100.0F)}, .layout = frameLayout});
-		page.frame.addChild<ui::Text>({.id = "title", .style = ui::styles::text::display, .text = title});
+		page.frame.addChild<ui::Text>(
+			{.id = "title", .style = ui::styles::text::display.extend({.fontFamily = fonts::kDisplayBold}), .text = title}
+		);
 		if (!subtitle.empty()) {
 			page.frame.addChild<ui::Text>({.id = "subtitle", .style = ui::styles::text::secondary, .text = subtitle, .wrap = true});
 		}
@@ -76,6 +80,10 @@ namespace game::kit {
 
 	Ref<ui::Text> caption(Ref<ui::Component> parent, const std::string& words, const std::string& id) {
 		return parent.addChild<ui::Text>({.id = id, .style = ui::styles::text::caption, .text = words, .wrap = true});
+	}
+
+	Ref<ui::Text> figures(Ref<ui::Component> parent, const std::string& words, const std::string& id) {
+		return parent.addChild<ui::Text>({.id = id, .style = ui::styles::text::mono, .text = words, .wrap = true});
 	}
 
 	Ref<ui::Button> button(

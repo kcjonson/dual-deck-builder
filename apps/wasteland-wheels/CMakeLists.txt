@@ -5,6 +5,7 @@ find_package(nlohmann_json CONFIG REQUIRED)
 add_library(ddb_game STATIC
     CampaignStore.cpp
     DevRoutes.cpp
+    Fonts.cpp
     GameRules.cpp
     Session.cpp
     Words.cpp
@@ -39,19 +40,31 @@ set_target_properties(wasteland-wheels PROPERTIES FOLDER apps)
 # The renderer's base shader with no hooks, as a game with none gets it.
 salal_base_shader(wasteland-wheels)
 
-# The placeholder font atlas and its licence, beside the exe on every build, where AppConfig::fontAtlases' paths resolve.
+# The game's faces (Fonts.h) and their licences, beside the exe on every build, where AppConfig::fontAtlases' paths resolve.
 set(game_fonts
-    ${CMAKE_CURRENT_SOURCE_DIR}/fonts/JetBrainsMono-SDF.png
-    ${CMAKE_CURRENT_SOURCE_DIR}/fonts/JetBrainsMono-SDF.json
-    ${CMAKE_CURRENT_SOURCE_DIR}/fonts/OFL.txt
+    ${CMAKE_CURRENT_SOURCE_DIR}/fonts/barlow-condensed-bold.png
+    ${CMAKE_CURRENT_SOURCE_DIR}/fonts/barlow-condensed-bold.json
+    ${CMAKE_CURRENT_SOURCE_DIR}/fonts/barlow-condensed-semibold.png
+    ${CMAKE_CURRENT_SOURCE_DIR}/fonts/barlow-condensed-semibold.json
+    ${CMAKE_CURRENT_SOURCE_DIR}/fonts/barlow-condensed-OFL.txt
+    ${CMAKE_CURRENT_SOURCE_DIR}/fonts/open-sans-regular.png
+    ${CMAKE_CURRENT_SOURCE_DIR}/fonts/open-sans-regular.json
+    ${CMAKE_CURRENT_SOURCE_DIR}/fonts/open-sans-OFL.txt
+    ${CMAKE_CURRENT_SOURCE_DIR}/fonts/jetbrains-mono-regular.png
+    ${CMAKE_CURRENT_SOURCE_DIR}/fonts/jetbrains-mono-regular.json
+    ${CMAKE_CURRENT_SOURCE_DIR}/fonts/jetbrains-mono-OFL.txt
 )
 add_custom_target(wasteland-wheels-fonts
     COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:wasteland-wheels>/fonts
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${game_fonts} $<TARGET_FILE_DIR:wasteland-wheels>/fonts
-    COMMENT "Staging the game's font atlas"
+    COMMENT "Staging the game's fonts"
     VERBATIM
 )
 set_target_properties(wasteland-wheels-fonts PROPERTIES FOLDER apps)
 add_dependencies(wasteland-wheels wasteland-wheels-fonts)
 
 ddb_add_tests(game DEFINITIONS DDB_PACKS_DIR="${PROJECT_SOURCE_DIR}/packs")
+# The fast lane loads the faces from beside its exe, which is the game's folder, as the game does.
+if(TARGET ddb_game_tests)
+    add_dependencies(ddb_game_tests wasteland-wheels-fonts)
+endif()

@@ -4,18 +4,17 @@
 
 #include "BaseShader.h"
 #include "DevRoutes.h"
+#include "Fonts.h"
 #include "GameContext.h"
 #include "scenes/Scenes.h"
 
 #include <application/App.h>
 #include <application/CommandLine.h>
 #include <platform/Platform.h>
-#include <primitives/FontFamily.h>
 #include <random/FreshSeed.h>
 #include <rules/campaign/CampaignJson.h>
 #include <utils/Log.h>
 
-#include <array>
 #include <cstdio>
 #include <exception>
 #include <memory>
@@ -27,13 +26,6 @@ namespace {
 
 	constexpr const char* kTitle = "Wasteland Wheels";
 	constexpr int		  kDevServerPort = 8070;
-
-	// JetBrains Mono, salal's sandbox atlas, until the art decision picks the game's faces (game-app.md). Staged beside
-	// the exe by CMakeLists.txt.
-	constexpr Renderer::FontFamily				   kMonoFont{0};
-	const std::array<Renderer::FontAtlasSource, 1> kFontAtlases{{
-		{.family = kMonoFont, .pngPath = "fonts/JetBrainsMono-SDF.png", .jsonPath = "fonts/JetBrainsMono-SDF.json"},
-	}};
 
 } // namespace
 
@@ -60,8 +52,8 @@ int main(int argc, char* argv[]) {
 		{.organization = "Bear Cave Interactive",
 		 .applicationName = kTitle,
 		 .baseShader = base_shader::source(),
-		 .fontAtlases = kFontAtlases,
-		 .defaultFont = kMonoFont,
+		 .fontAtlases = game::fonts::kAtlases,
+		 .defaultFont = game::fonts::kBody,
 		 .settingsFile = "settings.json",
 		 .savesDirectory = "saves",
 		 .saveFormat = {.version = rules::campaign::kSaveVersion},
