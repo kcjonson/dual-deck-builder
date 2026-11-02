@@ -1,8 +1,8 @@
 #pragma once
 
 // The placeholder look every scene shares until the art decision lands (game-app.md): salal's default tokens and its
-// controls, a page of panels with a title, rows and buttons. A scene rebuilds its page whenever what it shows changes,
-// so nothing here keeps state.
+// controls in the game's faces, a page of panels with a title, rows and buttons. A scene rebuilds its page whenever
+// what it shows changes, so nothing here keeps state.
 
 #include <scene/Scene.h>
 #include <ui/Component.h>
@@ -38,6 +38,8 @@ namespace game::kit {
 
 	ui::Ref<ui::Text> text(ui::Ref<ui::Component> parent, const std::string& words, const std::string& id = {});
 	ui::Ref<ui::Text> caption(ui::Ref<ui::Component> parent, const std::string& words, const std::string& id = {});
+	// A ledger of counts, or a code such as a seed.
+	ui::Ref<ui::Text> figures(ui::Ref<ui::Component> parent, const std::string& words, const std::string& id = {});
 
 	ui::Ref<ui::Button> button(
 		ui::Ref<ui::Component> parent,

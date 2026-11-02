@@ -68,8 +68,8 @@ namespace game {
 				page = kit::openPage(*this, page, "The compound", campaignSummary(campaign));
 
 				ui::Ref<ui::Component> stores = kit::panel(page, "Stores", "stores");
-				kit::text(stores, storesText(campaign.stores), "stores_line");
-				kit::caption(stores, "Unrest " + std::to_string(campaign.unrest));
+				kit::figures(stores, storesText(campaign.stores), "stores_line");
+				kit::figures(stores, "Unrest " + std::to_string(campaign.unrest));
 				const rules::campaign::Forecast forecast = rules::campaign::forecastNeeds(campaign.stores, loaded.campaign.compound);
 				kit::caption(stores, needLine("Food", forecast.food));
 				kit::caption(stores, needLine("Water", forecast.water));

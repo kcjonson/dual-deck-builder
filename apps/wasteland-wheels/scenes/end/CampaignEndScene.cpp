@@ -93,7 +93,7 @@ namespace game {
 				kit::text(
 					record, counted(static_cast<int>(campaign.mapState.strongholdsTaken.size()), "stronghold", "strongholds") + " taken"
 				);
-				kit::caption(record, "Seed " + std::to_string(campaign.seed));
+				kit::figures(record, "Seed " + std::to_string(campaign.seed));
 				kit::button(
 					page.footer,
 					"main_menu",
