@@ -47,7 +47,9 @@ namespace game::kit {
 		Layout footerLayout = flex(FlexDirection::Row, 8.0F);
 		footerLayout.alignItems = AlignItems::Center;
 		page.footer = page.frame.addChild<ui::Component>({.id = "footer", .layout = footerLayout});
-		page.notice = page.frame.addChild<ui::Text>({.id = "notice", .style = ui::styles::text::caption, .text = "", .wrap = true});
+		// Hidden while it says nothing, so an empty notice takes no room rather than lying there at zero height.
+		page.notice =
+			page.frame.addChild<ui::Text>({.id = "notice", .visible = false, .style = ui::styles::text::caption, .text = "", .wrap = true});
 		previous = page;
 		return page;
 	}
@@ -121,6 +123,7 @@ namespace game::kit {
 	void setNotice(const Page& page, const std::string& words) {
 		if (ui::Text* notice = page.notice.get()) {
 			notice->setText(words);
+			notice->setVisible(!words.empty());
 		}
 	}
 
