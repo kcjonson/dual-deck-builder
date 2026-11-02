@@ -266,6 +266,13 @@
 			"wash": {
 				"$value": "{palette.highlighterActive}"
 			}
+		},
+		"disabled": {
+			"opacity": {
+				"$type": "number",
+				"$description": "Faded print: ink at 55%.",
+				"$value": 0.55
+			}
 		}
 	},
 	"styles": {
@@ -311,7 +318,7 @@
 				}
 			}
 		},
-		"tab": {
+		"sectionTab": {
 			"color": {
 				"$value": "{palette.inkDim}"
 			},
@@ -332,7 +339,7 @@
 				}
 			}
 		},
-		"tabActive": {
+		"sectionTabActive": {
 			"color": {
 				"$value": "{palette.ink}"
 			},
@@ -560,6 +567,22 @@
 			"fontSize": {
 				"$type": "dimension",
 				"$value": { "value": 20, "unit": "px" }
+			},
+			"letterSpacing": {
+				"$type": "dimension",
+				"$value": { "value": 0, "unit": "px" }
+			}
+		},
+		"logLine": {
+			"color": {
+				"$value": "{palette.ink}"
+			},
+			"fontFamily": {
+				"$value": "{face.displayBold}"
+			},
+			"fontSize": {
+				"$type": "dimension",
+				"$value": { "value": 17, "unit": "px" }
 			},
 			"letterSpacing": {
 				"$type": "dimension",
