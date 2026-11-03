@@ -1,7 +1,5 @@
 #include "scenes/SceneKit.h"
 
-#include "Fonts.h"
-
 #include <ui/theme/Tokens.h>
 
 #include <utility>
@@ -32,9 +30,7 @@ namespace game::kit {
 		Page page;
 		page.frame =
 			root.addChild<ui::Component>({.id = "page", .size = {ui::percent(100.0F), ui::percent(100.0F)}, .layout = frameLayout});
-		page.frame.addChild<ui::Text>(
-			{.id = "title", .style = ui::styles::text::display.extend({.fontFamily = fonts::kDisplayBold}), .text = title}
-		);
+		page.frame.addChild<ui::Text>({.id = "title", .style = ui::styles::text::display, .text = title});
 		if (!subtitle.empty()) {
 			page.frame.addChild<ui::Text>({.id = "subtitle", .style = ui::styles::text::secondary, .text = subtitle, .wrap = true});
 		}

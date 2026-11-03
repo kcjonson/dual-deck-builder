@@ -1,12 +1,12 @@
 #include "atlas/Sheet.h"
 
+#include "atlas/Art.h"
 #include "atlas/Ink.h"
 #include "atlas/Tokens.h"
 
 #include <primitives/Primitives.h>
 #include <ui/Context.h>
 #include <utils/Log.h>
-#include <utils/ResourcePath.h>
 #include <vector/SVGLoader.h>
 #include <vector/Types.h>
 
@@ -23,7 +23,7 @@ namespace game::atlas {
 
 		namespace palette = tokens::palette;
 
-		constexpr const char* kTapeArt = "art/tape.svg";
+		constexpr const char* kTapeArt = "tape";
 		// The neatline (UI Art Direction, Components): 0.6 px outer and 1.6 px inner, 8 px apart, 18 px in from the sheet's edge.
 		constexpr float kNeatlineInset = 18.0F;
 		constexpr float kNeatlineGap = 8.0F;
@@ -39,21 +39,20 @@ namespace game::atlas {
 			Foundation::Vec2		  size{0.0F, 0.0F};
 		};
 
-		// Loaded and tessellated on first use, in the SVG's own units; empty, logged, if the file isn't there.
+		// Embedded (salal_art), loaded and tessellated on first use, in the SVG's own units; empty, logged, if it doesn't load.
 		const std::optional<TapeArt>& tapeArt() {
 			static const std::optional<TapeArt> kArt = []() -> std::optional<TapeArt> {
-				const std::string					  path = Foundation::findResourceString(kTapeArt);
 				std::vector<renderer::LoadedSVGShape> shapes;
-				if (path.empty() || !renderer::loadSVG(path, 0.5F, shapes) || shapes.empty()) {
+				if (!renderer::loadSVG(art::art(kTapeArt), 0.5F, shapes, kTapeArt) || shapes.empty()) {
 					LOG_ERROR(Game, "The tape art %s didn't load; the sheet draws without tape", kTapeArt);
 					return std::nullopt;
 				}
-				TapeArt art;
+				TapeArt tape;
 				for (const renderer::LoadedSVGShape& shape : shapes) {
-					renderer::appendShapeMesh(shape, art.mesh);
-					art.size = {shape.width, shape.height};
+					renderer::appendShapeMesh(shape, tape.mesh);
+					tape.size = {shape.width, shape.height};
 				}
-				return art;
+				return tape;
 			}();
 			return kArt;
 		}

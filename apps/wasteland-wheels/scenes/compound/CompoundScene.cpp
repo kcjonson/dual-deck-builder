@@ -37,7 +37,7 @@ namespace game {
 
 		using rules::campaign::Campaign;
 		using rules::campaign::DriverStatus;
-		namespace styles = atlas::styles;
+		namespace styles = atlas::styles::print;
 
 		// A store runs short when it runs out within this many day ends: the strip turns it red and Needs leads it with a
 		// diamond.

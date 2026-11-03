@@ -8,14 +8,13 @@ namespace game::fonts {
 
 	namespace {
 
-		// ui's display typography is 700 and its title 600, both on the display role, and a family is one weight: the role
-		// is the semibold face panel and dialog titles ask for, and a page's title takes the bold face itself (SceneKit).
-		// The atlas theme names the bold face as display-bold.
+		// A font is one weight, so the display role is two families under one name, and a style's fontWeight picks the face:
+		// ui's display typography at 700 draws the bold, its title at 600 the semibold.
 		constexpr std::array<ui::FontFamilyName, 4> kNames{{
-			{.name = "display", .family = kDisplaySemibold},
-			{.name = "display-bold", .family = kDisplayBold},
-			{.name = "body", .family = kBody},
-			{.name = "mono", .family = kMono},
+			{.name = "display", .family = kDisplaySemibold, .weight = 600.0F},
+			{.name = "display", .family = kDisplayBold, .weight = 700.0F},
+			{.name = "body", .family = kBody, .weight = 400.0F},
+			{.name = "mono", .family = kMono, .weight = 400.0F},
 		}};
 
 	} // namespace

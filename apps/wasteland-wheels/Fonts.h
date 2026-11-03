@@ -23,7 +23,7 @@ namespace game::fonts {
 		{.family = kMono, .pngPath = "fonts/jetbrains-mono-regular.png", .jsonPath = "fonts/jetbrains-mono-regular.json"},
 	}};
 
-	// The names a tokens file's fontFamily calls the faces by: ui's roles, and display-bold.
+	// The names a tokens file's fontFamily calls the faces by, ui's roles, each face with its weight.
 	[[nodiscard]] std::span<const ui::FontFamilyName> familyNames();
 
 	// ui's own tokens with its font roles on the game's faces, which every scene's ui loads until salal's App carries a

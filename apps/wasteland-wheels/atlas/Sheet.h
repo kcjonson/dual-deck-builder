@@ -2,7 +2,8 @@
 
 // The screen sheet (UI Art Direction, Components): the table, a W2 sheet on it inside the 14 px margin, a double
 // neatline, and duct tape at the top-left and bottom-right corners. It draws under its children, which the scene lays
-// out in it. The tape is flat-fill SVG (art/tape.svg) through salal's renderer/vector, tessellated once.
+// out in it. The tape is flat-fill SVG (art/tape.svg), embedded by salal_art and drawn through salal's renderer/vector,
+// tessellated once.
 
 #include "atlas/Paper.h"
 

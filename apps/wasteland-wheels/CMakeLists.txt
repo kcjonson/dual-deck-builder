@@ -52,14 +52,16 @@ salal_tokens(ddb_game ${CMAKE_CURRENT_SOURCE_DIR}/tokens NAMESPACE game::atlas H
 # MSDF atlas, embedded. A scene adds it to its icon service (game::icons::iconAtlas()).
 salal_icons(ddb_game ${CMAKE_CURRENT_SOURCE_DIR}/icons NAMESPACE game::icons HEADER atlas/Icons.h)
 
+# The game's flat-fill vector art (procedural-paper.md, Everything else), checked against what loadSVG reads and embedded.
+salal_art(ddb_game ${CMAKE_CURRENT_SOURCE_DIR}/art NAMESPACE game::art HEADER atlas/Art.h)
+
 # The base pack is read from the source tree, as the balance sim reads it, until playtest builds ship their packs.
 add_executable(wasteland-wheels Main.cpp)
 target_link_libraries(wasteland-wheels PRIVATE ddb::game)
 target_compile_definitions(wasteland-wheels PRIVATE DDB_PACKS_DIR="${PROJECT_SOURCE_DIR}/packs")
 set_target_properties(wasteland-wheels PROPERTIES FOLDER apps)
 
-# The game's faces (Fonts.h) and their licences, and its vector art, beside the exe on every build, where
-# AppConfig::fontAtlases' paths and findResource resolve.
+# The game's faces (Fonts.h) and their licences, beside the exe on every build, where AppConfig::fontAtlases' paths resolve.
 set(game_fonts
     ${CMAKE_CURRENT_SOURCE_DIR}/fonts/barlow-condensed-bold.png
     ${CMAKE_CURRENT_SOURCE_DIR}/fonts/barlow-condensed-bold.json
@@ -73,21 +75,17 @@ set(game_fonts
     ${CMAKE_CURRENT_SOURCE_DIR}/fonts/jetbrains-mono-regular.json
     ${CMAKE_CURRENT_SOURCE_DIR}/fonts/jetbrains-mono-OFL.txt
 )
-set(game_art
-    ${CMAKE_CURRENT_SOURCE_DIR}/art/tape.svg
-)
-add_custom_target(wasteland-wheels-files
-    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:wasteland-wheels>/fonts $<TARGET_FILE_DIR:wasteland-wheels>/art
+add_custom_target(wasteland-wheels-fonts
+    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:wasteland-wheels>/fonts
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${game_fonts} $<TARGET_FILE_DIR:wasteland-wheels>/fonts
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${game_art} $<TARGET_FILE_DIR:wasteland-wheels>/art
-    COMMENT "Staging the game's fonts and art"
+    COMMENT "Staging the game's fonts"
     VERBATIM
 )
-set_target_properties(wasteland-wheels-files PROPERTIES FOLDER apps)
-add_dependencies(wasteland-wheels wasteland-wheels-files)
+set_target_properties(wasteland-wheels-fonts PROPERTIES FOLDER apps)
+add_dependencies(wasteland-wheels wasteland-wheels-fonts)
 
 ddb_add_tests(game DEFINITIONS DDB_PACKS_DIR="${PROJECT_SOURCE_DIR}/packs")
-# The fast lane loads the faces and the art from beside its exe, which is the game's folder, as the game does.
+# The fast lane loads the faces from beside its exe, which is the game's folder, as the game does.
 if(TARGET ddb_game_tests)
-    add_dependencies(ddb_game_tests wasteland-wheels-files)
+    add_dependencies(ddb_game_tests wasteland-wheels-fonts)
 endif()

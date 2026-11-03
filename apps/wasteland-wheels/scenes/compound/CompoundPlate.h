@@ -5,7 +5,8 @@
 // gate on the east and the road leaving it, the water tank, the rig and the bike, and each building: a corrugated roof
 // with its shadow to the south-east when it stands, string over the rust hatch when it doesn't. Each is labelled as the
 // map labels its places, a circled number and its name with its state beneath, and is a hit target over its plot; the
-// chosen one carries the grease-pencil loop. Geometry is the canvas mock's 920 by 760 plate, fitted whole and centred.
+// chosen one carries the grease-pencil loop. Geometry is the canvas mock's 920 by 760 plate, mapped onto the plate's box
+// so the yard fills it: positions by each axis, sizes by the smaller scale.
 
 #include <rules/campaign/Campaign.h>
 
@@ -56,25 +57,15 @@ namespace game {
 		[[nodiscard]] float inkExtent() const override { return 5.0F; }
 		void				describe(nlohmann::json& node) const override;
 
-		// Where the canvas's plate lands in the box: its scale and its top left.
-		struct Fit {
-			float			 scale = 1.0F;
-			Foundation::Vec2 origin{0.0F, 0.0F};
-		};
-		[[nodiscard]] static Fit fitIn(Foundation::Vec2 box);
-
 	  protected:
 		void onMount() override;
 		void render() override;
 
 	  private:
-		void place();
-
-		std::vector<Building>			  built;
-		Building						  selected;
-		uint32_t						  seed;
-		std::function<void(Building)>	  onChoose;
-		std::vector<ui::Ref<ui::Control>> spots;
+		std::vector<Building>		  built;
+		Building					  selected;
+		uint32_t					  seed;
+		std::function<void(Building)> onChoose;
 	};
 
 } // namespace game

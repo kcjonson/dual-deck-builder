@@ -12,9 +12,12 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <numbers>
+#include <optional>
 #include <string>
+#include <vector>
 
 namespace game {
 
@@ -111,6 +114,38 @@ namespace game {
 			return kArt.at(static_cast<size_t>(building));
 		}
 
+		// The canvas's plate onto the box: positions by each axis's own scale, so the yard fills the plate and a plot is
+		// the same fraction of it at every size, and lengths (widths, radii, the size of a thing) by the smaller scale, so
+		// round things stay round.
+		struct Map {
+			Vec2  scale{1.0F, 1.0F};
+			float unit = 1.0F;
+
+			[[nodiscard]] Vec2 at(Vec2 point) const { return {point.x * scale.x, point.y * scale.y}; }
+			[[nodiscard]] Rect at(const Rect& rect) const {
+				return {rect.x * scale.x, rect.y * scale.y, rect.width * scale.x, rect.height * scale.y};
+			}
+			[[nodiscard]] std::vector<Vec2> at(const std::vector<Vec2>& points) const {
+				std::vector<Vec2> mapped;
+				mapped.reserve(points.size());
+				for (const Vec2 point : points) {
+					mapped.push_back(at(point));
+				}
+				return mapped;
+			}
+			[[nodiscard]] float length(float canvas) const { return canvas * unit; }
+			// A square `side` long centred on a canvas point.
+			[[nodiscard]] Rect square(Vec2 centre, float side) const {
+				const Vec2 middle = at(centre);
+				return {middle.x - length(side) * 0.5F, middle.y - length(side) * 0.5F, length(side), length(side)};
+			}
+		};
+
+		Map mapIn(Vec2 box) {
+			const Vec2 scale{std::max(box.x / kPlate.x, 0.0F), std::max(box.y / kPlate.y, 0.0F)};
+			return {.scale = scale, .unit = std::min(scale.x, scale.y)};
+		}
+
 		Rect inset(const Rect& rect, float by) {
 			return {rect.x + by, rect.y + by, rect.width - 2.0F * by, rect.height - 2.0F * by};
 		}
@@ -119,12 +154,10 @@ namespace game {
 			Primitives::drawRect({.bounds = rect, .style = {.fill = color}, .key = key});
 		}
 
-		void framed(const Rect& rect, Color color, Color edge, float width, int32_t key, float radius = 0.0F) {
-			Primitives::drawRect({
-				.bounds = rect,
-				.style = {.fill = color, .border = Foundation::BorderStyle{.color = edge, .width = width, .cornerRadius = radius}},
-				.key = key,
-			});
+		void framed(const Rect& rect, Color color, Color edge, float width, int32_t key) {
+			Primitives::drawRect(
+				{.bounds = rect, .style = {.fill = color, .border = Foundation::BorderStyle{.color = edge, .width = width}}, .key = key}
+			);
 		}
 
 		std::vector<Vec2> cubic(Vec2 from, Vec2 c1, Vec2 c2, Vec2 to, int steps) {
@@ -137,40 +170,22 @@ namespace game {
 			return points;
 		}
 
-		void polyline(const std::vector<Vec2>& points, float width, Color color, int32_t key) {
-			Primitives::drawPolyline(
-				{.points = points,
-				 .width = width,
-				 .color = color,
-				 .cap = Primitives::LineCap::Butt,
-				 .join = Primitives::LineJoin::Round,
-				 .key = key}
-			);
-		}
-
-		// Dashes along a polyline, `on` then `off`, from its start.
-		void dashAlong(const std::vector<Vec2>& points, float on, float off, float width, Color color, int32_t key) {
-			float phase = 0.0F; // how far into the current on-off period
-			for (size_t index = 1; index < points.size(); ++index) {
-				const Vec2	from = points[index - 1];
-				const Vec2	along = points[index] - from;
-				const float length = std::sqrt(along.x * along.x + along.y * along.y);
-				float		at = 0.0F;
-				while (at < length) {
-					const float left = (phase < on ? on : on + off) - phase;
-					const float step = std::min(left, length - at);
-					if (phase < on) {
-						Primitives::drawLine({
-							.start = from + along * (at / length),
-							.end = from + along * ((at + step) / length),
-							.style = {.color = color, .width = width},
-							.key = key,
-						});
-					}
-					at += step;
-					phase = std::fmod(phase + step, on + off);
-				}
-			}
+		void polyline(
+			const std::vector<Vec2>&			   points,
+			float								   width,
+			Color								   color,
+			int32_t								   key,
+			std::optional<Foundation::DashPattern> dash = std::nullopt
+		) {
+			Primitives::drawPolyline({
+				.points = points,
+				.width = width,
+				.color = color,
+				.cap = Primitives::LineCap::Butt,
+				.join = Primitives::LineJoin::Round,
+				.dash = dash,
+				.key = key,
+			});
 		}
 
 		// Packed dirt's mottling: small ragged patches, darker and lighter, scattered once by a fixed seed.
@@ -221,8 +236,10 @@ namespace game {
 			return kPatches;
 		}
 
-		void drawDirt(int32_t key) {
+		// The patches are scattered dirt, so they stretch with the plate.
+		void drawDirt(const Map& map, int32_t key) {
 			const DirtPatches& patches = dirtPatches();
+			Primitives::PushTransform(glm::scale(glm::mat4(1.0F), glm::vec3(map.scale.x, map.scale.y, 1.0F)));
 			Primitives::drawTriangles({
 				.vertices = patches.dark.data(),
 				.indices = patches.darkIndices.data(),
@@ -239,19 +256,13 @@ namespace game {
 				.color = art::kDirtLight,
 				.key = key,
 			});
+			Primitives::PopTransform();
 		}
 
-		// The road out of the gate, on to `east`, the plate box's east edge in the canvas's units, which is past the canvas
-		// when the box is wider than the yard.
-		void drawRoad(float east, Color casing, Color highway, int32_t key) {
-			static const std::vector<Vec2> kCurve = cubic({700.0F, 410.0F}, {780.0F, 404.0F}, {860.0F, 396.0F}, {930.0F, 390.0F}, 12);
-			static const std::vector<Vec2> kCentreCurve = cubic({720.0F, 409.0F}, {790.0F, 403.0F}, {860.0F, 396.0F}, {930.0F, 390.0F}, 12);
-			std::vector<Vec2>			   road = kCurve;
-			std::vector<Vec2>			   centre = kCentreCurve;
-			if (east > road.back().x) {
-				road.push_back({east + 30.0F, 390.0F - (east + 30.0F - 930.0F) * 0.08F});
-				centre.push_back(road.back());
-			}
+		// The road out of the gate, on past the plate's east edge, its centre line dashed, and the ruts round to the garage.
+		void drawRoad(const Map& map, Color casing, Color highway, int32_t key) {
+			static const std::vector<Vec2> kRoad = cubic({700.0F, 410.0F}, {780.0F, 404.0F}, {860.0F, 396.0F}, {930.0F, 390.0F}, 12);
+			static const std::vector<Vec2> kCentre = cubic({720.0F, 409.0F}, {790.0F, 403.0F}, {860.0F, 396.0F}, {930.0F, 390.0F}, 12);
 			static const std::array<std::vector<Vec2>, 2> kRuts{
 				[] {
 					std::vector<Vec2>		rut = cubic({690.0F, 400.0F}, {600.0F, 400.0F}, {520.0F, 420.0F}, {470.0F, 470.0F}, 10);
@@ -266,15 +277,22 @@ namespace game {
 					return rut;
 				}(),
 			};
-			polyline(road, 46.0F, casing, key);
-			polyline(road, 38.0F, art::kAsphalt, key);
-			dashAlong(centre, 18.0F, 16.0F, 3.0F, atlas::withAlpha(highway, 0.8F), key);
+			const std::vector<Vec2> road = map.at(kRoad);
+			polyline(road, map.length(46.0F), casing, key);
+			polyline(road, map.length(38.0F), art::kAsphalt, key);
+			polyline(
+				map.at(kCentre),
+				map.length(3.0F),
+				atlas::withAlpha(highway, 0.8F),
+				key,
+				Foundation::DashPattern{.dash = map.length(18.0F), .gap = map.length(16.0F)}
+			);
 			for (const std::vector<Vec2>& rut : kRuts) {
-				polyline(rut, 7.0F, art::kRuts, key);
+				polyline(map.at(rut), map.length(7.0F), art::kRuts, key);
 			}
 		}
 
-		void drawFence(int32_t key) {
+		void drawFence(const Map& map, int32_t key) {
 			struct Run {
 				Vec2   from;
 				Vec2   to;
@@ -296,204 +314,288 @@ namespace game {
 				{{60, 300}, {60, 520}, 3},
 				{{60, 520}, {60, 700}, 1},
 			}};
-			polyline({{60.0F, 70.0F}, {700.0F, 70.0F}, {700.0F, 360.0F}}, 12.0F, art::kFenceUnder, key);
-			polyline({{700.0F, 460.0F}, {700.0F, 700.0F}, {60.0F, 700.0F}}, 12.0F, art::kFenceUnder, key);
-			polyline({{60.0F, 70.0F}, {60.0F, 700.0F}}, 12.0F, art::kFenceUnder, key);
+			const float							 under = map.length(12.0F);
+			polyline(map.at(std::vector<Vec2>{{60.0F, 70.0F}, {700.0F, 70.0F}, {700.0F, 360.0F}}), under, art::kFenceUnder, key);
+			polyline(map.at(std::vector<Vec2>{{700.0F, 460.0F}, {700.0F, 700.0F}, {60.0F, 700.0F}}), under, art::kFenceUnder, key);
+			polyline(map.at(std::vector<Vec2>{{60.0F, 70.0F}, {60.0F, 700.0F}}), under, art::kFenceUnder, key);
 			for (const Run& run : kRuns) {
 				Primitives::drawLine(
-					{.start = run.from, .end = run.to, .style = {.color = art::kScrap.at(run.scrap), .width = 8.0F}, .key = key}
+					{.start = map.at(run.from),
+					 .end = map.at(run.to),
+					 .style = {.color = art::kScrap.at(run.scrap), .width = map.length(8.0F)},
+					 .key = key}
 				);
 			}
 			for (float x = 60.0F; x <= 700.0F; x += 80.0F) {
-				fill({x - 4.0F, 66.0F, 8.0F, 8.0F}, art::kPost, key);
-				fill({x - 4.0F, 696.0F, 8.0F, 8.0F}, art::kPost, key);
+				fill(map.square({x, 70.0F}, 8.0F), art::kPost, key);
+				fill(map.square({x, 700.0F}, 8.0F), art::kPost, key);
 			}
 			for (float y = 150.0F; y < 700.0F; y += 80.0F) {
-				fill({56.0F, y - 4.0F, 8.0F, 8.0F}, art::kPost, key);
+				fill(map.square({60.0F, y}, 8.0F), art::kPost, key);
 				if (y < 350.0F || y > 470.0F) {
-					fill({696.0F, y - 4.0F, 8.0F, 8.0F}, art::kPost, key);
+					fill(map.square({700.0F, y}, 8.0F), art::kPost, key);
 				}
 			}
-			fill({694.0F, 350.0F, 14.0F, 14.0F}, art::kPost, key);
-			fill({694.0F, 456.0F, 14.0F, 14.0F}, art::kPost, key);
-			Primitives::drawLine(
-				{.start = {701.0F, 364.0F}, .end = {742.0F, 380.0F}, .style = {.color = art::kGateLeaf, .width = 5.0F}, .key = key}
-			);
+			fill(map.square({701.0F, 357.0F}, 14.0F), art::kPost, key);
+			fill(map.square({701.0F, 463.0F}, 14.0F), art::kPost, key);
+			Primitives::drawLine({
+				.start = map.at({701.0F, 364.0F}),
+				.end = map.at({742.0F, 380.0F}),
+				.style = {.color = art::kGateLeaf, .width = map.length(5.0F)},
+				.key = key,
+			});
 		}
 
-		// A corrugated roof: its ribs as stripes, a light one and a dark one every 8 units.
-		void drawRoof(const Rect& roof, Color base, Color light, Color dark, int32_t key, bool shadow) {
+		// A corrugated roof, already on the plate: its ribs as stripes, a light one and a dark one every 8 units.
+		void drawRoof(const Map& map, const Rect& roof, Color base, Color light, Color dark, int32_t key, bool shadow) {
+			const float edge = map.length(2.0F);
 			Primitives::drawRect({
 				.bounds = roof,
 				.style =
 					{.fill = base,
 					 .border =
-						 Foundation::BorderStyle{.color = art::kRoofEdge, .width = 2.0F, .position = Foundation::BorderPosition::Inside},
-					 .boxShadow = shadow
-									  ? std::optional(Foundation::BoxShadow{.color = art::kShadow, .blur = 8.0F, .offset = {12.0F, 12.0F}})
-									  : std::nullopt},
+						 Foundation::BorderStyle{.color = art::kRoofEdge, .width = edge, .position = Foundation::BorderPosition::Inside},
+					 .boxShadow =
+						 shadow ? std::optional(
+									  Foundation::BoxShadow{
+										  .color = art::kShadow, .blur = map.length(8.0F), .offset = {map.length(12.0F), map.length(12.0F)}
+									  }
+								  )
+								: std::nullopt},
 				.key = key,
 			});
-			const float right = roof.x + roof.width;
-			for (float x = roof.x + 2.0F; x < right - 2.0F; x += 8.0F) {
-				fill({x, roof.y + 2.0F, std::min(3.0F, right - 2.0F - x), roof.height - 4.0F}, light, key);
-				if (x + 6.0F < right - 2.0F) {
-					fill({x + 6.0F, roof.y + 2.0F, std::min(2.0F, right - 2.0F - x - 6.0F), roof.height - 4.0F}, dark, key);
+			const float right = roof.x + roof.width - edge;
+			const float rib = map.length(8.0F);
+			for (float x = roof.x + edge; x < right; x += rib) {
+				fill({x, roof.y + edge, std::min(map.length(3.0F), right - x), roof.height - 2.0F * edge}, light, key);
+				if (x + map.length(6.0F) < right) {
+					fill(
+						{x + map.length(6.0F),
+						 roof.y + edge,
+						 std::min(map.length(2.0F), right - x - map.length(6.0F)),
+						 roof.height - 2.0F * edge},
+						dark,
+						key
+					);
 				}
 			}
 		}
 
-		void drawBuilt(Building building, int32_t key) {
+		void drawBuilt(const Map& map, Building building, int32_t key) {
 			const Rect& plot = artOf(building).plot;
-			const Rect	roof = building == Building::Bunkhouse ? plot : inset(plot, 8.0F);
+			const Rect	roof = building == Building::Bunkhouse ? plot : inset(plot, 8.0F); // canvas
 			const bool	rusty = building == Building::Stores;
 			drawRoof(
-				roof,
+				map,
+				map.at(roof),
 				rusty ? art::kRust : art::kTin,
 				rusty ? art::kRustLight : art::kTinLight,
 				rusty ? art::kRustDark : art::kTinDark,
 				key,
 				true
 			);
-			fill({roof.x, roof.y + roof.height * 0.5F - 1.5F, roof.width, 3.0F}, art::kRidge, key);
+			fill(map.at(Rect{roof.x, roof.y + roof.height * 0.5F - 1.5F, roof.width, 3.0F}), art::kRidge, key);
 			const Vec2 centre{roof.x + roof.width * 0.5F, roof.y + roof.height * 0.5F};
+			const auto patch = [&](const Rect& at) {
+				drawRoof(map, map.at(at), art::kRust, art::kRustLight, art::kRustDark, key, false);
+			};
 			switch (building) {
 				case Building::Bunkhouse:
-					drawRoof({300.0F, 140.0F, 56.0F, 40.0F}, art::kRust, art::kRustLight, art::kRustDark, key, false);
-					fill({160.0F, 210.0F, 34.0F, 34.0F}, art::kGlass, key);
-					fill({400.0F, 190.0F, 18.0F, 18.0F}, art::kCrate, key);
-					fill({402.0F, 214.0F, 18.0F, 18.0F}, art::kCrate, key);
-					Primitives::drawCircle(
-						{.center = {432.0F, 140.0F},
-						 .radius = 11.0F,
-						 .style = {.fill = art::kTyre, .border = Foundation::BorderStyle{.color = art::kTyreRim, .width = 5.0F}},
-						 .key = key}
-					);
+					patch({300.0F, 140.0F, 56.0F, 40.0F});
+					fill(map.at(Rect{160.0F, 210.0F, 34.0F, 34.0F}), art::kGlass, key);
+					fill(map.square({409.0F, 199.0F}, 18.0F), art::kCrate, key);
+					fill(map.square({411.0F, 223.0F}, 18.0F), art::kCrate, key);
+					Primitives::drawCircle({
+						.center = map.at({432.0F, 140.0F}),
+						.radius = map.length(11.0F),
+						.style = {.fill = art::kTyre, .border = Foundation::BorderStyle{.color = art::kTyreRim, .width = map.length(5.0F)}},
+						.key = key,
+					});
 					break;
 				case Building::RadioMast:
 					for (const Vec2 corner : {Vec2{-1.0F, -1.0F}, Vec2{1.0F, -1.0F}, Vec2{1.0F, 1.0F}, Vec2{-1.0F, 1.0F}}) {
 						const Vec2 end{centre.x + corner.x * (roof.width * 0.5F - 6.0F), centre.y + corner.y * (roof.height * 0.5F - 6.0F)};
-						Primitives::drawLine({.start = centre, .end = end, .style = {.color = art::kRoofEdge, .width = 1.5F}, .key = key});
+						Primitives::drawLine({
+							.start = map.at(centre),
+							.end = map.at(end),
+							.style = {.color = art::kRoofEdge, .width = map.length(1.5F)},
+							.key = key,
+						});
 					}
-					fill({centre.x - 7.0F, centre.y - 7.0F, 14.0F, 14.0F}, art::kPost, key);
+					fill(map.square(centre, 14.0F), art::kPost, key);
 					break;
-				case Building::Infirmary:
-					fill({centre.x - 18.0F, centre.y - 6.0F, 36.0F, 12.0F}, colour(0xF4EEDD), key);
-					fill({centre.x - 6.0F, centre.y - 18.0F, 12.0F, 36.0F}, colour(0xF4EEDD), key);
-					fill({centre.x - 14.0F, centre.y - 3.0F, 28.0F, 6.0F}, colour(0xA3221B), key);
-					fill({centre.x - 3.0F, centre.y - 14.0F, 6.0F, 28.0F}, colour(0xA3221B), key);
+				case Building::Infirmary: {
+					const Vec2 middle = map.at(centre);
+					const auto bar = [&](float across, float down, Color color) {
+						fill(
+							{middle.x - map.length(across) * 0.5F,
+							 middle.y - map.length(down) * 0.5F,
+							 map.length(across),
+							 map.length(down)},
+							color,
+							key
+						);
+					};
+					bar(36.0F, 12.0F, colour(0xF4EEDD));
+					bar(12.0F, 36.0F, colour(0xF4EEDD));
+					bar(28.0F, 6.0F, colour(0xA3221B));
+					bar(6.0F, 28.0F, colour(0xA3221B));
 					break;
+				}
 				case Building::MapRoom:
-					fill({roof.x + 16.0F, roof.y + roof.height - 44.0F, 30.0F, 30.0F}, art::kGlass, key);
+					fill(map.at(Rect{roof.x + 16.0F, roof.y + roof.height - 44.0F, 30.0F, 30.0F}), art::kGlass, key);
 					break;
 				case Building::Garage:
-					drawRoof(
-						{roof.x + roof.width - 70.0F, roof.y + 12.0F, 52.0F, 36.0F}, art::kRust, art::kRustLight, art::kRustDark, key, false
-					);
-					fill({roof.x + 30.0F, roof.y + roof.height - 10.0F, roof.width - 60.0F, 10.0F}, art::kPost, key);
+					patch({roof.x + roof.width - 70.0F, roof.y + 12.0F, 52.0F, 36.0F});
+					fill(map.at(Rect{roof.x + 30.0F, roof.y + roof.height - 10.0F, roof.width - 60.0F, 10.0F}), art::kPost, key);
 					break;
 				case Building::Stores:
-					fill({centre.x - 20.0F, roof.y + roof.height - 8.0F, 40.0F, 8.0F}, art::kPost, key);
+					fill(map.at(Rect{centre.x - 20.0F, roof.y + roof.height - 8.0F, 40.0F, 8.0F}), art::kPost, key);
 					break;
 			}
 		}
 
 		// An unbuilt plot: the rust hatch, string on stakes round it, and whatever scrap lies on it.
-		void drawPlot(Building building, Color hatch, int32_t key) {
-			const Rect& plot = artOf(building).plot;
+		void drawPlot(const Map& map, Building building, Color hatch, int32_t key) {
+			const Rect& canvas = artOf(building).plot;
+			const Rect	plot = map.at(canvas);
 			Primitives::pushClip(plot);
-			const float step = 11.0F * std::numbers::sqrt2_v<float>;
+			const float step = map.length(11.0F * std::numbers::sqrt2_v<float>);
 			for (float along = 0.0F; along < plot.width + plot.height; along += step) {
 				Primitives::drawLine({
 					.start = {plot.x + along, plot.y},
 					.end = {plot.x + along - plot.height, plot.y + plot.height},
-					.style = {.color = atlas::withAlpha(hatch, 0.55F), .width = 2.0F},
+					.style = {.color = atlas::withAlpha(hatch, 0.55F), .width = map.length(2.0F)},
 					.key = key,
 				});
 			}
 			Primitives::popClip();
-			atlas::drawDashedRect(inset(plot, -0.8F), art::kString, 1.6F, {.dash = 6.0F, .gap = 4.0F}, key);
+			Primitives::drawRect({
+				.bounds = plot,
+				.style =
+					{.fill = Color(0.0F, 0.0F, 0.0F, 0.0F),
+					 .border =
+						 Foundation::BorderStyle{
+							 .color = art::kString,
+							 .width = map.length(1.6F),
+							 .dash =
+								 Foundation::DashPattern{
+									 .dash = map.length(atlas::kStringDash.dash), .gap = map.length(atlas::kStringDash.gap)
+								 },
+						 }},
+				.key = key,
+			});
 			for (const Vec2 corner :
-				 {Vec2{plot.x, plot.y},
-				  Vec2{plot.x + plot.width, plot.y},
-				  Vec2{plot.x + plot.width, plot.y + plot.height},
-				  Vec2{plot.x, plot.y + plot.height}}) {
-				fill({corner.x - 2.5F, corner.y - 2.5F, 5.0F, 5.0F}, art::kCrateEdge, key);
+				 {Vec2{canvas.x, canvas.y},
+				  Vec2{canvas.x + canvas.width, canvas.y},
+				  Vec2{canvas.x + canvas.width, canvas.y + canvas.height},
+				  Vec2{canvas.x, canvas.y + canvas.height}}) {
+				fill(map.square(corner, 5.0F), art::kCrateEdge, key);
 			}
 			switch (building) {
 				case Building::RadioMast: {
-					static constexpr std::array<Vec2, 6> kWreck{{{520, 160}, {534, 170}, {544, 164}, {556, 176}, {538, 186}, {522, 178}}};
-					Primitives::drawPolygon(
-						{.vertices = kWreck,
-						 .style = {.fill = art::kWreck, .border = Foundation::LineStyle{.color = art::kWreckEdge, .width = 1.5F}},
-						 .key = key}
-					);
+					static const std::vector<Vec2> kWreck{{520, 160}, {534, 170}, {544, 164}, {556, 176}, {538, 186}, {522, 178}};
+					const std::vector<Vec2>		   wreck = map.at(kWreck);
+					Primitives::drawPolygon({
+						.vertices = wreck,
+						.style =
+							{.fill = art::kWreck, .border = Foundation::LineStyle{.color = art::kWreckEdge, .width = map.length(1.5F)}},
+						.key = key,
+					});
 					break;
 				}
 				case Building::Garage:
 					for (const Vec2 at : {Vec2{180.0F, 560.0F}, Vec2{200.0F, 575.0F}}) {
-						Primitives::drawCircle(
-							{.center = at,
-							 .radius = 12.0F,
-							 .style = {.fill = art::kTyre, .border = Foundation::BorderStyle{.color = art::kTyreRim, .width = 5.0F}},
-							 .key = key}
-						);
+						Primitives::drawCircle({
+							.center = map.at(at),
+							.radius = map.length(12.0F),
+							.style =
+								{.fill = art::kTyre, .border = Foundation::BorderStyle{.color = art::kTyreRim, .width = map.length(5.0F)}},
+							.key = key,
+						});
 					}
 					break;
 				case Building::Stores:
-					framed({560.0F, 600.0F, 26.0F, 26.0F}, colour(0x6B5A40), art::kCrateEdge, 1.5F, key);
-					framed({590.0F, 612.0F, 22.0F, 22.0F}, colour(0x6B5A40), art::kCrateEdge, 1.5F, key);
+					framed(map.square({573.0F, 613.0F}, 26.0F), colour(0x6B5A40), art::kCrateEdge, map.length(1.5F), key);
+					framed(map.square({601.0F, 623.0F}, 22.0F), colour(0x6B5A40), art::kCrateEdge, map.length(1.5F), key);
 					break;
 				default:
 					break;
 			}
 		}
 
-		void drawYardThings(Color highway, Color teal, int32_t key) {
-			Primitives::drawCircle({.center = {372.0F, 440.0F}, .radius = 40.0F, .style = {.fill = colour(0x000000, 0.22F)}, .key = key});
-			Primitives::drawCircle(
-				{.center = {364.0F, 432.0F},
-				 .radius = 40.0F,
-				 .style = {.fill = art::kTank, .border = Foundation::BorderStyle{.color = art::kTankRim, .width = 5.0F}},
-				 .key = key}
-			);
-			Primitives::drawCircle({.center = {364.0F, 432.0F}, .radius = 10.0F, .style = {.fill = art::kTankRim}, .key = key});
+		// Something drawn in its own units at a canvas point, turned, at the plate's length scale.
+		template <typename Draw>
+		void placed(const Map& map, Vec2 at, float degrees, Draw&& draw) {
+			const Vec2 where = map.at(at);
+			glm::mat4  place = glm::translate(glm::mat4(1.0F), glm::vec3(where.x, where.y, 0.0F));
+			place = glm::rotate(place, degrees * kPi / 180.0F, glm::vec3(0.0F, 0.0F, 1.0F));
+			place = glm::scale(place, glm::vec3(map.unit, map.unit, 1.0F));
+			Primitives::PushTransform(place);
+			draw();
+			Primitives::PopTransform();
+		}
 
-			const auto parked = [key](Vec2 at, float degrees, auto&& draw) {
-				glm::mat4 place = glm::translate(glm::mat4(1.0F), glm::vec3(at.x, at.y, 0.0F));
-				place = glm::rotate(place, degrees * kPi / 180.0F, glm::vec3(0.0F, 0.0F, 1.0F));
-				Primitives::PushTransform(place);
-				draw(key);
-				Primitives::PopTransform();
-			};
-			parked({618.0F, 452.0F}, -8.0F, [highway](int32_t at) {
-				fill({4.0F, 6.0F, 70.0F, 34.0F}, colour(0x000000, 0.25F), at);
-				framed({0.0F, 0.0F, 70.0F, 34.0F}, art::kRigBody, art::kRigEdge, 2.0F, at, 4.0F);
-				fill({46.0F, 4.0F, 20.0F, 26.0F}, art::kRigCab, at);
-				fill({8.0F, 6.0F, 32.0F, 22.0F}, art::kRigBed, at);
-				Primitives::drawLine({.start = {70.0F, 4.0F}, .end = {76.0F, 4.0F}, .style = {.color = highway, .width = 3.0F}, .key = at});
+		void drawYardThings(const Map& map, Color highway, Color teal, int32_t key) {
+			Primitives::drawCircle({
+				.center = map.at({364.0F, 432.0F}),
+				.radius = map.length(40.0F),
+				.style =
+					{.fill = art::kTank,
+					 .border = Foundation::BorderStyle{.color = art::kTankRim, .width = map.length(5.0F)},
+					 .shadow =
+						 Foundation::BoxShadow{
+							 .color = art::kShadow, .blur = map.length(8.0F), .offset = {map.length(8.0F), map.length(8.0F)}
+						 }},
+				.key = key,
+			});
+			Primitives::drawCircle(
+				{.center = map.at({364.0F, 432.0F}), .radius = map.length(10.0F), .style = {.fill = art::kTankRim}, .key = key}
+			);
+
+			const Foundation::BoxShadow parkedShadow{.color = art::kShadow, .blur = 4.0F, .offset = {4.0F, 6.0F}};
+			placed(map, {618.0F, 452.0F}, -8.0F, [&] {
+				Primitives::drawRect({
+					.bounds = {0.0F, 0.0F, 70.0F, 34.0F},
+					.style =
+						{.fill = art::kRigBody,
+						 .border = Foundation::BorderStyle{.color = art::kRigEdge, .width = 2.0F, .cornerRadius = 4.0F},
+						 .boxShadow = parkedShadow},
+					.key = key,
+				});
+				fill({46.0F, 4.0F, 20.0F, 26.0F}, art::kRigCab, key);
+				fill({8.0F, 6.0F, 32.0F, 22.0F}, art::kRigBed, key);
 				Primitives::drawLine(
-					{.start = {70.0F, 30.0F}, .end = {76.0F, 30.0F}, .style = {.color = highway, .width = 3.0F}, .key = at}
+					{.start = {70.0F, 4.0F}, .end = {76.0F, 4.0F}, .style = {.color = highway, .width = 3.0F}, .key = key}
+				);
+				Primitives::drawLine(
+					{.start = {70.0F, 30.0F}, .end = {76.0F, 30.0F}, .style = {.color = highway, .width = 3.0F}, .key = key}
 				);
 			});
-			parked({626.0F, 500.0F}, -4.0F, [teal](int32_t at) {
-				fill({2.0F, 4.0F, 38.0F, 12.0F}, colour(0x000000, 0.22F), at);
-				framed({0.0F, 2.0F, 38.0F, 10.0F}, art::kBikeBody, art::kBikeEdge, 2.0F, at, 5.0F);
-				Primitives::drawLine({.start = {38.0F, 2.0F}, .end = {44.0F, 0.0F}, .style = {.color = teal, .width = 2.0F}, .key = at});
-				Primitives::drawLine({.start = {38.0F, 12.0F}, .end = {44.0F, 14.0F}, .style = {.color = teal, .width = 2.0F}, .key = at});
+			placed(map, {626.0F, 500.0F}, -4.0F, [&] {
+				Primitives::drawRect({
+					.bounds = {0.0F, 2.0F, 38.0F, 10.0F},
+					.style =
+						{.fill = art::kBikeBody,
+						 .border = Foundation::BorderStyle{.color = art::kBikeEdge, .width = 2.0F, .cornerRadius = 5.0F},
+						 .boxShadow = Foundation::BoxShadow{.color = art::kShadow, .blur = 3.0F, .offset = {2.0F, 4.0F}}},
+					.key = key,
+				});
+				Primitives::drawLine({.start = {38.0F, 2.0F}, .end = {44.0F, 0.0F}, .style = {.color = teal, .width = 2.0F}, .key = key});
+				Primitives::drawLine({.start = {38.0F, 12.0F}, .end = {44.0F, 14.0F}, .style = {.color = teal, .width = 2.0F}, .key = key});
 			});
 		}
 
-		// The grease pencil's loop round a plot: an ellipse a little past it, wobbling by the seed, its end running on past
-		// its start as a hand's does.
-		void drawLoop(const Rect& plot, uint32_t seed, Color grease, int32_t key) {
+		// The grease pencil's loop round a plot already on the plate: an ellipse a little past it, wobbling by the seed, its
+		// end running on past its start as a hand's does.
+		void drawLoop(const Map& map, const Rect& plot, uint32_t seed, Color grease, int32_t key) {
 			const auto unit = [&seed] {
 				seed = seed * 1664525U + 1013904223U;
 				return static_cast<float>(seed) / 4294967296.0F;
 			};
 			const Vec2		  centre{plot.x + plot.width * 0.5F, plot.y + plot.height * 0.5F};
-			const float		  across = plot.width * 0.5F + 24.0F;
-			const float		  down = plot.height * 0.5F + 22.0F;
+			const float		  across = plot.width * 0.5F + map.length(24.0F);
+			const float		  down = plot.height * 0.5F + map.length(22.0F);
 			const float		  start = kPi * (0.9F + unit() * 0.3F);
 			const float		  phaseA = unit() * 2.0F * kPi;
 			const float		  phaseB = unit() * 2.0F * kPi;
@@ -509,15 +611,15 @@ namespace game {
 					{centre.x + std::cos(angle) * across * wobble * drift, centre.y + std::sin(angle) * down * wobble * drift}
 				);
 			}
-			Primitives::drawPolyline(
-				{.points = points,
-				 .width = 5.0F,
-				 .color = grease,
-				 .cap = Primitives::LineCap::Round,
-				 .join = Primitives::LineJoin::Round,
-				 .id = "loop",
-				 .key = key}
-			);
+			Primitives::drawPolyline({
+				.points = points,
+				.width = map.length(5.0F),
+				.color = grease,
+				.cap = Primitives::LineCap::Round,
+				.join = Primitives::LineJoin::Round,
+				.id = "loop",
+				.key = key,
+			});
 		}
 
 		// One building on the plate as a hit target over its plot: a press chooses it. Hover outlines it in ink and focus
@@ -543,26 +645,23 @@ namespace game {
 
 		  protected:
 			void render() override {
-				const Color ink = getContext()->getTheme().get(palette::ink);
-				if (isHovered() && isEnabledInTree()) {
+				const Color				   ink = getContext()->getTheme().get(palette::ink);
+				const ui::InteractionState state = interaction();
+				const auto				   ring = [&](const Rect& bounds, float width) {
 					Primitives::drawRect({
-						.bounds = {0.0F, 0.0F, size.x, size.y},
-						.style =
+										.bounds = bounds,
+										.style =
 							{.fill = Color(0.0F, 0.0F, 0.0F, 0.0F),
-							 .border =
-								 Foundation::BorderStyle{.color = ink, .width = 1.6F, .position = Foundation::BorderPosition::Inside}},
-						.key = drawKey(),
+											 .border =
+								 Foundation::BorderStyle{.color = ink, .width = width, .position = Foundation::BorderPosition::Inside}},
+										.key = drawKey(),
 					});
+				};
+				if (state.hovered && isEnabledInTree()) {
+					ring({0.0F, 0.0F, size.x, size.y}, 1.6F);
 				}
-				if (isFocusVisible()) {
-					Primitives::drawRect({
-						.bounds = {-5.0F, -5.0F, size.x + 10.0F, size.y + 10.0F},
-						.style =
-							{.fill = Color(0.0F, 0.0F, 0.0F, 0.0F),
-							 .border =
-								 Foundation::BorderStyle{.color = ink, .width = 2.0F, .position = Foundation::BorderPosition::Inside}},
-						.key = drawKey(),
-					});
+				if (state.focusVisible) {
+					ring({-5.0F, -5.0F, size.x + 10.0F, size.y + 10.0F}, 2.0F);
 				}
 			}
 
@@ -601,11 +700,6 @@ namespace game {
 		  seed(args.seed),
 		  onChoose(args.onChoose) {}
 
-	CompoundPlate::Fit CompoundPlate::fitIn(Foundation::Vec2 box) {
-		const float scale = std::max(0.0F, std::min(box.x / kPlate.x, box.y / kPlate.y));
-		return {.scale = scale, .origin = (box - kPlate * scale) * 0.5F};
-	}
-
 	void CompoundPlate::describe(nlohmann::json& node) const {
 		nlohmann::json shown = nlohmann::json::array();
 		for (const Building building : built) {
@@ -616,120 +710,133 @@ namespace game {
 	}
 
 	void CompoundPlate::onMount() {
+		ui::Layout layout = getLayout();
+		layout.display = ui::Display::Flex;
+		setLayout(layout);
 		setFocusGroup(ui::FocusGroup{.orientation = ui::FocusGroup::Orientation::Both, .wrap = true});
+		// Each plot is the same fraction of the plate at every size, so its hit target is placed in percentages and the
+		// layout keeps it on its plot through a resize.
+		const auto share = [](float part, float whole) {
+			return ui::percent(part / whole * 100.0F);
+		};
 		for (const Building building : kBuildings) {
-			spots.push_back(addChild<BuildingSpot>({.id = plotId(building), .building = building, .onChoose = onChoose}));
-		}
-		setOnLayout([this](ui::Component& /*plate*/) { place(); });
-	}
-
-	void CompoundPlate::place() {
-		const Fit fit = fitIn(size);
-		for (size_t index = 0; index < spots.size(); ++index) {
-			if (ui::Control* spot = spots[index].get()) {
-				const Rect& plot = kArt.at(index).plot;
-				spot->setPosition(fit.origin + Vec2{plot.x, plot.y} * fit.scale);
-				spot->setSize(Vec2{plot.width, plot.height} * fit.scale);
-			}
+			const Rect& plot = artOf(building).plot;
+			addChild<BuildingSpot>({
+				.id = plotId(building),
+				.size = {share(plot.width, kPlate.x), share(plot.height, kPlate.y)},
+				.layout = {.position = ui::Position::Absolute, .inset = {.top = share(plot.y, kPlate.y), .left = share(plot.x, kPlate.x)}},
+				.building = building,
+				.onChoose = onChoose,
+			});
 		}
 	}
 
 	void CompoundPlate::render() {
-		const ui::Theme& theme = getContext()->getTheme();
-		const int32_t	 key = drawKey();
-		const Color		 ink = theme.get(palette::ink);
-		const Color		 paper = theme.get(palette::paper);
-		const Fit		 fit = fitIn(size);
-		const Rect		 box{0.0F, 0.0F, size.x, size.y};
+		const ui::Theme&			theme = getContext()->getTheme();
+		const int32_t				key = drawKey();
+		const Color					ink = theme.get(palette::ink);
+		const Color					paper = theme.get(palette::paper);
+		const Foundation::BoxShadow halo = atlas::paperHalo(paper);
+		const Map					map = mapIn(size);
+		const Rect					box{0.0F, 0.0F, size.x, size.y};
 
 		Primitives::pushClip(box);
 		fill(box, art::kDirt, key);
-		glm::mat4 plate = glm::translate(glm::mat4(1.0F), glm::vec3(fit.origin.x, fit.origin.y, 0.0F));
-		plate = glm::scale(plate, glm::vec3(fit.scale, fit.scale, 1.0F));
-		Primitives::PushTransform(plate);
-		drawDirt(key);
-		drawRoad((size.x - fit.origin.x) / std::max(fit.scale, 1e-3F), theme.get(palette::casing), theme.get(palette::highway), key);
-		drawFence(key);
+		drawDirt(map, key);
+		drawRoad(map, theme.get(palette::casing), theme.get(palette::highway), key);
+		drawFence(map, key);
 		for (const Building building : kBuildings) {
 			if (std::ranges::find(built, building) != built.end()) {
-				drawBuilt(building, key);
+				drawBuilt(map, building, key);
 			} else {
-				drawPlot(building, theme.get(palette::rustHatch), key);
+				drawPlot(map, building, theme.get(palette::rustHatch), key);
 			}
 		}
-		drawYardThings(theme.get(palette::highway), theme.get(palette::routeTeal), key);
+		drawYardThings(map, theme.get(palette::highway), theme.get(palette::routeTeal), key);
 		drawLoop(
-			artOf(selected).plot, seed ^ static_cast<uint32_t>(buildingNumber(selected)) * 0x9e3779b1U, theme.get(palette::grease), key
+			map,
+			map.at(artOf(selected).plot),
+			seed ^ static_cast<uint32_t>(buildingNumber(selected)) * 0x9e3779b1U,
+			theme.get(palette::grease),
+			key
 		);
-		fill({30.0F, 744.0F, 36.0F, 7.0F}, ink, key);
-		framed({66.0F, 744.0F, 36.0F, 7.0F}, paper, ink, 1.0F, key);
-		fill({102.0F, 744.0F, 36.0F, 7.0F}, ink, key);
-		static constexpr std::array<Vec2, 4> kNorth{{{880.0F, 26.0F}, {888.0F, 56.0F}, {880.0F, 50.0F}, {872.0F, 56.0F}}};
-		Primitives::drawPolygon(
-			{.vertices = kNorth, .style = {.fill = ink, .border = Foundation::LineStyle{.color = paper, .width = 1.4F}}, .key = key}
-		);
-		Primitives::PopTransform();
 
-		// The labels print at the plate's scale down to three quarters, then stay put, so they read at 1280 by 800.
-		const float labelScale = std::clamp(fit.scale, 0.75F, 1.0F);
-		const auto	at = [&fit](float x, float y) {
-			 return fit.origin + Vec2{x, y} * fit.scale;
+		// The scale bar and the north arrow, in their corners.
+		const Vec2	bar = map.at({30.0F, 744.0F});
+		const float segment = map.length(36.0F);
+		const float thick = map.length(7.0F);
+		fill({bar.x, bar.y, segment, thick}, ink, key);
+		framed({bar.x + segment, bar.y, segment, thick}, paper, ink, 1.0F, key);
+		fill({bar.x + 2.0F * segment, bar.y, segment, thick}, ink, key);
+		const Vec2				  north = map.at({880.0F, 50.0F});
+		const std::array<Vec2, 4> arrow{{
+			{north.x, north.y - map.length(24.0F)},
+			{north.x + map.length(8.0F), north.y + map.length(6.0F)},
+			{north.x, north.y},
+			{north.x - map.length(8.0F), north.y + map.length(6.0F)},
+		}};
+		Primitives::drawPolygon(
+			{.vertices = arrow, .style = {.fill = ink, .border = Foundation::LineStyle{.color = paper, .width = 1.4F}}, .key = key}
+		);
+
+		// The labels, as the map labels its places: a circled number, the name in a paper halo, the state in mono under
+		// it. They print at the plate's scale down to three quarters, then stay put, so they read at 1280 by 800.
+		const float labelScale = std::clamp(map.unit, 0.75F, 1.0F);
+		// A mono label sits on a paper tag as well as its halo, as the TypeScript's did: at 13 px the faces' distance range
+		// holds a halo of about a pixel, too little to read over the hatch or a roof's ribs.
+		const float monoSize = std::max(11.0F, 13.0F * labelScale);
+		const auto	tagged = [&](const std::string& text, Vec2 at) {
+			 fill(
+				 {at.x - 3.0F, at.y - 1.0F, atlas::printedWidth(text, fonts::kMono, monoSize) + 6.0F, monoSize * 1.3F},
+				 atlas::withAlpha(paper, 0.92F),
+				 key
+			 );
+			 atlas::print({.text = text, .position = at, .face = fonts::kMono, .size = monoSize, .color = ink, .halo = halo, .key = key});
 		};
 		for (const Building building : kBuildings) {
 			const BuildingArt& shown = artOf(building);
 			const bool		   standing = std::ranges::find(built, building) != built.end();
-			const Vec2		   circle = at(shown.plot.x + 20.0F, shown.plot.y + 20.0F);
+			const Vec2		   circle = map.at({shown.plot.x + 20.0F, shown.plot.y + 20.0F});
 			const float		   radius = 16.0F * labelScale;
 			atlas::drawCircled(circle, radius, std::to_string(buildingNumber(building)), ink, key);
 			const float nameSize = (standing ? 28.0F : 22.0F) * labelScale;
 			const Vec2	name{circle.x + radius + 6.0F * labelScale, circle.y - nameSize * 0.62F};
 			atlas::print(
-				{.text = std::string(shown.name), .position = name, .face = fonts::kDisplayBold, .size = nameSize, .color = ink, .key = key}
+				{.text = std::string(shown.name),
+				 .position = name,
+				 .face = fonts::kDisplayBold,
+				 .size = nameSize,
+				 .color = ink,
+				 .halo = halo,
+				 .key = key}
 			);
-			const std::string state = standing ? "BUILT" : "not built";
-			const float		  stateSize = std::max(11.0F, 13.0F * labelScale);
-			const Vec2		  statePosition{name.x, name.y + nameSize * 1.28F};
-			const float		  stateWidth = atlas::printedWidth(state, fonts::kMono, stateSize);
-			fill(
-				{statePosition.x - 3.0F, statePosition.y - 1.0F, stateWidth + 6.0F, stateSize * 1.3F}, atlas::withAlpha(paper, 0.92F), key
-			);
-			atlas::print({.text = state, .position = statePosition, .face = fonts::kMono, .size = stateSize, .color = ink, .key = key});
+			tagged(standing ? "BUILT" : "not built", {name.x, name.y + nameSize * 1.28F});
 		}
-		const Vec2 gate = at(752.0F, 352.0F);
-		atlas::print(
-			{.text = "Gate",
-			 .position = {gate.x, gate.y - 20.0F * labelScale},
-			 .face = fonts::kDisplayBold,
-			 .size = 20.0F * labelScale,
-			 .color = ink,
-			 .key = key}
-		);
-		const Vec2		  road = at(752.0F, 428.0F);
-		const float		  roadSize = std::max(11.0F, 13.0F * labelScale);
-		const std::string roadLabel = "to the area map";
-		fill(
-			{road.x - 3.0F, road.y - 1.0F, atlas::printedWidth(roadLabel, fonts::kMono, roadSize) + 6.0F, roadSize * 1.3F},
-			atlas::withAlpha(paper, 0.92F),
-			key
-		);
-		atlas::print({.text = roadLabel, .position = road, .face = fonts::kMono, .size = roadSize, .color = ink, .key = key});
+		const Vec2 gate = map.at({752.0F, 352.0F});
+		atlas::print({
+			.text = "Gate",
+			.position = {gate.x, gate.y - 20.0F * labelScale},
+			.face = fonts::kDisplayBold,
+			.size = 20.0F * labelScale,
+			.color = ink,
+			.halo = halo,
+			.key = key,
+		});
+		tagged("to the area map", map.at({752.0F, 428.0F}));
 		Primitives::popClip();
 
 		// The plate's frame: a 1.6 px rule on its edge and a 0.6 px rule 4 px outside it.
-		Primitives::drawRect({
-			.bounds = box,
-			.style =
-				{.fill = Color(0.0F, 0.0F, 0.0F, 0.0F),
-				 .border = Foundation::BorderStyle{.color = ink, .width = 1.6F, .position = Foundation::BorderPosition::Inside}},
-			.key = key,
-		});
-		Primitives::drawRect({
-			.bounds = {-4.6F, -4.6F, size.x + 9.2F, size.y + 9.2F},
-			.style =
-				{.fill = Color(0.0F, 0.0F, 0.0F, 0.0F),
-				 .border = Foundation::BorderStyle{.color = ink, .width = 0.6F, .position = Foundation::BorderPosition::Inside}},
-			.key = key,
-		});
+		const auto rule = [&](const Rect& bounds, float width) {
+			Primitives::drawRect({
+				.bounds = bounds,
+				.style =
+					{.fill = Color(0.0F, 0.0F, 0.0F, 0.0F),
+					 .border = Foundation::BorderStyle{.color = ink, .width = width, .position = Foundation::BorderPosition::Inside}},
+				.key = key,
+			});
+		};
+		rule(box, 1.6F);
+		rule({-4.6F, -4.6F, size.x + 9.2F, size.y + 9.2F}, 0.6F);
 	}
 
 } // namespace game

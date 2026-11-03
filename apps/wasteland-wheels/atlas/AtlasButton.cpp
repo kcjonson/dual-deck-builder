@@ -10,6 +10,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <optional>
 #include <utility>
 
 namespace game::atlas {
@@ -18,25 +19,33 @@ namespace game::atlas {
 
 		namespace palette = tokens::palette;
 
-		constexpr float	 kHighwayHeight = 68.0F;
-		constexpr float	 kBackRoadHeight = 46.0F;
-		constexpr float	 kHighwayBorder = 4.0F;
-		constexpr float	 kBackRoadBorder = 1.6F;
-		constexpr float	 kOffset = 3.0F; // the highway's casing beneath it
-		constexpr float	 kInnerRuleInset = 3.0F;
-		constexpr float	 kFocusGap = 3.0F;
-		constexpr float	 kFocusWidth = 2.0F;
-		constexpr float	 kLift = -1.0F;
-		constexpr float	 kHighwayPress = 3.0F;
-		constexpr float	 kBackRoadPress = 2.0F;
-		constexpr Dashes kDisabledDashes{.dash = 6.0F, .gap = 4.0F};
+		constexpr float kHighwayHeight = 68.0F;
+		constexpr float kBackRoadHeight = 46.0F;
+		constexpr float kHighwayBorder = 4.0F;
+		constexpr float kBackRoadBorder = 1.6F;
+		constexpr float kOffset = 3.0F; // the highway's casing beneath it
+		constexpr float kInnerRuleInset = 3.0F;
+		constexpr float kFocusGap = 3.0F;
+		constexpr float kFocusWidth = 2.0F;
+		constexpr float kLift = -1.0F;
+		constexpr float kHighwayPress = 3.0F;
+		constexpr float kBackRoadPress = 2.0F;
 
-		void drawRule(const Foundation::Rect& bounds, Foundation::Color color, float width, int32_t key) {
+		void drawRule(
+			const Foundation::Rect&				   bounds,
+			Foundation::Color					   color,
+			float								   width,
+			int32_t								   key,
+			std::optional<Foundation::DashPattern> dash = std::nullopt
+		) {
 			Renderer::Primitives::drawRect({
 				.bounds = bounds,
 				.style =
 					{.fill = Foundation::Color(0.0F, 0.0F, 0.0F, 0.0F),
-					 .border = Foundation::BorderStyle{.color = color, .width = width, .position = Foundation::BorderPosition::Inside}},
+					 .border =
+						 Foundation::BorderStyle{
+							 .color = color, .width = width, .position = Foundation::BorderPosition::Inside, .dash = dash
+						 }},
 				.key = key,
 			});
 		}
@@ -81,7 +90,7 @@ namespace game::atlas {
 		const std::string id = getId();
 		text = addChild<ui::Text>({
 			.id = id.empty() ? std::string() : id + "_label",
-			.style = highway ? styles::highwayLabel : styles::backRoadLabel,
+			.style = highway ? styles::print::highwayLabel : styles::print::backRoadLabel,
 			.text = label,
 		});
 		if (shield) {
@@ -90,15 +99,16 @@ namespace game::atlas {
 	}
 
 	void AtlasButton::render() {
-		const ui::Theme&	   theme = getContext()->getTheme();
-		const float			   alpha = opacity();
-		const bool			   enabled = isEnabledInTree();
-		const bool			   hovered = enabled && isHovered();
-		const bool			   pressed = enabled && isPressed();
-		const bool			   highway = road == Road::Highway;
-		const int32_t		   key = drawKey();
-		const Foundation::Rect face{0.0F, 0.0F, size.x, size.y};
-		const auto			   ink = [&](ui::ColorToken token) {
+		const ui::Theme&		   theme = getContext()->getTheme();
+		const float				   alpha = opacity();
+		const bool				   enabled = isEnabledInTree();
+		const ui::InteractionState state = interaction();
+		const bool				   hovered = enabled && state.hovered;
+		const bool				   pressed = enabled && state.pressed;
+		const bool				   highway = road == Road::Highway;
+		const int32_t			   key = drawKey();
+		const Foundation::Rect	   face{0.0F, 0.0F, size.x, size.y};
+		const auto				   ink = [&](ui::ColorToken token) {
 			return withAlpha(theme.get(token), alpha);
 		};
 
@@ -120,7 +130,7 @@ namespace game::atlas {
 		});
 
 		if (!enabled) {
-			drawDashedRect(face, ink(palette::backRoad), kBackRoadBorder, kDisabledDashes, key);
+			drawRule(face, ink(palette::backRoad), kBackRoadBorder, key, kDisabledDash);
 		} else if (highway) {
 			drawRule(face, ink(hovered ? palette::ink : palette::casing), kHighwayBorder, key);
 		} else {
@@ -129,14 +139,13 @@ namespace game::atlas {
 			drawRule({inset, inset, size.x - 2.0F * inset, size.y - 2.0F * inset}, withAlpha(ink(palette::ink), 0.2F), 1.0F, key);
 		}
 
-		if (isFocusVisible()) {
+		if (state.focusVisible) {
 			const float reach = kFocusGap + kFocusWidth;
 			drawRule({-reach, -reach, size.x + 2.0F * reach, size.y + 2.0F * reach}, ink(palette::ink), kFocusWidth, key);
 		}
 	}
 
-	void AtlasButton::handlePointer(ui::PointerEvent& event) {
-		ui::Control::handlePointer(event);
+	void AtlasButton::onInteractionChanged(const ui::InteractionState& /*previous*/) {
 		settle();
 	}
 
@@ -147,10 +156,11 @@ namespace game::atlas {
 	}
 
 	void AtlasButton::settle() {
-		float offset = 0.0F;
-		if (isEnabledInTree() && isPressed()) {
+		const ui::InteractionState state = interaction();
+		float					   offset = 0.0F;
+		if (isEnabledInTree() && state.pressed) {
 			offset = road == Road::Highway ? kHighwayPress : kBackRoadPress;
-		} else if (isEnabledInTree() && isHovered()) {
+		} else if (isEnabledInTree() && state.hovered) {
 			offset = kLift;
 		}
 		if (getTransform().translate.y != offset) {

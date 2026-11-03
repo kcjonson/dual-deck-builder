@@ -2,7 +2,7 @@
 
 // Section tabs (UI Art Direction, Components): thumb-index tabs hanging from the sheet's top edge, the navigation between
 // the meta scenes in place of Back buttons. The active tab is fresh paper and 4 px taller; the others are index colour
-// with ink-dim labels. Each is open at the top, where it runs on past the sheet's edge.
+// with ink-dim labels. Each is open at the top, its border on three sides.
 
 #include <ui/components/Control.h>
 #include <ui/shapes/Text.h>

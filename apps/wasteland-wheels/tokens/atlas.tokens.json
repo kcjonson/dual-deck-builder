@@ -124,9 +124,6 @@
 	"face": {
 		"$type": "fontFamily",
 		"$description": "The game's faces by the names Fonts.cpp registers them under.",
-		"displayBold": {
-			"$value": "display-bold"
-		},
 		"display": {
 			"$value": "display"
 		},
@@ -276,317 +273,356 @@
 		}
 	},
 	"styles": {
-		"screenTitle": {
-			"color": {
-				"$value": "{palette.ink}"
-			},
-			"fontFamily": {
-				"$value": "{face.displayBold}"
-			},
-			"fontSize": {
-				"$type": "dimension",
-				"$value": { "value": 34, "unit": "px" }
-			},
-			"letterSpacing": {
-				"$type": "dimension",
-				"$value": { "value": 5.44, "unit": "px" }
-			},
-			"$extensions": {
-				"salal": {
-					"textTransform": "uppercase"
+		"print": {
+			"$description": "The atlas's printed text: a group of the game's own, so no style shares a name with ui's.",
+			"screenTitle": {
+				"color": {
+					"$value": "{palette.ink}"
+				},
+				"fontFamily": {
+					"$value": "{face.display}"
+				},
+				"fontWeight": {
+					"$type": "fontWeight",
+					"$value": 700
+				},
+				"fontSize": {
+					"$type": "dimension",
+					"$value": { "value": 34, "unit": "px" }
+				},
+				"letterSpacing": {
+					"$type": "dimension",
+					"$value": { "value": 5.44, "unit": "px" }
+				},
+				"$extensions": {
+					"salal": {
+						"textTransform": "uppercase"
+					}
 				}
-			}
-		},
-		"sectionHead": {
-			"color": {
-				"$value": "{palette.ink}"
 			},
-			"fontFamily": {
-				"$value": "{face.displayBold}"
-			},
-			"fontSize": {
-				"$type": "dimension",
-				"$value": { "value": 20, "unit": "px" }
-			},
-			"letterSpacing": {
-				"$type": "dimension",
-				"$value": { "value": 3.2, "unit": "px" }
-			},
-			"$extensions": {
-				"salal": {
-					"textTransform": "uppercase"
+			"sectionHead": {
+				"color": {
+					"$value": "{palette.ink}"
+				},
+				"fontFamily": {
+					"$value": "{face.display}"
+				},
+				"fontWeight": {
+					"$type": "fontWeight",
+					"$value": 700
+				},
+				"fontSize": {
+					"$type": "dimension",
+					"$value": { "value": 20, "unit": "px" }
+				},
+				"letterSpacing": {
+					"$type": "dimension",
+					"$value": { "value": 3.2, "unit": "px" }
+				},
+				"$extensions": {
+					"salal": {
+						"textTransform": "uppercase"
+					}
 				}
-			}
-		},
-		"sectionTab": {
-			"color": {
-				"$value": "{palette.inkDim}"
 			},
-			"fontFamily": {
-				"$value": "{face.displayBold}"
-			},
-			"fontSize": {
-				"$type": "dimension",
-				"$value": { "value": 15, "unit": "px" }
-			},
-			"letterSpacing": {
-				"$type": "dimension",
-				"$value": { "value": 2.1, "unit": "px" }
-			},
-			"$extensions": {
-				"salal": {
-					"textTransform": "uppercase"
+			"sectionTab": {
+				"color": {
+					"$value": "{palette.inkDim}"
+				},
+				"fontFamily": {
+					"$value": "{face.display}"
+				},
+				"fontWeight": {
+					"$type": "fontWeight",
+					"$value": 700
+				},
+				"fontSize": {
+					"$type": "dimension",
+					"$value": { "value": 15, "unit": "px" }
+				},
+				"letterSpacing": {
+					"$type": "dimension",
+					"$value": { "value": 2.1, "unit": "px" }
+				},
+				"$extensions": {
+					"salal": {
+						"textTransform": "uppercase"
+					}
 				}
-			}
-		},
-		"sectionTabActive": {
-			"color": {
-				"$value": "{palette.ink}"
 			},
-			"fontFamily": {
-				"$value": "{face.displayBold}"
-			},
-			"fontSize": {
-				"$type": "dimension",
-				"$value": { "value": 15, "unit": "px" }
-			},
-			"letterSpacing": {
-				"$type": "dimension",
-				"$value": { "value": 2.1, "unit": "px" }
-			},
-			"$extensions": {
-				"salal": {
-					"textTransform": "uppercase"
+			"sectionTabActive": {
+				"color": {
+					"$value": "{palette.ink}"
+				},
+				"fontFamily": {
+					"$value": "{face.display}"
+				},
+				"fontWeight": {
+					"$type": "fontWeight",
+					"$value": 700
+				},
+				"fontSize": {
+					"$type": "dimension",
+					"$value": { "value": 15, "unit": "px" }
+				},
+				"letterSpacing": {
+					"$type": "dimension",
+					"$value": { "value": 2.1, "unit": "px" }
+				},
+				"$extensions": {
+					"salal": {
+						"textTransform": "uppercase"
+					}
 				}
-			}
-		},
-		"boxTitle": {
-			"color": {
-				"$value": "{palette.ink}"
 			},
-			"fontFamily": {
-				"$value": "{face.displayBold}"
-			},
-			"fontSize": {
-				"$type": "dimension",
-				"$value": { "value": 28, "unit": "px" }
-			},
-			"letterSpacing": {
-				"$type": "dimension",
-				"$value": { "value": 0, "unit": "px" }
-			}
-		},
-		"body": {
-			"color": {
-				"$value": "{palette.ink}"
-			},
-			"fontFamily": {
-				"$value": "{face.body}"
-			},
-			"fontSize": {
-				"$type": "dimension",
-				"$value": { "value": 14.5, "unit": "px" }
-			},
-			"letterSpacing": {
-				"$type": "dimension",
-				"$value": { "value": 0, "unit": "px" }
-			}
-		},
-		"quiet": {
-			"color": {
-				"$value": "{palette.inkFaint}"
-			},
-			"fontFamily": {
-				"$value": "{face.body}"
-			},
-			"fontSize": {
-				"$type": "dimension",
-				"$value": { "value": 14.5, "unit": "px" }
-			},
-			"letterSpacing": {
-				"$type": "dimension",
-				"$value": { "value": 0, "unit": "px" }
-			}
-		},
-		"warning": {
-			"color": {
-				"$value": "{palette.stronghold}"
-			},
-			"fontFamily": {
-				"$value": "{face.body}"
-			},
-			"fontSize": {
-				"$type": "dimension",
-				"$value": { "value": 14.5, "unit": "px" }
-			},
-			"letterSpacing": {
-				"$type": "dimension",
-				"$value": { "value": 0, "unit": "px" }
-			}
-		},
-		"note": {
-			"color": {
-				"$value": "{palette.inkDim}"
-			},
-			"fontFamily": {
-				"$value": "{face.body}"
-			},
-			"fontSize": {
-				"$type": "dimension",
-				"$value": { "value": 13, "unit": "px" }
-			},
-			"letterSpacing": {
-				"$type": "dimension",
-				"$value": { "value": 0, "unit": "px" }
-			}
-		},
-		"subtitle": {
-			"color": {
-				"$value": "{palette.inkDim}"
-			},
-			"fontFamily": {
-				"$value": "{face.body}"
-			},
-			"fontSize": {
-				"$type": "dimension",
-				"$value": { "value": 16, "unit": "px" }
-			},
-			"letterSpacing": {
-				"$type": "dimension",
-				"$value": { "value": 0, "unit": "px" }
-			}
-		},
-		"figure": {
-			"color": {
-				"$value": "{palette.ink}"
-			},
-			"fontFamily": {
-				"$value": "{face.mono}"
-			},
-			"fontSize": {
-				"$type": "dimension",
-				"$value": { "value": 14, "unit": "px" }
-			},
-			"letterSpacing": {
-				"$type": "dimension",
-				"$value": { "value": 0, "unit": "px" }
-			}
-		},
-		"figureShort": {
-			"color": {
-				"$value": "{palette.stronghold}"
-			},
-			"fontFamily": {
-				"$value": "{face.mono}"
-			},
-			"fontSize": {
-				"$type": "dimension",
-				"$value": { "value": 14, "unit": "px" }
-			},
-			"letterSpacing": {
-				"$type": "dimension",
-				"$value": { "value": 0, "unit": "px" }
-			}
-		},
-		"kicker": {
-			"color": {
-				"$value": "{palette.inkDim}"
-			},
-			"fontFamily": {
-				"$value": "{face.mono}"
-			},
-			"fontSize": {
-				"$type": "dimension",
-				"$value": { "value": 11, "unit": "px" }
-			},
-			"letterSpacing": {
-				"$type": "dimension",
-				"$value": { "value": 1.32, "unit": "px" }
-			},
-			"$extensions": {
-				"salal": {
-					"textTransform": "uppercase"
+			"boxTitle": {
+				"color": {
+					"$value": "{palette.ink}"
+				},
+				"fontFamily": {
+					"$value": "{face.display}"
+				},
+				"fontWeight": {
+					"$type": "fontWeight",
+					"$value": 700
+				},
+				"fontSize": {
+					"$type": "dimension",
+					"$value": { "value": 28, "unit": "px" }
+				},
+				"letterSpacing": {
+					"$type": "dimension",
+					"$value": { "value": 0, "unit": "px" }
 				}
-			}
-		},
-		"caption": {
-			"color": {
-				"$value": "{palette.inkDim}"
 			},
-			"fontFamily": {
-				"$value": "{face.mono}"
+			"body": {
+				"color": {
+					"$value": "{palette.ink}"
+				},
+				"fontFamily": {
+					"$value": "{face.body}"
+				},
+				"fontSize": {
+					"$type": "dimension",
+					"$value": { "value": 14.5, "unit": "px" }
+				},
+				"letterSpacing": {
+					"$type": "dimension",
+					"$value": { "value": 0, "unit": "px" }
+				}
 			},
-			"fontSize": {
-				"$type": "dimension",
-				"$value": { "value": 12, "unit": "px" }
+			"quiet": {
+				"color": {
+					"$value": "{palette.inkFaint}"
+				},
+				"fontFamily": {
+					"$value": "{face.body}"
+				},
+				"fontSize": {
+					"$type": "dimension",
+					"$value": { "value": 14.5, "unit": "px" }
+				},
+				"letterSpacing": {
+					"$type": "dimension",
+					"$value": { "value": 0, "unit": "px" }
+				}
 			},
-			"letterSpacing": {
-				"$type": "dimension",
-				"$value": { "value": 0, "unit": "px" }
-			}
-		},
-		"highwayLabel": {
-			"color": {
-				"$value": "{palette.onHighway}"
+			"warning": {
+				"color": {
+					"$value": "{palette.stronghold}"
+				},
+				"fontFamily": {
+					"$value": "{face.body}"
+				},
+				"fontSize": {
+					"$type": "dimension",
+					"$value": { "value": 14.5, "unit": "px" }
+				},
+				"letterSpacing": {
+					"$type": "dimension",
+					"$value": { "value": 0, "unit": "px" }
+				}
 			},
-			"fontFamily": {
-				"$value": "{face.displayBold}"
+			"note": {
+				"color": {
+					"$value": "{palette.inkDim}"
+				},
+				"fontFamily": {
+					"$value": "{face.body}"
+				},
+				"fontSize": {
+					"$type": "dimension",
+					"$value": { "value": 13, "unit": "px" }
+				},
+				"letterSpacing": {
+					"$type": "dimension",
+					"$value": { "value": 0, "unit": "px" }
+				}
 			},
-			"fontSize": {
-				"$type": "dimension",
-				"$value": { "value": 30, "unit": "px" }
+			"subtitle": {
+				"color": {
+					"$value": "{palette.inkDim}"
+				},
+				"fontFamily": {
+					"$value": "{face.body}"
+				},
+				"fontSize": {
+					"$type": "dimension",
+					"$value": { "value": 16, "unit": "px" }
+				},
+				"letterSpacing": {
+					"$type": "dimension",
+					"$value": { "value": 0, "unit": "px" }
+				}
 			},
-			"letterSpacing": {
-				"$type": "dimension",
-				"$value": { "value": 0, "unit": "px" }
-			}
-		},
-		"backRoadLabel": {
-			"color": {
-				"$value": "{palette.ink}"
+			"figure": {
+				"color": {
+					"$value": "{palette.ink}"
+				},
+				"fontFamily": {
+					"$value": "{face.mono}"
+				},
+				"fontSize": {
+					"$type": "dimension",
+					"$value": { "value": 14, "unit": "px" }
+				},
+				"letterSpacing": {
+					"$type": "dimension",
+					"$value": { "value": 0, "unit": "px" }
+				}
 			},
-			"fontFamily": {
-				"$value": "{face.displayBold}"
+			"figureShort": {
+				"color": {
+					"$value": "{palette.stronghold}"
+				},
+				"fontFamily": {
+					"$value": "{face.mono}"
+				},
+				"fontSize": {
+					"$type": "dimension",
+					"$value": { "value": 14, "unit": "px" }
+				},
+				"letterSpacing": {
+					"$type": "dimension",
+					"$value": { "value": 0, "unit": "px" }
+				}
 			},
-			"fontSize": {
-				"$type": "dimension",
-				"$value": { "value": 19, "unit": "px" }
+			"kicker": {
+				"color": {
+					"$value": "{palette.inkDim}"
+				},
+				"fontFamily": {
+					"$value": "{face.mono}"
+				},
+				"fontSize": {
+					"$type": "dimension",
+					"$value": { "value": 11, "unit": "px" }
+				},
+				"letterSpacing": {
+					"$type": "dimension",
+					"$value": { "value": 1.32, "unit": "px" }
+				},
+				"$extensions": {
+					"salal": {
+						"textTransform": "uppercase"
+					}
+				}
 			},
-			"letterSpacing": {
-				"$type": "dimension",
-				"$value": { "value": 0, "unit": "px" }
-			}
-		},
-		"rowLabel": {
-			"color": {
-				"$value": "{palette.ink}"
+			"caption": {
+				"color": {
+					"$value": "{palette.inkDim}"
+				},
+				"fontFamily": {
+					"$value": "{face.mono}"
+				},
+				"fontSize": {
+					"$type": "dimension",
+					"$value": { "value": 12, "unit": "px" }
+				},
+				"letterSpacing": {
+					"$type": "dimension",
+					"$value": { "value": 0, "unit": "px" }
+				}
 			},
-			"fontFamily": {
-				"$value": "{face.displayBold}"
+			"highwayLabel": {
+				"color": {
+					"$value": "{palette.onHighway}"
+				},
+				"fontFamily": {
+					"$value": "{face.display}"
+				},
+				"fontWeight": {
+					"$type": "fontWeight",
+					"$value": 700
+				},
+				"fontSize": {
+					"$type": "dimension",
+					"$value": { "value": 30, "unit": "px" }
+				},
+				"letterSpacing": {
+					"$type": "dimension",
+					"$value": { "value": 0, "unit": "px" }
+				}
 			},
-			"fontSize": {
-				"$type": "dimension",
-				"$value": { "value": 20, "unit": "px" }
+			"backRoadLabel": {
+				"color": {
+					"$value": "{palette.ink}"
+				},
+				"fontFamily": {
+					"$value": "{face.display}"
+				},
+				"fontWeight": {
+					"$type": "fontWeight",
+					"$value": 700
+				},
+				"fontSize": {
+					"$type": "dimension",
+					"$value": { "value": 19, "unit": "px" }
+				},
+				"letterSpacing": {
+					"$type": "dimension",
+					"$value": { "value": 0, "unit": "px" }
+				}
 			},
-			"letterSpacing": {
-				"$type": "dimension",
-				"$value": { "value": 0, "unit": "px" }
-			}
-		},
-		"logLine": {
-			"color": {
-				"$value": "{palette.ink}"
+			"rowLabel": {
+				"color": {
+					"$value": "{palette.ink}"
+				},
+				"fontFamily": {
+					"$value": "{face.display}"
+				},
+				"fontWeight": {
+					"$type": "fontWeight",
+					"$value": 700
+				},
+				"fontSize": {
+					"$type": "dimension",
+					"$value": { "value": 20, "unit": "px" }
+				},
+				"letterSpacing": {
+					"$type": "dimension",
+					"$value": { "value": 0, "unit": "px" }
+				}
 			},
-			"fontFamily": {
-				"$value": "{face.displayBold}"
-			},
-			"fontSize": {
-				"$type": "dimension",
-				"$value": { "value": 17, "unit": "px" }
-			},
-			"letterSpacing": {
-				"$type": "dimension",
-				"$value": { "value": 0, "unit": "px" }
+			"logLine": {
+				"color": {
+					"$value": "{palette.ink}"
+				},
+				"fontFamily": {
+					"$value": "{face.display}"
+				},
+				"fontWeight": {
+					"$type": "fontWeight",
+					"$value": 700
+				},
+				"fontSize": {
+					"$type": "dimension",
+					"$value": { "value": 17, "unit": "px" }
+				},
+				"letterSpacing": {
+					"$type": "dimension",
+					"$value": { "value": 0, "unit": "px" }
+				}
 			}
 		}
 	}

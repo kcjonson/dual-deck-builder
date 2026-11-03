@@ -22,14 +22,17 @@ namespace game::atlas {
 	} // namespace
 
 	ui::Ref<ui::Component> resourceStrip(ui::Ref<ui::Component> parent, const std::vector<Store>& stores) {
-		ui::Ref<ui::Component> strip = parent.addChild<ui::Component>({.id = "resource_strip", .layout = row(kStripGap)});
+		// The strip wraps where the column is too narrow for every store on one line.
+		ui::Layout stripLayout = row(kStripGap);
+		stripLayout.flexWrap = ui::FlexWrap::Wrap;
+		ui::Ref<ui::Component> strip = parent.addChild<ui::Component>({.id = "resource_strip", .layout = stripLayout});
 		for (const Store& store : stores) {
-			const ui::Style		   text = store.shortfall ? styles::figureShort : styles::figure;
+			const ui::Style		   text = store.shortfall ? styles::print::figureShort : styles::print::figure;
 			ui::Ref<ui::Component> item = strip.addChild<ui::Component>({.id = store.id, .layout = row(kItemGap)});
 			item.addChild<ui::Icon>({
 				.id = store.id + "_icon",
 				.size = {kIconSize, kIconSize},
-				.style = store.shortfall ? styles::figureShort : ui::Style{},
+				.style = store.shortfall ? styles::print::figureShort : ui::Style{},
 				.name = store.id,
 			});
 			item.addChild<ui::Text>(

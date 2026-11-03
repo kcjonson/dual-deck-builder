@@ -6,9 +6,7 @@
 #include <primitives/Primitives.h>
 #include <ui/Context.h>
 
-#include <algorithm>
 #include <array>
-#include <cmath>
 
 namespace game::atlas {
 
@@ -24,34 +22,8 @@ namespace game::atlas {
 		return color;
 	}
 
-	void drawDashedLine(Foundation::Vec2 from, Foundation::Vec2 to, Foundation::Color color, float width, Dashes dashes, int32_t key) {
-		const Foundation::Vec2 along = to - from;
-		const float			   length = std::sqrt(along.x * along.x + along.y * along.y);
-		if (length <= 0.0F || dashes.dash <= 0.0F) {
-			return;
-		}
-		const Foundation::Vec2 step = along / length;
-		for (float at = 0.0F; at < length; at += dashes.dash + dashes.gap) {
-			const float end = std::min(length, at + dashes.dash);
-			Renderer::Primitives::drawLine({
-				.start = from + step * at,
-				.end = from + step * end,
-				.style = {.color = color, .width = width},
-				.key = key,
-			});
-		}
-	}
-
-	void drawDashedRect(const Foundation::Rect& bounds, Foundation::Color color, float width, Dashes dashes, int32_t key) {
-		const float							  half = width * 0.5F;
-		const float							  left = bounds.x + half;
-		const float							  top = bounds.y + half;
-		const float							  right = bounds.x + bounds.width - half;
-		const float							  bottom = bounds.y + bounds.height - half;
-		const std::array<Foundation::Vec2, 4> corners{{{left, top}, {right, top}, {right, bottom}, {left, bottom}}};
-		for (size_t side = 0; side < corners.size(); ++side) {
-			drawDashedLine(corners.at(side), corners.at((side + 1) % corners.size()), color, width, dashes, key);
-		}
+	Foundation::BoxShadow paperHalo(Foundation::Color paper) {
+		return {.color = paper, .blur = 1.0F, .spread = 1.5F};
 	}
 
 	void drawIcon(ui::Context& context, std::string_view name, Foundation::Vec2 topLeft, float size, Foundation::Color color, int32_t key) {
@@ -100,6 +72,7 @@ namespace game::atlas {
 			.scale = text.size / kBaseSize,
 			.color = text.color,
 			.font = text.face,
+			.shadow = text.halo,
 			.hAlign = text.align,
 			.boxWidth = text.boxWidth,
 			.letterSpacing = text.letterSpacing,

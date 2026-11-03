@@ -3,8 +3,8 @@
 // The atlas's buttons (UI Art Direction, Components, Buttons). The highway is the one primary a screen: Highway fill, a
 // 4 px Casing border and a 3 px Casing offset beneath, its label in display bold at 30 px, a shield at the right. The
 // back road is secondary: Fresh paper, a 1.6 px Back road border and a 1 px inner rule 3 px in, its label at 19 px.
-// Hover inks the border and lifts it 1 px; a press sits it lower, the highway onto its offset; focus visible is a 2 px
-// ink ring 3 px out; disabled fades it whole to the theme's disabled opacity under a dashed border.
+// Hover inks the border and lifts it 1 px; a press, by the pointer or a key, sits it lower, the highway onto its offset;
+// focus visible is a 2 px ink ring 3 px out; disabled fades it whole to the theme's disabled opacity under a dashed border.
 
 #include <ui/components/Control.h>
 #include <ui/shapes/Text.h>
@@ -37,11 +37,11 @@ namespace game::atlas {
 	  protected:
 		void onMount() override;
 		void render() override;
-		void handlePointer(ui::PointerEvent& event) override;
+		void onInteractionChanged(const ui::InteractionState& previous) override;
 		void activate() override;
 
 	  private:
-		// The lift or the press as a transform, so the label moves with the face.
+		// The lift or the press as a transform, so the label moves with the face; a key press shows it too.
 		void settle();
 
 		std::string			  label;
