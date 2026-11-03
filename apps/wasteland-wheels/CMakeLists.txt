@@ -40,6 +40,10 @@ salal_base_shader(ddb_game HOOKS ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
 # The atlas theme (UI Art Direction, Tokens) over ui's own, checked and compiled in.
 salal_tokens(ddb_game ${CMAKE_CURRENT_SOURCE_DIR}/tokens NAMESPACE game::atlas HEADER atlas/Tokens.h)
 
+# The game's icons (procedural-paper.md, Icons): every SVG in icons/ checked against salal's rules and built into one
+# MSDF atlas, embedded. A scene adds it to its icon service (game::icons::iconAtlas()).
+salal_icons(ddb_game ${CMAKE_CURRENT_SOURCE_DIR}/icons NAMESPACE game::icons HEADER atlas/Icons.h)
+
 # The base pack is read from the source tree, as the balance sim reads it, until playtest builds ship their packs.
 add_executable(wasteland-wheels Main.cpp)
 target_link_libraries(wasteland-wheels PRIVATE ddb::game)
