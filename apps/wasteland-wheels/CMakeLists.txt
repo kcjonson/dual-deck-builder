@@ -3,8 +3,15 @@
 find_package(nlohmann_json CONFIG REQUIRED)
 
 add_library(ddb_game STATIC
+    atlas/AtlasButton.cpp
     atlas/AtlasTheme.cpp
+    atlas/Glyphs.cpp
+    atlas/Ink.cpp
+    atlas/LegendBox.cpp
     atlas/Paper.cpp
+    atlas/ResourceStrip.cpp
+    atlas/SectionTabs.cpp
+    atlas/Sheet.cpp
     CampaignStore.cpp
     DevRoutes.cpp
     Fonts.cpp
@@ -43,6 +50,9 @@ salal_tokens(ddb_game ${CMAKE_CURRENT_SOURCE_DIR}/tokens NAMESPACE game::atlas H
 # The game's icons (procedural-paper.md, Icons): every SVG in icons/ checked against salal's rules and built into one
 # MSDF atlas, embedded. A scene adds it to its icon service (game::icons::iconAtlas()).
 salal_icons(ddb_game ${CMAKE_CURRENT_SOURCE_DIR}/icons NAMESPACE game::icons HEADER atlas/Icons.h)
+
+# The game's flat-fill vector art (procedural-paper.md, Everything else), checked against what loadSVG reads and embedded.
+salal_art(ddb_game ${CMAKE_CURRENT_SOURCE_DIR}/art NAMESPACE game::art HEADER atlas/Art.h)
 
 # The base pack is read from the source tree, as the balance sim reads it, until playtest builds ship their packs.
 add_executable(wasteland-wheels Main.cpp)
