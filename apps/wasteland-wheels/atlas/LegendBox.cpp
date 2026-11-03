@@ -55,7 +55,9 @@ namespace game::atlas {
 		layout.gap = 10.0F;
 		setLayout(layout);
 		if (!title.empty()) {
-			addChild<ui::Text>({.id = getId().empty() ? std::string() : getId() + "_title", .style = styles::sectionHead, .text = title});
+			addChild<ui::Text>(
+				{.id = getId().empty() ? std::string() : getId() + "_title", .style = styles::print::sectionHead, .text = title}
+			);
 		}
 	}
 
@@ -100,7 +102,7 @@ namespace game::atlas {
 		addChild<ui::Text>({
 			.id = getId().empty() ? std::string() : getId() + "_text",
 			.layout = {.flexGrow = 1.0F},
-			.style = textStyle.theme.table == nullptr ? styles::body.extend(textStyle) : textStyle,
+			.style = textStyle.theme.table == nullptr ? styles::print::body.extend(textStyle) : textStyle,
 			.text = text,
 			.wrap = true,
 		});
@@ -127,14 +129,15 @@ namespace game::atlas {
 				});
 				break;
 			case MapSymbol::Dash:
-				drawDashedLine(
-					{centre.x - 5.0F, centre.y},
-					{centre.x + 5.0F, centre.y},
-					withAlpha(theme.get(palette::fadedPrint), alpha),
-					1.6F,
-					{.dash = 3.0F, .gap = 2.0F},
-					key
-				);
+				Renderer::Primitives::drawLine({
+					.start = {centre.x - 5.0F, centre.y},
+					.end = {centre.x + 5.0F, centre.y},
+					.style =
+						{.color = withAlpha(theme.get(palette::fadedPrint), alpha),
+						 .width = 1.6F,
+						 .dash = Foundation::DashPattern{.dash = 3.0F, .gap = 2.0F}},
+					.key = key,
+				});
 				break;
 		}
 	}
@@ -156,7 +159,7 @@ namespace game::atlas {
 		const std::string id = getId();
 		labelText = addChild<ui::Text>({
 			.id = id.empty() ? std::string() : id + "_label",
-			.style = labelStyle.theme.table == nullptr ? styles::rowLabel.extend(labelStyle) : labelStyle,
+			.style = labelStyle.theme.table == nullptr ? styles::print::rowLabel.extend(labelStyle) : labelStyle,
 			.text = label,
 			.wrap = true,
 		});
@@ -166,7 +169,7 @@ namespace game::atlas {
 			valueText = addChild<ui::Text>({
 				.id = id.empty() ? std::string() : id + "_value",
 				.layout = {.flexShrink = 0.0F},
-				.style = styles::caption,
+				.style = styles::print::caption,
 				.text = value,
 			});
 		}
@@ -193,7 +196,12 @@ namespace game::atlas {
 			return;
 		}
 		const float baseline = valueBox.y + valueBox.height - 4.0F;
-		drawDashedLine({from, baseline}, {to, baseline}, withAlpha(ink, 0.6F), 1.2F, {.dash = 1.2F, .gap = 3.6F}, key);
+		Renderer::Primitives::drawLine({
+			.start = {from, baseline},
+			.end = {to, baseline},
+			.style = {.color = withAlpha(ink, 0.6F), .width = 1.2F, .dash = kLeaderDots},
+			.key = key,
+		});
 	}
 
 } // namespace game::atlas

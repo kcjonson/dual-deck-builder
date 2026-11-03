@@ -10,18 +10,20 @@
 
 #include <nlohmann/json.hpp>
 
+#include <optional>
+
 namespace game::atlas {
 
 	namespace {
 
 		namespace palette = tokens::palette;
 
-		constexpr float	 kBorder = 1.4F;
-		constexpr float	 kOpenTop = 3.0F; // how far the tab runs on above its box, so its top edge shows no rule
-		constexpr float	 kHeight = 44.0F; // the least a hit target is
-		constexpr float	 kActiveDrop = 4.0F;
-		constexpr float	 kFocusReach = 5.0F;
-		constexpr Dashes kDisabledDashes{.dash = 5.0F, .gap = 3.0F};
+		constexpr float kBorder = 1.4F;
+		constexpr float kHeight = 44.0F; // the least a hit target is
+		constexpr float kActiveDrop = 4.0F;
+		constexpr float kFocusReach = 5.0F;
+		// Open at the top, where it hangs from the sheet's edge.
+		constexpr Foundation::BorderSides kHanging{.top = false};
 
 	} // namespace
 
@@ -57,43 +59,43 @@ namespace game::atlas {
 		}
 		addChild<ui::Text>({
 			.id = id.empty() ? std::string() : id + "_label",
-			.style = current ? styles::sectionTabActive : styles::sectionTab,
+			.style = current ? styles::print::sectionTabActive : styles::print::sectionTab,
 			.text = label,
 		});
 	}
 
 	void SectionTab::render() {
-		const ui::Theme&	   theme = getContext()->getTheme();
-		const float			   alpha = opacity();
-		const bool			   enabled = isEnabledInTree();
-		const int32_t		   key = drawKey();
-		const Foundation::Rect face{0.0F, -kOpenTop, size.x, size.y + kOpenTop};
-		const bool			   lit = current || (enabled && isHovered());
+		const ui::Theme&		   theme = getContext()->getTheme();
+		const float				   alpha = opacity();
+		const bool				   enabled = isEnabledInTree();
+		const int32_t			   key = drawKey();
+		const ui::InteractionState state = interaction();
+		const bool				   lit = current || (enabled && state.hovered);
+		const Foundation::Color	   ink = withAlpha(theme.get(palette::ink), alpha);
 		drawPaper({
-			.bounds = face,
+			.bounds = {0.0F, 0.0F, size.x, size.y},
 			.tint = withAlpha(theme.get(lit ? palette::freshPaper : palette::index), alpha),
 			.look = {.seed = paperSeed(getId()), .wear = current ? Wear::Clean : Wear::Handled, .grab = Corner::BottomLeft},
+			.border =
+				Foundation::BorderStyle{
+					.color = enabled ? ink : withAlpha(theme.get(palette::backRoad), alpha),
+					.width = kBorder,
+					.position = Foundation::BorderPosition::Inside,
+					.sides = kHanging,
+					.dash = enabled ? std::nullopt : std::optional(kDisabledDash),
+				},
 			.id = getId().empty() ? nullptr : getId().c_str(),
 			.key = key,
 		});
-		const Foundation::Color ink = withAlpha(theme.get(palette::ink), alpha);
-		if (enabled) {
-			Renderer::Primitives::drawRect({
-				.bounds = face,
-				.style =
-					{.fill = Foundation::Color(0.0F, 0.0F, 0.0F, 0.0F),
-					 .border = Foundation::BorderStyle{.color = ink, .width = kBorder, .position = Foundation::BorderPosition::Inside}},
-				.key = key,
-			});
-		} else {
-			drawDashedRect(face, withAlpha(theme.get(palette::backRoad), alpha), kBorder, kDisabledDashes, key);
-		}
-		if (isFocusVisible()) {
+		if (state.focusVisible) {
 			Renderer::Primitives::drawRect({
 				.bounds = {-kFocusReach, 0.0F, size.x + 2.0F * kFocusReach, size.y + kFocusReach},
 				.style =
 					{.fill = Foundation::Color(0.0F, 0.0F, 0.0F, 0.0F),
-					 .border = Foundation::BorderStyle{.color = ink, .width = 2.0F, .position = Foundation::BorderPosition::Inside}},
+					 .border =
+						 Foundation::BorderStyle{
+							 .color = ink, .width = 2.0F, .position = Foundation::BorderPosition::Inside, .sides = kHanging
+						 }},
 				.key = key,
 			});
 		}
