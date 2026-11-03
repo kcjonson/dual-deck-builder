@@ -6,6 +6,7 @@
 // (rules::campaigns::testMap and testLayers), handed back at once or held until cancelled; the slow lane makes real ones.
 
 #include "BaseShader.h"
+#include "Fonts.h"
 #include "GameContext.h"
 #include "atlas/Paper.h"
 #include "scenes/Scenes.h"
@@ -30,6 +31,7 @@
 #include <memory>
 #include <optional>
 #include <random>
+#include <span>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -111,13 +113,17 @@ namespace game::testing {
 			context.reset();
 		}
 
-		// The App at 1280x800 with every scene added and none on the stack yet; seeds count from 1.
-		void start(MapMakers makers = fixtureMakers()) {
+		// The App at 1280x800 with every scene added and none on the stack yet; seeds count from 1. With , the game's
+		// fonts load, so text measures as it draws, for a test that lays a scene out to lint it.
+		void start(MapMakers makers = fixtureMakers(), bool faces = false) {
 			auto headless = std::make_unique<app::HeadlessPlatform>(1280, 800);
 			platform = headless.get();
 			app = app::App::create(
 				{.applicationName = "wasteland-wheels-tests",
 				 .baseShader = base_shader::source(),
+				 .fontAtlases =
+					 faces ? std::span<const Renderer::FontAtlasSource>(fonts::kAtlases) : std::span<const Renderer::FontAtlasSource>(),
+				 .defaultFont = fonts::kBody,
 				 .settingsFile = dir.path() / "settings.json",
 				 .savesDirectory = dir.path() / "saves",
 				 .saveFormat = {.version = rules::campaign::kSaveVersion}},

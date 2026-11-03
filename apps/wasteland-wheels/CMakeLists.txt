@@ -21,6 +21,7 @@ add_library(ddb_game STATIC
     scenes/SceneKit.cpp
     scenes/Scenes.cpp
     scenes/battle/BattleScene.cpp
+    scenes/compound/CompoundPlate.cpp
     scenes/compound/CompoundScene.cpp
     scenes/debrief/DebriefScene.cpp
     scenes/end/CampaignEndScene.cpp

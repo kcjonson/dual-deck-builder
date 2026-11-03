@@ -41,7 +41,7 @@ How the tests drive the scenes:
 | `Words` | what the scenes call things: names from the packs and the rules' blockers worded |
 | `DevRoutes` | the game's dev server routes |
 | `Fonts` | the game's faces, a font family each, and the theme that puts ui's font roles on them |
-| `shaders/`, `tokens/` | the base shader's fill hooks (`salal_base_shader`) and the atlas theme (`salal_tokens`), built into the library |
+| `shaders/`, `tokens/`, `icons/`, `art/` | the base shader's fill hooks (`salal_base_shader`), the atlas theme (`salal_tokens`), the icons (`salal_icons`), and the flat-fill vector art (`salal_art`), each built into the library |
 | `atlas/` | the atlas look (UI Art Direction): its theme, the paper (procedural-paper.md), and the parts a meta scene is built from |
 | `scenes/` | one folder a scene, `GameScene.h` for what they share, `SceneKit` for the placeholder look, `Scenes` for their names |
 
@@ -59,7 +59,7 @@ splash -> main_menu -> founding -> compound -> area_map -> load_out -> run -> de
 - `main_menu`: Continue with "Day 12 - 3 drivers - 1 stronghold taken", or disabled with the line under it saying why (nothing to continue, a damaged save, another save format); New Campaign, which asks first in a dialog over a campaign in progress; Settings; Quit; and Campaign History. Continue skips the load when the session already holds the saved campaign.
 - `founding`: the map made on a worker on the seed given or a fresh one, its progress shown ("Making the area map: water (2 of 9)"), then `foundCampaign`, the save, and the compound. Cancel stops the making at the next stage and goes back with nothing kept. A seed whose attempts all fail says so and offers another.
 - `loading`: Continue. The save's map made again on a worker by `loadCampaign`, then the compound, the run when one is on the road, or the campaign's end. A save the rules refuse, its fingerprint another map's or anything else, shows the reason and offers a new campaign; there are no migrations.
-- `compound`: the stores, the needs forecast, the pool, the convoy, and the log, with Plan a supply run, Send a scavenging party (its haul on the button, or why not), and Rest a day.
+- `compound`: in the atlas ([compound-screen.md](./compound-screen.md), In the C++ alpha): the plate of the yard, the chosen building, the needs, the day's two ways to end it with what each costs, and the log, with Plan a supply run.
 - `area_map`: every POI `offersToday` offers, then the picked POI's routes, each with its hours, fuel, risk, and stops.
 - `load_out`: two seats and the pool, each driver who can't be seated faded with `seatBlocker`'s reason, and the escorts to bring. Start run is enabled once a departure tried on a copy of the campaign passes (`startRun`, then `departBlocker`), so the page's reason is the rules', and it seats one driver only when nobody else can be seated beside them (solo-driver-fights.md's call). Run decks are the defaults until Customize lands.
 - `run`: the route's stops in driving order, how far down them the run is, the crew and the cargo, and what `ahead` says comes next: a fight, a find to take or leave, an event's choices with `choiceBlocker`'s reasons, a reward to pick from, the objective, or the road home.
@@ -87,7 +87,7 @@ splash -> main_menu -> founding -> compound -> area_map -> load_out -> run -> de
 - `/api/dev/continue`: the save continued, through the loading scene.
 - While a fight is up, `/api/state?what=battle` with the actions on offer in order, `/api/dev/battle-act?index=N` to take one, and `/api/dev/battle-play-out`, which plays the rest of the fight with the player's seats on the first playable card, for a session that needs a fight over rather than played well.
 
-**The placeholder look** is salal's default tokens and its controls: a page with a title, a row of panels, rows (`ListRow`) and buttons, and a notice line, with no game art, theme, or icons.
+**The placeholder look**, every scene's but the compound's, is salal's default tokens and its controls: a page with a title, a row of panels, rows (`ListRow`) and buttons, and a notice line, with no game art, theme, or icons.
 
 **The faces** are the game's own (UI Art Direction, Type), the msdf-atlas-gen atlases the TypeScript built, copied from `_legacy/src/assets/fonts/` into `fonts/` with each face's OFL and staged beside the exe: Barlow Condensed Bold and SemiBold for display, Open Sans Regular for body, the default, and JetBrains Mono Regular for mono, a family each (`Fonts.h`). salal reads msdf-atlas-gen's JSON and lays text out by code point since v0.35.0. Every scene's ui loads ui's own tokens with its font roles on those families (`fonts::theme()`, from `GameScene`), so headings are display, prose body, and figures mono, as ui's tokens assign them: a page's, a panel's, and a dialog's titles are display; rows, buttons, and lines of text are body; and a row's trailing text is mono, as is a line `kit::figures` makes for a ledger or a code (the stores, unrest, a seed). A font is one weight, so the display role is both Barlow faces under one name, registered with their weights, and a style's weight picks the face (salal since v0.37.0): ui's display typography at 700 draws the bold, its title at 600 the semibold. Open Sans SemiBold isn't loaded: salal's text reads no weight, so nothing would ask for it.
 
