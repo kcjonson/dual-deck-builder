@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 560" width="820" height="560">
+<!-- The closed atlas's spine (UI Art Direction, Screens: the launch splash), from the canvas's FinalSplash: a shadow down
+     the cover's left edge and the highlight where the board bends. The box is the cover, the mock's 820 by 560; drawn
+     stretched over the cover's paper, so it scales with the cover. -->
+	<rect x="0" y="0" width="26" height="560" fill="#3A2A14" fill-opacity="0.12"/>
+	<rect x="26" y="0" width="3" height="560" fill="#FFF6DC" fill-opacity="0.5"/>
+</svg>

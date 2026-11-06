@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 560" width="820" height="560">
+<!-- The closed atlas's page edges (UI Art Direction, Screens: the launch splash), from the canvas's FinalSplash: the
+     pages stepping out past the cover's right and bottom edges, two paper tones and the back board's ink. The box is the
+     cover, the mock's 820 by 560, and the edges draw past it; each step is only the strip that shows, so it can draw
+     under a cover that fades. -->
+	<path d="M820 6 L826 6 L826 566 L6 566 L6 560 L820 560 Z" fill="#D9D0B8"/>
+	<path d="M826 9 L829 9 L829 569 L9 569 L9 566 L826 566 Z" fill="#C9BFA5"/>
+	<path d="M829 10 L830 10 L830 570 L10 570 L10 569 L829 569 Z" fill="#23221F"/>
+</svg>
