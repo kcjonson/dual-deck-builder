@@ -30,6 +30,10 @@ Options considered: laying parts out from the token's size (what the old plate d
 - An unmanned raider's stamp reads NO DRIVER; the spec only names WRECKED.
 - An escort carrying a passenger puts the passenger row where the driver HP row would be, so its token stays 117 tall.
 
+## In the C++ alpha
+
+2026-11-06. `apps/wasteland-wheels/road/VehicleToken` draws this layout from a `TokenData` the battle scene fills, at a scale it takes from the road (`fitScale`, between 1 and the road's cap). Status chips are short labels until the game has status icons; the chips' and intents' tooltips, and filling it from the fight, come with the battle scene ([cards-and-kit-on-salal.md](./cards-and-kit-on-salal.md)).
+
 ## Consequences
 
 - Hit numbers pop from the plate, not the whole token.

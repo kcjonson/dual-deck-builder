@@ -2,6 +2,7 @@ find_package(nlohmann_json CONFIG REQUIRED)
 
 add_library(ddb_rules STATIC
     core/Card.cpp
+    core/CardText.cpp
     core/Condition.cpp
     core/Deck.cpp
     core/Driver.cpp

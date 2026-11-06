@@ -15,6 +15,7 @@ namespace game::scenes {
 		stack.add(kRun, makeRunScene);
 		stack.add(kCampaignEnd, makeCampaignEndScene);
 		stack.add(kArtGallery, makeArtGalleryScene);
+		stack.add(kCardShowcase, makeCardShowcaseScene);
 	}
 
 } // namespace game::scenes

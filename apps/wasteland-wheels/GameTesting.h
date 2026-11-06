@@ -8,7 +8,10 @@
 #include "BaseShader.h"
 #include "Fonts.h"
 #include "GameContext.h"
+#include "atlas/AtlasTheme.h"
+#include "atlas/Icons.h"
 #include "atlas/Paper.h"
+#include "scenes/GameScene.h"
 #include "scenes/Scenes.h"
 
 #include <application/App.h>
@@ -19,6 +22,7 @@
 #include <rules/map/MapPipeline.h>
 #include <ui/Component.h>
 #include <ui/Context.h>
+#include <ui/debug/LayoutLint.h>
 
 #include <gtest/gtest.h>
 
@@ -32,6 +36,7 @@
 #include <optional>
 #include <random>
 #include <span>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -106,6 +111,30 @@ namespace game::testing {
 		std::filesystem::path root;
 	};
 
+	// A scene a test lays out by hand on the atlas theme, to lay out and lint parts no game scene shows yet.
+	class PartsScene final : public GameScene<> {
+	  public:
+		using Build = std::function<void(ui::Ref<ui::Component>)>;
+
+		explicit PartsScene(Build build)
+			: build(std::move(build)) {}
+
+		[[nodiscard]] const char* name() const override { return "parts"; }
+
+	  protected:
+		[[nodiscard]] const ui::Theme& sceneTheme() const override { return atlas::theme(); }
+
+		void enter() override {
+			if (!ui().icons().has("food")) {
+				ui().icons().add(icons::iconAtlas());
+			}
+			build(root());
+		}
+
+	  private:
+		Build build;
+	};
+
 	class GameTest : public ::testing::Test {
 	  protected:
 		void TearDown() override {
@@ -142,6 +171,12 @@ namespace game::testing {
 			);
 			app->setContext(*context);
 			scenes::addScenes(app->scenes());
+		}
+
+		// A PartsScene with what `build` lays out under its root, on top.
+		void openParts(const PartsScene::Build& build) {
+			app->scenes().add("parts", [build] { return std::make_unique<PartsScene>(build); });
+			go("parts");
 		}
 
 		bool frame(double seconds = 1.0 / 60.0) {
@@ -217,6 +252,21 @@ namespace game::testing {
 		}
 
 		[[nodiscard]] rules::campaign::Campaign& played() { return context->session->campaign; }
+
+		// The top scene laid out at a window size and linted: each violation a line, empty when there are none.
+		[[nodiscard]] std::string lintAt(int width, int height) {
+			platform->resize(width, height);
+			frame();
+			frame();
+			const ui::LintResult result = ui::lint(app->scenes().top()->ui(), {static_cast<float>(width), static_cast<float>(height)});
+			std::ostringstream	 found;
+			for (const ui::LintViolation& violation : result.violations) {
+				const Foundation::Rect& box = violation.bounds;
+				found << ui::lintRuleName(violation.rule) << " " << violation.path << " at " << box.x << "," << box.y << " " << box.width
+					  << "x" << box.height << (violation.otherPath.empty() ? "" : " against " + violation.otherPath) << "\n";
+			}
+			return found.str();
+		}
 
 		TempDir					   dir;
 		app::HeadlessPlatform*	   platform = nullptr;

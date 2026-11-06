@@ -20,6 +20,7 @@ namespace game::scenes {
 	inline constexpr const char* kCampaignEnd = "campaign_end";
 	// A developer's page of the game's vector art, for a launch to look at and the tests to lint.
 	inline constexpr const char* kArtGallery = "art_gallery";
+	inline constexpr const char* kCardShowcase = "card_showcase";
 
 	// Every scene above, under its name.
 	void addScenes(app::SceneStack& stack);
@@ -34,5 +35,6 @@ namespace game::scenes {
 	[[nodiscard]] std::unique_ptr<app::Scene> makeRunScene();
 	[[nodiscard]] std::unique_ptr<app::Scene> makeCampaignEndScene();
 	[[nodiscard]] std::unique_ptr<app::Scene> makeArtGalleryScene();
+	[[nodiscard]] std::unique_ptr<app::Scene> makeCardShowcaseScene();
 
 } // namespace game::scenes
