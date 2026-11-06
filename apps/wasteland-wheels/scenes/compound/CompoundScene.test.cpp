@@ -4,10 +4,8 @@
 #include "GameTesting.h"
 #include "atlas/Sheet.h"
 
-#include <ui/debug/LayoutLint.h>
 #include <ui/shapes/Text.h>
 
-#include <sstream>
 #include <string>
 
 namespace {
@@ -21,20 +19,6 @@ namespace {
 			go(scenes::kMainMenu);
 			ASSERT_TRUE(press("new_campaign"));
 			ASSERT_TRUE(frameUntil([this] { return top() == scenes::kCompound; }));
-		}
-
-		[[nodiscard]] std::string lintAt(int width, int height) {
-			platform->resize(width, height);
-			frame();
-			frame();
-			const ui::LintResult result = ui::lint(app->scenes().top()->ui(), {static_cast<float>(width), static_cast<float>(height)});
-			std::ostringstream	 found;
-			for (const ui::LintViolation& violation : result.violations) {
-				const Foundation::Rect& box = violation.bounds;
-				found << ui::lintRuleName(violation.rule) << " " << violation.path << " at " << box.x << "," << box.y << " " << box.width
-					  << "x" << box.height << (violation.otherPath.empty() ? "" : " against " + violation.otherPath) << "\n";
-			}
-			return found.str();
 		}
 
 		[[nodiscard]] std::string textOf(std::string_view id) {

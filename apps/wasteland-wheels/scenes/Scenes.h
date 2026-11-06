@@ -18,6 +18,7 @@ namespace game::scenes {
 	inline constexpr const char* kAreaMap = "area_map";
 	inline constexpr const char* kRun = "run";
 	inline constexpr const char* kCampaignEnd = "campaign_end";
+	inline constexpr const char* kCardShowcase = "card_showcase";
 
 	// Every scene above, under its name.
 	void addScenes(app::SceneStack& stack);
@@ -31,5 +32,6 @@ namespace game::scenes {
 	[[nodiscard]] std::unique_ptr<app::Scene> makeAreaMapScene();
 	[[nodiscard]] std::unique_ptr<app::Scene> makeRunScene();
 	[[nodiscard]] std::unique_ptr<app::Scene> makeCampaignEndScene();
+	[[nodiscard]] std::unique_ptr<app::Scene> makeCardShowcaseScene();
 
 } // namespace game::scenes

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 156" width="140" height="156">
+<!-- The small mark, flattened for salal_art from docs/design/ui-art-direction/mark-small.svg: the copies of the W it reused are
+     plain paths. The painted W, Casing under Highway, in a paper shield edged in ink. -->
+	<path d="M8 22 Q70 2 132 22 L132 80 Q132 130 70 150 Q8 130 8 80 Z" fill="#F2EDDD" stroke="#23221F" stroke-width="9"/>
+	<g transform="translate(30 22) scale(0.95) skewX(-11)">
+		<g stroke="#682C1E" stroke-width="11">
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(-9.84 6.84)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(-8.20 5.70)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(-6.56 4.56)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(-4.92 3.42)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(-3.28 2.28)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(-1.64 1.14)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(0.00 0.00)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(1.64 -1.14)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(3.28 -2.28)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(4.92 -3.42)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(6.56 -4.56)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(8.20 -5.70)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(9.84 -6.84)"/>
+		</g>
+		<g stroke="#D86036" stroke-width="5">
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(-9.84 6.84)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(-8.20 5.70)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(-6.56 4.56)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(-4.92 3.42)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(-3.28 2.28)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(-1.64 1.14)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(0.00 0.00)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(1.64 -1.14)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(3.28 -2.28)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(4.92 -3.42)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(6.56 -4.56)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(8.20 -5.70)"/>
+			<path d="M4 4 L20 126 L42 40 L64 126 L80 4" fill="none" transform="translate(9.84 -6.84)"/>
+		</g>
+	</g>
+</svg>

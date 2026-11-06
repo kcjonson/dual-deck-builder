@@ -1,5 +1,5 @@
 // The main menu (Game Flow 1.1): Continue with the campaign's state, or disabled with the line under it saying why;
-// New Campaign, which asks first over a campaign in progress; Settings; Quit; and Campaign History.
+// New Campaign, which asks first over a campaign in progress; Settings; the card showcase; Quit; and Campaign History.
 
 #include "scenes/GameScene.h"
 #include "scenes/founding/FoundingScene.h"
@@ -58,6 +58,7 @@ namespace game {
 					saved ? ui::ButtonVariant::Secondary : ui::ButtonVariant::Primary
 				);
 				kit::button(menu, "settings", "Settings", [this] { app().scenes().switchTo(scenes::kSettings); });
+				kit::button(menu, "card_showcase", "Card Showcase", [this] { app().scenes().switchTo(scenes::kCardShowcase); });
 				kit::button(menu, "quit", "Quit", [this] { app().requestExit(); }, ui::ButtonVariant::Ghost);
 
 				ui::Ref<ui::Component> past = kit::panel(page, "Campaign History", "history");

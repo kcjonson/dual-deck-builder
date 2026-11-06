@@ -125,6 +125,7 @@ The trade-offs: what gets easier, what gets harder, what it risks.
 - [UI art direction for the first playtest](./ui-art-direction.md)
 - [The UI art atlas](./ui-art-atlas.md)
 - [Procedural paper: the alpha's UI art without raster](./procedural-paper.md)
+- [The card, its back, the vehicle token, gauges and markers on salal](./cards-and-kit-on-salal.md)
 - [Theme tokens: file format, generator, starting palette](./theme-tokens.md)
 - [Font pipeline: faces, atlases, and the loader](./font-pipeline.md)
 

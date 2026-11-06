@@ -42,7 +42,9 @@ How the tests drive the scenes:
 | `DevRoutes` | the game's dev server routes |
 | `Fonts` | the game's faces, a font family each, and the theme that puts ui's font roles on them |
 | `shaders/`, `tokens/`, `icons/`, `art/` | the base shader's fill hooks (`salal_base_shader`), the atlas theme (`salal_tokens`), the icons (`salal_icons`), and the flat-fill vector art (`salal_art`), each built into the library |
-| `atlas/` | the atlas look (UI Art Direction): its theme, the paper (procedural-paper.md), and the parts a meta scene is built from |
+| `atlas/` | the atlas look (UI Art Direction): its theme, the paper (procedural-paper.md), and the parts a meta scene is built from, its gauges and markers included |
+| `cards/` | the card in its sizes, its detail view, and the decks' backs ([cards-and-kit-on-salal.md](./cards-and-kit-on-salal.md)) |
+| `road/` | the road's pieces: the vehicle token |
 | `scenes/` | one folder a scene, `GameScene.h` for what they share, `SceneKit` for the placeholder look, `Scenes` for their names |
 
 **The scenes.** Each is a salal `Scene` on the App's stack, its page rebuilt from the campaign whenever it changes. A scene with arguments is pushed by type and has no name; the rest are added by name, for `--scene`, the dev server's `scene` control, and each other.
@@ -67,6 +69,7 @@ splash -> main_menu -> founding -> compound -> area_map -> load_out -> run -> de
 - `debrief`: what a run brought home and the injuries it came back with, or what a failed one lost and what became of each seat, and the night after it.
 - `campaign_end`: how the compound fell and why, the days it held, and the tally. The rules have no win yet, so a fall is the only end.
 - `settings`: vsync, fullscreen, the ui's scale, and reduced motion.
+- `card_showcase`: every card in the game, in the atlas, from the main menu ([cards-and-kit-on-salal.md](./cards-and-kit-on-salal.md)).
 
 **Map work.** Founding and Continue each run a whole generation, so both run on a `MapJob`. The job's `std::jthread` stop token goes into the rules' `MapMaking::cancel`, which `makeCampaignMap` and `loadCampaign` now pass to the pipeline's own cancel ([map-pipeline-worker.md](./map-pipeline-worker.md)): a stop waits at most a stage, throws `MapPipelineCancelled`, and never moves founding to another seed. The scene polls the job each update, shows its progress, and takes its result or its throw once it's done; leaving the scene, or the App going, cancels the job and waits for it. The session holds one campaign's map at a time, the one its founding or its load made.
 
@@ -114,5 +117,5 @@ No gameplay calls: the flow is Game Flow's, and the one rule load out adds, a ru
 
 - The whole loop plays headless: found, plan, load out, fight, take a find or an event, come home or fail, rest, scavenge, and fall, saved at every step and continued from the save.
 - Nothing has been launched with a window. The checks owed once the machine is free: the game opens and draws its text in its own faces, headings in Barlow Condensed, prose in Open Sans, and figures in JetBrains Mono; `/api/ui/lint` is 0 on every scene, which no test checks; a real founding's progress moves with the frame responsive and Cancel works mid-generation; quitting and relaunching continues from the save, and the settings and window size come back; a run plays end to end with the mouse, wheel-scrolling long panels; a Release build opens no socket.
-- The real screens need: the paper as a fill hook on salal's fill hooks ([procedural-paper.md](./procedural-paper.md)), with the rest of the art as flat-fill vector; the game's tokens as a theme (the gap above); icons through `salal_icons` (msdfgen then joins the vcpkg manifest as a host port), the card in its three sizes with the driver and escort cards and the detail view (Game Flow 7.0), the battle screen's road drawn through Primitives with targeting previews from `apply` on a copy and animation from the events `apply` returns (the scene drops them today) and drag and drop (the drag tier), the area map drawn from the whole `AreaMap` the session already holds (`SessionMap::areaMap`), and the compound's illustrated scene. The Crew screen, Customize, the garage, and the victory screen aren't scenes yet.
+- The real screens need: the paper as a fill hook on salal's fill hooks ([procedural-paper.md](./procedural-paper.md)), with the rest of the art as flat-fill vector; the game's tokens as a theme (the gap above); icons through `salal_icons` (msdfgen then joins the vcpkg manifest as a host port), the driver and escort cards (Game Flow 7.0), the battle screen's road drawn through Primitives with targeting previews from `apply` on a copy and animation from the events `apply` returns (the scene drops them today) and drag and drop (the drag tier), the area map drawn from the whole `AreaMap` the session already holds (`SessionMap::areaMap`), and the compound's illustrated scene. The Crew screen, Customize, the garage, and the victory screen aren't scenes yet.
 - The packs are read from the source tree, as the balance sim reads them, until playtest builds ship them (port plan step 7).

@@ -5,17 +5,25 @@ find_package(nlohmann_json CONFIG REQUIRED)
 add_library(ddb_game STATIC
     atlas/AtlasButton.cpp
     atlas/AtlasTheme.cpp
+    atlas/Gauges.cpp
     atlas/Glyphs.cpp
     atlas/Ink.cpp
     atlas/LegendBox.cpp
+    atlas/Markers.cpp
     atlas/Paper.cpp
     atlas/ResourceStrip.cpp
     atlas/SectionTabs.cpp
     atlas/Sheet.cpp
     CampaignStore.cpp
+    cards/Card.cpp
+    cards/CardBack.cpp
+    cards/CardDetail.cpp
+    cards/CardInk.cpp
+    cards/CardStyle.cpp
     DevRoutes.cpp
     Fonts.cpp
     GameRules.cpp
+    road/VehicleToken.cpp
     Session.cpp
     Words.cpp
     scenes/SceneKit.cpp
@@ -32,6 +40,7 @@ add_library(ddb_game STATIC
     scenes/menu/MainMenuScene.cpp
     scenes/run/RunScene.cpp
     scenes/settings/SettingsScene.cpp
+    scenes/showcase/CardShowcaseScene.cpp
     scenes/splash/SplashScene.cpp
 )
 add_library(ddb::game ALIAS ddb_game)
