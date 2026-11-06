@@ -66,7 +66,7 @@ apps/
   balance-sim/    the headless balance sim, over the rules and the AI
   wasteland-wheels/  the game: its scenes on salal's app and ui, saves, settings, dev routes
 docs/             specs, decision records, design art, the port plan
-scripts/          Node tooling (format.mjs)
+scripts/          Node tooling (format.mjs, vector-art.mjs)
 _legacy/          the TypeScript proof of concept, frozen, with its own CLAUDE.md
 ```
 

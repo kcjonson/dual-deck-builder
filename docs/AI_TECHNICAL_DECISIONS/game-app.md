@@ -41,8 +41,8 @@ How the tests drive the scenes:
 | `Words` | what the scenes call things: names from the packs and the rules' blockers worded |
 | `DevRoutes` | the game's dev server routes |
 | `Fonts` | the game's faces, a font family each, and the theme that puts ui's font roles on them |
-| `shaders/`, `tokens/`, `icons/`, `art/` | the base shader's fill hooks (`salal_base_shader`), the atlas theme (`salal_tokens`), the icons (`salal_icons`), and the flat-fill vector art (`salal_art`), each built into the library |
-| `atlas/` | the atlas look (UI Art Direction): its theme, the paper (procedural-paper.md), and the parts a meta scene is built from, its gauges and markers included |
+| `shaders/`, `tokens/`, `icons/`, `art/` | the base shader's fill hooks (`salal_base_shader`), the atlas theme (`salal_tokens`), the icons (`salal_icons`), and the flat-fill vector art (`salal_art`; `scripts/vector-art.mjs` writes the logo, the marks and the stamps), each built into the library |
+| `atlas/` | the atlas look (UI Art Direction): its theme, the paper (procedural-paper.md), the art drawn at a size and a tint (`ArtView`), and the parts a meta scene is built from, its gauges and markers included |
 | `cards/` | the card in its sizes, its detail view, and the decks' backs ([cards-and-kit-on-salal.md](./cards-and-kit-on-salal.md)) |
 | `road/` | the road's pieces: the vehicle token |
 | `scenes/` | one folder a scene, `GameScene.h` for what they share, `SceneKit` for the placeholder look, `Scenes` for their names |
@@ -69,6 +69,7 @@ splash -> main_menu -> founding -> compound -> area_map -> load_out -> run -> de
 - `debrief`: what a run brought home and the injuries it came back with, or what a failed one lost and what became of each seat, and the night after it.
 - `campaign_end`: how the compound fell and why, the days it held, and the tally. The rules have no win yet, so a fall is the only end.
 - `settings`: vsync, fullscreen, the ui's scale, and reduced motion.
+- `art_gallery`: a developer's page, outside the flow, reached by `--scene` or the dev server: every piece in `art/` at the size a screen uses it, and the closed atlas's pieces laid on a cover as the splash will lay them. Its test fails when a piece in `art/` isn't on it.
 - `card_showcase`: every card in the game, in the atlas, from the main menu ([cards-and-kit-on-salal.md](./cards-and-kit-on-salal.md)).
 
 **Map work.** Founding and Continue each run a whole generation, so both run on a `MapJob`. The job's `std::jthread` stop token goes into the rules' `MapMaking::cancel`, which `makeCampaignMap` and `loadCampaign` now pass to the pipeline's own cancel ([map-pipeline-worker.md](./map-pipeline-worker.md)): a stop waits at most a stage, throws `MapPipelineCancelled`, and never moves founding to another seed. The scene polls the job each update, shows its progress, and takes its result or its throw once it's done; leaving the scene, or the App going, cancels the job and waits for it. The session holds one campaign's map at a time, the one its founding or its load made.
