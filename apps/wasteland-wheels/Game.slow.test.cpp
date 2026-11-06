@@ -1,8 +1,14 @@
 // The rules' own map making on the scenes' workers, makeCampaignMap and loadCampaign through rulesMapMakers: a whole
 // generation each, which is why these are the slow lane's. A founding made to the end is the rules' slow lane's
-// (CampaignMap.slow.test.cpp); here a founding is cancelled part way, and Continue makes a saved map again.
+// (CampaignMap.slow.test.cpp); here a founding is cancelled part way, Continue makes a saved map again, and the area map
+// draws a real one, its land baked off the frame.
 
 #include "GameTesting.h"
+#include "scenes/map/MapPicture.h"
+#include "scenes/map/MapView.h"
+
+#include <primitives/Primitives.h>
+#include <ui/debug/LayoutLint.h>
 
 #include <chrono>
 #include <functional>
@@ -49,6 +55,45 @@ namespace {
 		ASSERT_NE(context->session->map->areaMap(), nullptr);
 		EXPECT_EQ(rules::campaign::mapFingerprint(*context->session->map->areaMap()), founded.mapOrigin.fingerprint);
 		EXPECT_EQ(context->session->layers().stops.stops.size(), rules::campaigns::testLayers().stops.stops.size());
+	}
+
+	TEST_F(RealMaps, TheAreaMapDrawsARealMapWithItsDressingOverTheLandBakedOffTheFrame) {
+		MapMakers makers = rulesMapMakers(testRules());
+		makers.found = fixtureMakers().found;
+		start(std::move(makers), true);
+		go(scenes::kMainMenu);
+		ASSERT_TRUE(press("new_campaign"));
+		ASSERT_TRUE(frameFor([this] { return top() == scenes::kCompound; }));
+		context->session.reset();
+		go(scenes::kMainMenu);
+		ASSERT_TRUE(press("continue"));
+		ASSERT_TRUE(frameFor([this] { return top() == scenes::kCompound; })) << state();
+		MapPicture* picture = context->session->map->picture();
+		ASSERT_NE(picture, nullptr);
+		ASSERT_TRUE(frameFor([picture] { return picture->baked(); }));
+		ASSERT_TRUE(press("plan_run"));
+		ASSERT_EQ(top(), scenes::kAreaMap);
+		frame();
+		Renderer::Primitives::beginFrameStats();
+		frame();
+		const Renderer::Primitives::RenderStats drawn = Renderer::Primitives::getStats();
+
+		auto* view = dynamic_cast<MapView*>(find("map"));
+		ASSERT_NE(view, nullptr);
+		nlohmann::json described;
+		view->describe(described);
+		EXPECT_TRUE(described["land"].get<bool>());
+		EXPECT_GT(described["markers"].get<int>(), 0);
+		EXPECT_GT(described["labels"].get<int>(), 1) << "Home's and the dressing's";
+		const ui::LintResult lint = ui::lint(app->scenes().top()->ui(), {1280.0F, 800.0F});
+		EXPECT_TRUE(lint.violations.empty()) << lint.violations.size() << " violations, the first at " << lint.violations.front().path;
+		std::printf(
+			"[ map      ] land baked at radius %d in %lld ms (Debug); a frame of the area map: %u vertices, %u triangles\n",
+			context->session->layers().params.radius,
+			static_cast<long long>(picture->bakeTime().count()),
+			drawn.vertexCount,
+			drawn.triangleCount
+		);
 	}
 
 	TEST_F(RealMaps, ACancelledFoundingStopsAtTheNextStageAndKeepsNothing) {

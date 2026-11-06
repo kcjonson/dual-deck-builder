@@ -13,12 +13,16 @@
 
 namespace game {
 
+	class MapPicture;
+
 	// The area map a campaign is played on, held beside it for its scenes: one founding or a load made, which it owns,
 	// or a test's fixture layers, which it borrows. The map is never saved (campaign.md, The map on the campaign).
 	class SessionMap {
 	  public:
+		// Starts baking the map's land for the area map's view.
 		SessionMap(rules::campaign::CampaignMap made, const GameRules& gameRules);
 		explicit SessionMap(const rules::campaign::MapLayers& borrowed);
+		~SessionMap();
 
 		SessionMap(const SessionMap&) = delete;
 		SessionMap& operator=(const SessionMap&) = delete;
@@ -27,13 +31,17 @@ namespace game {
 
 		// What a run reads of it.
 		[[nodiscard]] const rules::campaign::MapLayers& layers() const { return mapLayers; }
-		// The whole map, which the area map view will draw; null for borrowed layers.
+		// The whole map, which the area map view draws; null for borrowed layers.
 		[[nodiscard]] const rules::map::AreaMap* areaMap() const { return owned ? &owned->map : nullptr; }
+		// Its land as the area map's view draws it; null for borrowed layers.
+		[[nodiscard]] MapPicture* picture() const { return land.get(); }
 
 	  private:
 		// Before the layers, which point into it.
 		std::unique_ptr<rules::campaign::CampaignMap> owned;
 		rules::campaign::MapLayers					  mapLayers;
+		// After the map it bakes, so it stops first.
+		std::unique_ptr<MapPicture> land;
 	};
 
 	// The campaign being played and its map. The campaign is the value play changes and the store saves; the map is

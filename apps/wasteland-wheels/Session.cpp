@@ -1,5 +1,7 @@
 #include "Session.h"
 
+#include "scenes/map/MapPicture.h"
+
 #include <utility>
 
 namespace game {
@@ -8,10 +10,13 @@ namespace game {
 
 	SessionMap::SessionMap(rules::campaign::CampaignMap made, const GameRules& gameRules)
 		: owned(std::make_unique<rules::campaign::CampaignMap>(std::move(made))),
-		  mapLayers(rules::campaign::layersOf(owned->map, owned->origin, gameRules.mapContent, gameRules.routes)) {}
+		  mapLayers(rules::campaign::layersOf(owned->map, owned->origin, gameRules.mapContent, gameRules.routes)),
+		  land(std::make_unique<MapPicture>(owned->map)) {}
 
 	SessionMap::SessionMap(const MapLayers& borrowed)
 		: mapLayers(borrowed) {}
+
+	SessionMap::~SessionMap() = default;
 
 	MapMakers rulesMapMakers(const GameRules& gameRules) {
 		return MapMakers{

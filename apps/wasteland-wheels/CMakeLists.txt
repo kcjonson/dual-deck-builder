@@ -39,6 +39,13 @@ add_library(ddb_game STATIC
     scenes/loading/LoadingScene.cpp
     scenes/loadout/LoadOutScene.cpp
     scenes/map/AreaMapScene.cpp
+    scenes/map/LandBake.cpp
+    scenes/map/MapPage.cpp
+    scenes/map/MapPicture.cpp
+    scenes/map/MapView.cpp
+    scenes/map/PlanRows.cpp
+    scenes/map/Planning.cpp
+    scenes/map/RunRouteScene.cpp
     scenes/menu/MainMenuScene.cpp
     scenes/run/RunScene.cpp
     scenes/settings/SettingsScene.cpp
