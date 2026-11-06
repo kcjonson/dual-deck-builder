@@ -69,6 +69,16 @@ Made here, within those:
 - The destinations list is the keyboard's way to the POIs, nearest first; the map comes last in the focus order.
 - The run route frame is at least 800 world units each way.
 
+## In the C++ alpha
+
+2026-11-06, DDB-593. Code: `apps/wasteland-wheels/scenes/map/` (`AreaMapScene`, `RunRouteScene`, `Planning`, `PlanRows`, `MapView`). The flow is the TypeScript's: the compound's Plan a supply run opens `area_map`; Plan a run here pushes `run_route` over it, so Back to the area map pops back to it as it was, its POI still chosen; Load out the crew replaces the run route with `load_out` on the picked route.
+
+- **Only what's found is a destination.** `Planning` works out the campaign's knowledge as map-knowledge.md's For the campaign has it, `startingKnowledge` with the legs runs charted and the POIs they cleared over it, and the destinations are the POIs `isFound` says, strongholds found included, nearest first: by tier, then the quickest route's hours out, strongholds last. Each carries its `offersToday` routes, quickest first by hours out, stops included. The fog, the stubs and the frame read the same knowledge, and the compound's Plan line counts the same destinations.
+- **The route cards still read every leg as charted.** `mapToday` hands `routeOffers` no leg knowledge yet, so a card's outlook, its hours and its stops, is a charted route's even where the map draws its road as a stub into the fog. Giving `mapToday` the knowledge is the campaign's change, and moves what every run reads.
+- **Plan a run here** is off, its reason in two held lines under it, while nothing is chosen, the campaign is over, a run is out, the POI is cleared, it's a stronghold, or no road reaches it. The chosen POI's box says its kind and tier, its yield, its routes and the quickest's hours out, and how many get home by dark.
+- **Load out the crew** is off, with the reason, while the stores can't fuel the picked route: the card that can't be fuelled is dimmed and says what it needs, and can still be picked and read. Departure holds the same rule at load out (`departBlocker`'s Fuel); the run route says so before the crew is seated.
+- The run route opened on a POI with no routes logs it and goes back to the area map.
+
 ## Consequences
 
 - Fog and knowledge (DDB-294) change what the descriptors and `routeOffers` are given (`knowledge`), what the markers and the list show, and the area map's frame (`revealedBounds`); the screens already pass every leg as charted, and the cards already show rumored and uncharted routes.

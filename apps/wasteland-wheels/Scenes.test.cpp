@@ -3,6 +3,7 @@
 
 #include "GameTesting.h"
 #include "scenes/battle/BattleScene.h"
+#include "scenes/map/Planning.h"
 
 #include <rules/campaign/CampaignEnd.h>
 #include <rules/campaign/EventStops.h>
@@ -162,11 +163,13 @@ namespace {
 		EXPECT_EQ(nlohmann::json::parse(std::ifstream(dir.path() / "settings.json"))["video"]["vsync"], false);
 	}
 
-	// The route with a fight on it that meets the fewest stops, so the run is short and still fights.
+	// The route to a destination found on the map with a fight on it that meets the fewest stops, so the run is short and
+	// still fights.
 	rules::campaign::RouteChoice shortestFightingRoute(const Session& session) {
+		const Planning												   planned = planning(session);
 		std::optional<std::pair<rules::campaign::RouteChoice, size_t>> best;
 		for (const rules::map::RouteOffer& offer : rules::campaign::offersToday(session.campaign, session.layers())) {
-			if (offer.destination.stronghold) {
+			if (offer.destination.stronghold || planned.find(offer.destination.poi) == nullptr) {
 				continue;
 			}
 			size_t stops = 0;
@@ -192,8 +195,14 @@ namespace {
 		const rules::campaign::RouteChoice route = shortestFightingRoute(*context->session);
 		ASSERT_TRUE(press("plan_run"));
 		ASSERT_EQ(top(), scenes::kAreaMap);
-		ASSERT_TRUE(press("poi_" + std::to_string(route.poi)));
+		// Focus brings the row into the list's view and chooses its POI.
+		ASSERT_NE(find("poi_" + std::to_string(route.poi)), nullptr);
+		find("poi_" + std::to_string(route.poi))->focus();
+		frame();
+		ASSERT_TRUE(press("plan_here"));
+		ASSERT_EQ(top(), "run_route");
 		ASSERT_TRUE(press("route_" + std::to_string(route.poi) + "_" + std::to_string(route.route)));
+		ASSERT_TRUE(press("load_out_crew"));
 		ASSERT_EQ(top(), "load_out");
 		EXPECT_FALSE(enabled("start_run"));
 		ASSERT_TRUE(press("pool_" + played().drivers[0].id.value));

@@ -43,6 +43,15 @@ Focus order follows the tree, which is reading order now: the tabs, the map, the
 
 The atlas aliases `status_warn` to the Highway orange, which is about 3.4:1 on paper, under the 4.5:1 small text needs (UI Art Direction, Palette). Warning text on these screens (a depleted POI's stock, past dark, the reasons Plan or Load out is off, status errors) uses `status_crit`, the Stronghold red at 6.5:1, which the spec gives to warnings anyway. A route card's note colour can be set for this; its default stays `status_warn` so nothing dark moves.
 
+## In the C++ alpha
+
+2026-11-06, DDB-593, in `apps/wasteland-wheels/scenes/map/` with the compound's kit (`atlas/`).
+
+- **One page for both** (`MapPage`): the sheet, its tabs, the plate's column (heading, map, a status line that wraps) and a 360 px column of boxes over the primary. The body scrolls as a whole when the window at the ui's scale is shorter than 470 px, rather than squeezing the heading or the primary: at 1280 by 800 and 150% the page is 853 by 533 and scrolls, and both scenes lint 0 there and at 1280 by 800, 1440 by 900 and 1920 by 1080 (`AreaMapScene.test.cpp`).
+- **The area map's column:** Destinations, a legend box whose list scrolls inside it, one focus group of destination rows (the circled letter or the red diamond, the name, dotted leaders, the tier in mono, "past dark", "cleared", or "stronghold"); the chosen POI's box in fresh paper, its contents rebuilt on a choice while the list stays, so focus and the arrows keep working; and Plan a run here. Focus moving onto a row chooses it; a marker clicked chooses it and focuses its row, which brings it into the list's view.
+- **The run route's column:** the destination's box, then Routes and Stops in order scrolling together under it, then the home-by line and Load out the crew. The back link sits on its own line over the title, so neither squeezes the other on a narrow plate. Every tab but Crew is live; Area map is the one open.
+- **The chosen row and the picked card wear the theme's active wash**, the highlighter at 35%, not yet a hand-drawn swipe (the highlighter isn't a fill hook yet).
+
 ## Consequences
 
 - Both screens hold their layout at 1440 by 882 and 1024 by 600.

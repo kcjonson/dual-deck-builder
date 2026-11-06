@@ -48,10 +48,10 @@ How the tests drive the scenes:
 **The scenes.** Each is a salal `Scene` on the App's stack, its page rebuilt from the campaign whenever it changes. A scene with arguments is pushed by type and has no name; the rest are added by name, for `--scene`, the dev server's `scene` control, and each other.
 
 ```
-splash -> main_menu -> founding -> compound -> area_map -> load_out -> run -> debrief -> compound
-              |            ^           |                                |  ^
-              |            |           +-> campaign_end <- debrief      |  |
-              +-> loading -+-> compound or run                          battle
+splash -> main_menu -> founding -> compound -> area_map -> run_route -> load_out -> run -> debrief -> compound
+              |            ^           |                                             |  ^
+              |            |           +-> campaign_end <- debrief                   |  |
+              +-> loading -+-> compound or run                                       battle
               +-> settings
 ```
 
@@ -60,7 +60,8 @@ splash -> main_menu -> founding -> compound -> area_map -> load_out -> run -> de
 - `founding`: the map made on a worker on the seed given or a fresh one, its progress shown ("Making the area map: water (2 of 9)"), then `foundCampaign`, the save, and the compound. Cancel stops the making at the next stage and goes back with nothing kept. A seed whose attempts all fail says so and offers another.
 - `loading`: Continue. The save's map made again on a worker by `loadCampaign`, then the compound, the run when one is on the road, or the campaign's end. A save the rules refuse, its fingerprint another map's or anything else, shows the reason and offers a new campaign; there are no migrations.
 - `compound`: in the atlas ([compound-screen.md](./compound-screen.md), In the C++ alpha): the plate of the yard, the chosen building, the needs, the day's two ways to end it with what each costs, and the log, with Plan a supply run.
-- `area_map`: every POI `offersToday` offers, then the picked POI's routes, each with its hours, fuel, risk, and stops.
+- `area_map`: in the atlas ([area-map-route-pick.md](./area-map-route-pick.md) and [area-map-atlas-style.md](./area-map-atlas-style.md), each In the C++ alpha): the map drawn from the whole `AreaMap` the session holds, fitted to what's revealed, the POIs found as destinations, the chosen one's box, and Plan a run here.
+- `run_route`: pushed over the area map with a POI: the map cropped to its routes, a card per route, the picked route's stops and its time home against dark, and Load out the crew.
 - `load_out`: two seats and the pool, each driver who can't be seated faded with `seatBlocker`'s reason, and the escorts to bring. Start run is enabled once a departure tried on a copy of the campaign passes (`startRun`, then `departBlocker`), so the page's reason is the rules', and it seats one driver only when nobody else can be seated beside them (solo-driver-fights.md's call). Run decks are the defaults until Customize lands.
 - `run`: the route's stops in driving order, how far down them the run is, the crew and the cargo, and what `ahead` says comes next: a fight, a find to take or leave, an event's choices with `choiceBlocker`'s reasons, a reward to pick from, the objective, or the road home.
 - `battle`: each driver's hand as rows, a card's targets once it's picked (a card with one way to play plays at once), and the raiders with their intents (`intentsOf`) and who's arriving (`arrivalsOf`). Every play is one of `legalActions`, made with `apply`; the raiders plan each turn through `OpponentPolicies`. It finishes with the fight, and the run writes it back with `endRunFight`.
@@ -114,5 +115,5 @@ No gameplay calls: the flow is Game Flow's, and the one rule load out adds, a ru
 
 - The whole loop plays headless: found, plan, load out, fight, take a find or an event, come home or fail, rest, scavenge, and fall, saved at every step and continued from the save.
 - Nothing has been launched with a window. The checks owed once the machine is free: the game opens and draws its text in its own faces, headings in Barlow Condensed, prose in Open Sans, and figures in JetBrains Mono; `/api/ui/lint` is 0 on every scene, which no test checks; a real founding's progress moves with the frame responsive and Cancel works mid-generation; quitting and relaunching continues from the save, and the settings and window size come back; a run plays end to end with the mouse, wheel-scrolling long panels; a Release build opens no socket.
-- The real screens need: the paper as a fill hook on salal's fill hooks ([procedural-paper.md](./procedural-paper.md)), with the rest of the art as flat-fill vector; the game's tokens as a theme (the gap above); icons through `salal_icons` (msdfgen then joins the vcpkg manifest as a host port), the card in its three sizes with the driver and escort cards and the detail view (Game Flow 7.0), the battle screen's road drawn through Primitives with targeting previews from `apply` on a copy and animation from the events `apply` returns (the scene drops them today) and drag and drop (the drag tier), the area map drawn from the whole `AreaMap` the session already holds (`SessionMap::areaMap`), and the compound's illustrated scene. The Crew screen, Customize, the garage, and the victory screen aren't scenes yet.
+- The real screens need: the paper as a fill hook on salal's fill hooks ([procedural-paper.md](./procedural-paper.md)), with the rest of the art as flat-fill vector; the game's tokens as a theme (the gap above); icons through `salal_icons` (msdfgen then joins the vcpkg manifest as a host port), the card in its three sizes with the driver and escort cards and the detail view (Game Flow 7.0), the battle screen's road drawn through Primitives with targeting previews from `apply` on a copy and animation from the events `apply` returns (the scene drops them today) and drag and drop (the drag tier), and the compound's illustrated scene. The Crew screen, Customize, the garage, and the victory screen aren't scenes yet.
 - The packs are read from the source tree, as the balance sim reads them, until playtest builds ship them (port plan step 7).

@@ -15,6 +15,7 @@
 #include "atlas/Tokens.h"
 #include "scenes/GameScene.h"
 #include "scenes/compound/CompoundPlate.h"
+#include "scenes/map/Planning.h"
 
 #include <rules/campaign/CampaignEnd.h>
 #include <rules/campaign/DayClock.h>
@@ -26,7 +27,6 @@
 
 #include <algorithm>
 #include <optional>
-#include <set>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -499,14 +499,13 @@ namespace game {
 				foot.addChild<ui::Text>({.id = "primary_line", .style = styles::caption, .text = line});
 			}
 
-			// "30 destinations on the area map".
+			// "12 destinations on the area map": the POIs found there a run can go to.
 			std::string destinationsLine() const {
-				const Session& session = *game().session;
-				std::set<int>  pois;
-				for (const rules::map::RouteOffer& offer : rules::campaign::offersToday(session.campaign, session.layers())) {
-					pois.insert(offer.destination.poi);
+				int destinations = 0;
+				for (const Destination& destination : planning(*game().session).destinations) {
+					destinations += destination.stronghold || destination.cleared ? 0 : 1;
 				}
-				return counted(static_cast<int>(pois.size()), "destination", "destinations") + " on the area map";
+				return counted(destinations, "destination", "destinations") + " on the area map";
 			}
 
 			// "3 drivers · 3 default decks": the drivers standing, and the decks they hold, a run's seats' included.
