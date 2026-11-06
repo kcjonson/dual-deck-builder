@@ -62,7 +62,7 @@ namespace rules {
 		// The pack that defined it, or the last one to override it.
 		PackId		pack;
 		std::string name;
-		// Card face text: keywords in [brackets], {variables} filled in.
+		// Card face text: keywords in [brackets], {variables} unfilled (CardText.h fills them).
 		std::string summary;
 		// Full rules text for the detail view.
 		std::string							description;

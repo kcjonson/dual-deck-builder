@@ -14,6 +14,7 @@
 #include <rules/campaign/Recruits.h>
 #include <rules/campaign/RunDecks.h>
 #include <rules/campaign/SupplyRun.h>
+#include <rules/core/CardText.h>
 #include <rules/map/RouteOffers.h>
 
 #include <nlohmann/json.hpp>
@@ -290,7 +291,7 @@ namespace game {
 						here,
 						"reward_" + std::to_string(index),
 						cardText(content, reward[index]),
-						content.cards.at(reward[index]).summary,
+						rules::plainText(rules::cardSummary(content.cards.at(reward[index]), false)),
 						[this, card = reward[index]] {
 							act([this, card](Campaign& played, const Session& on) {
 								rules::campaign::takeReward(played, game().rules.content, on.layers(), card);
