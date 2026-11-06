@@ -76,14 +76,13 @@ namespace game {
 		  private:
 			void build() {
 				const Session& session = *game().session;
-				const bool	   runOut = session.campaign.run.has_value();
 				const MapPage  page = openMapPage(
 					 root(),
 					 scenes::kAreaMap,
 					 {
 						 {.id = "main_menu", .label = "Menu", .onPress = [this] { app().scenes().switchTo(scenes::kMainMenu); }},
 						 {.id = "tab_compound", .label = "Compound", .onPress = [this] { app().scenes().switchTo(scenes::kCompound); }},
-						 {.id = "tab_area_map", .label = "Area map", .active = true, .enabled = !runOut},
+						 {.id = "tab_area_map", .label = "Area map", .active = true},
 						 {.id = "tab_crew", .label = "Crew", .enabled = false, .deckGlyph = true},
 					 }
 				 );
