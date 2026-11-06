@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="248" height="108" viewBox="0 0 248 108">
+<!-- The FALLEN stamp (UI Art Direction, Wear: W3's hero mark), struck on the compound fallen, from the canvas's Materials board as
+     legacy's ui-art pieces set it, written by scripts/vector-art.mjs: its frame, and its word in outlined capitals. -->
+	<g transform="rotate(4 124 54)">
+		<rect x="14" y="16" width="220" height="76" rx="4" stroke-width="4" fill="none" stroke="#A3221B"/>
+		<path d="M34 54 L43 45 L52 54 L43 63 Z M196 54 L205 45 L214 54 L205 63 Z" fill="#A3221B"/>
+		<path d="M74.6 45.01 65.78 45.01 65.78 70 61.37 70 61.37 40.6 74.6 40.6ZM63.58 53.1 72.84 53.1 72.84 57.51 63.58 57.51ZM81.96 70 87.76 40.6 92.83 40.6 87.03 70ZM98.42 70 93.35 70 87.54 40.6 92.61 40.6ZM83.93 60 96.44 60 96.44 63.75 83.93 63.75ZM110.18 40.6 110.18 65.59 118.71 65.59 118.71 70 105.77 70 105.77 40.6ZM131.65 40.6 131.65 65.59 140.17 65.59 140.17 70 127.24 70 127.24 40.6ZM162.22 45.01 153.11 45.01 153.11 65.59 162.22 65.59 162.22 70 148.7 70 148.7 40.6 162.22 40.6ZM150.9 52.51 160.46 52.51 160.46 56.92 150.9 56.92ZM170.75 40.6 175.16 40.6 175.16 70 170.75 70ZM182.22 40.6 186.63 40.6 186.63 70 182.22 70ZM170.75 40.6 176.48 40.6 186.63 70 180.89 70Z" fill="#A3221B"/>
+	</g>
+</svg>
