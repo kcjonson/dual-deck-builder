@@ -200,6 +200,15 @@ namespace rules::campaign {
 		addCards(run.cargoCards, cards);
 	}
 
+	std::string cargoText(const Content& content, const Resources& resources, const CardCounts& cards) {
+		std::vector<std::string> items = resourceAmounts(resources);
+		for (const auto& [card, count] : cards) {
+			const std::string& name = content.cards.at(card).name;
+			items.push_back(count == 1 ? name : name + " x" + std::to_string(count));
+		}
+		return listed(items);
+	}
+
 	Unloaded unloadRun(Campaign& campaign, const Content& content, const CampaignRules& rules) {
 		if (const Run& out = runOut(campaign, "unloadRun"); out.route) {
 			const RunRoute& route = *out.route;
@@ -217,6 +226,8 @@ namespace rules::campaign {
 		campaign.stores = campaign.stores + run.cargo;
 		addCards(campaign.locker, run.cargoCards);
 		++campaign.tally.runsHome;
+		const std::string brought = cargoText(content, run.cargo, run.cargoCards);
+		addLog(campaign, brought.empty() ? "A run came home empty." : "A run came home with " + brought + ".");
 		// Home clears every stop the run got past and its POI, and charts every leg it drove, on the day it was out
 		// (call 260).
 		if (run.route) {
@@ -247,7 +258,10 @@ namespace rules::campaign {
 		if (!names.empty()) {
 			addLog(campaign, listed(names) + " joined the compound, found on the road.");
 		}
+		std::vector<CrewId> seats(home.begin(), home.begin() + static_cast<std::ptrdiff_t>(run.seats.size()));
 		return Unloaded{
+			.poi = run.route ? std::optional<int>(run.route->poi) : std::nullopt,
+			.seats = std::move(seats),
 			.resources = run.cargo,
 			.cards = std::move(run.cargoCards),
 			.found = run.found,

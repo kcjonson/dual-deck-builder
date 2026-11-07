@@ -178,8 +178,13 @@ namespace {
 		EXPECT_EQ(written.seats[1].fate, SeatFate::Missing);
 		EXPECT_FALSE(campaign.run.has_value());
 		EXPECT_EQ(written.escortsLost, (std::vector{kHauler, kMedTruck, kOutrider}));
-		EXPECT_TRUE(campaign.convoy.empty());
 		ASSERT_TRUE(written.lost.has_value());
+		std::vector<ConvoyId> escortsGone;
+		for (const ConvoyEscort& escort : written.lost->escorts) {
+			escortsGone.push_back(escort.id);
+		}
+		EXPECT_EQ(escortsGone, written.escortsLost) << "named for the debrief, since the convoy no longer holds them";
+		EXPECT_TRUE(campaign.convoy.empty());
 		EXPECT_EQ(written.lost->cargo, (Resources{.scrap = 30}));
 		EXPECT_EQ(written.lost->cargoCards, (CardCounts{{card("headshot"), 1}}));
 		EXPECT_EQ(
@@ -199,6 +204,8 @@ namespace {
 		EXPECT_EQ(missing.hitpoints, 18);
 		EXPECT_EQ(missing.defaultDeck, interceptorDeck) << "call 138";
 		EXPECT_EQ(campaign.tally.runsFailed, 1);
+		ASSERT_GE(campaign.log.size(), 2U);
+		EXPECT_EQ(campaign.log[campaign.log.size() - 2].text, "A run was lost: Road Warrior 1 is dead and Interceptor 1 is missing.");
 		EXPECT_EQ(campaign.log.back().text, "Cargo lost with the run: 30 scrap and Headshot.") << "call 23";
 		EXPECT_FALSE(campaign.end.has_value()) << "the Mechanic is still at home";
 
@@ -222,7 +229,8 @@ namespace {
 		(void)writeBackFight(campaign, testContent(), testRules(), fight);
 		EXPECT_EQ(campaign.end, (CampaignEnd{.ending = Ending::Rioted, .cause = EndCause::LastDriver})) << "fed, but past 10 unrest";
 		EXPECT_EQ(campaign.log.back().text, "No drivers are left, and the compound rioted.");
-		EXPECT_EQ(campaign.log.size(), 2U) << "the run carried nothing, so no cargo line";
+		ASSERT_EQ(campaign.log.size(), 3U) << "the run carried nothing, so no cargo line";
+		EXPECT_EQ(campaign.log[1].text, "A run was lost: Road Warrior 1 is dead and Interceptor 1 is dead.");
 		EXPECT_EQ(readCampaign(writeCampaign(campaign, testContent()), testContent()), campaign);
 	}
 

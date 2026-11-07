@@ -21,8 +21,9 @@ namespace game {
 		std::optional<rules::campaign::DayEnd> night;
 	};
 
-	// The run debrief (Game Flow 6.1): what a run brought home and when, or what a failed one lost, and the night after
-	// it, then back to the compound, or to the campaign's end when that night or that fight ended it.
+	// The run debrief (Game Flow 6.1), in the atlas: where the run went and what it brought home, stamped LOOTED, or what a
+	// failed one lost, stamped LOST; the crew as they stand after the night; and the night itself; then back to the
+	// compound, or to the campaign's end when that night or that fight ended it.
 	class DebriefScene final : public GameScene<DebriefArgs> {
 	  public:
 		explicit DebriefScene(DebriefArgs args);
@@ -31,7 +32,8 @@ namespace game {
 		std::string exportState() const override;
 
 	  protected:
-		void enter() override;
+		const ui::Theme& sceneTheme() const override;
+		void			 enter() override;
 
 	  private:
 		DebriefArgs debrief;

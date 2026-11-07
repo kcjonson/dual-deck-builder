@@ -30,7 +30,13 @@ namespace game::atlas {
 	} // namespace
 
 	Sheet::Sheet(const Args& args)
-		: look{.seed = paperSeed(args.identity), .wear = Wear::Worn, .folds = 2} {}
+		: look{
+			  .seed = paperSeed(args.identity),
+			  .wear = args.mark == HeroMark::None ? Wear::Worn : Wear::Damaged,
+			  .hero = args.hero,
+			  .mark = args.mark,
+			  .folds = 2,
+		  } {}
 
 	bool Sheet::tapeLoaded() {
 		return artMesh(kTapeArt) != nullptr;

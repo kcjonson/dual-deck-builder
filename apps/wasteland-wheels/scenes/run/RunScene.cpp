@@ -7,6 +7,7 @@
 #include "scenes/GameScene.h"
 #include "scenes/battle/BattleScene.h"
 #include "scenes/debrief/DebriefScene.h"
+#include "scenes/result/BattleResultScene.h"
 
 #include <rules/campaign/CombatBridge.h>
 #include <rules/campaign/DayClock.h>
@@ -346,9 +347,10 @@ namespace game {
 					);
 					return;
 				}
-				notice = back.outcome == rules::Outcome::Won ? "The fight is won." : "The fight was broken off.";
+				notice.clear();
 				saved();
 				build();
+				app().scenes().push<BattleResultScene>(BattleResultArgs{.fight = std::move(fight), .back = back});
 			}
 
 			void driveHome() {
