@@ -1,9 +1,13 @@
-// Continue (campaign-save-and-load.md): the save read strictly and its map made again on a worker, as founding makes
-// one, then the compound, or the run where it was on the road. A save that won't load, its fingerprint another map's or
-// anything else the rules refuse, says why and offers a new campaign in its place; there are no migrations.
+// Continue (campaign-save-and-load.md), in the atlas: the save read strictly and its map made again on a worker, as
+// founding makes one, with its progress shown, then the compound, or the run where it was on the road. A save that won't
+// load, its fingerprint another map's or anything else the rules refuse, says why and offers a new campaign in its
+// place; there are no migrations.
 
 #include "MapJob.h"
 #include "Words.h"
+#include "atlas/AtlasButton.h"
+#include "atlas/AtlasTheme.h"
+#include "scenes/AtlasPage.h"
 #include "scenes/GameScene.h"
 #include "scenes/founding/FoundingScene.h"
 
@@ -22,6 +26,8 @@ namespace game {
 
 		using rules::campaign::MapMaking;
 
+		constexpr float kButtonWidth = 180.0F;
+
 		class LoadingScene final : public GameScene<> {
 		  public:
 			const char* name() const override { return scenes::kLoading; }
@@ -34,12 +40,10 @@ namespace game {
 				if (!job) {
 					return;
 				}
-				if (const std::optional<MapProgress> progress = job->progress()) {
-					if (std::string text = progressText(*progress); text != shown) {
+				if (const std::optional<MapProgress> reached = job->progress()) {
+					if (std::string text = progressText(*reached); text != shown) {
 						shown = std::move(text);
-						if (ui::Text* line = progressLine.get()) {
-							line->setText(shown);
-						}
+						showProgress(progress, *reached);
 					}
 				}
 				if (!job->done()) {
@@ -63,6 +67,8 @@ namespace game {
 			}
 
 		  protected:
+			const ui::Theme& sceneTheme() const override { return atlas::theme(); }
+
 			void enter() override {
 				std::optional<nlohmann::json> save = game().store.saveJson();
 				if (!save) {
@@ -71,15 +77,21 @@ namespace game {
 					return;
 				}
 				game().session.reset();
-				page = kit::openPage(*this, page, "Continue");
+				summary = game().store.status().line;
+				const AtlasPage opened = openAtlasPage(*this, sheetPage, {.identity = scenes::kLoading, .title = "Continue"});
 				shown = "Making the area map";
-				progressLine = kit::text(page.body, shown, "progress");
-				kit::button(page.footer, "back", "Back", [this] {
-					if (job) {
-						job->cancel();
-					} else {
-						app().scenes().switchTo(scenes::kMainMenu);
-					}
+				progress = mapProgressBox(opened.body, summary);
+				progress.foot.addChild<atlas::AtlasButton>({
+					.id = "back",
+					.size = {kButtonWidth, ui::kAuto},
+					.label = "Back",
+					.onPress = [this] {
+						if (job) {
+							job->cancel();
+						} else {
+							app().scenes().switchTo(scenes::kMainMenu);
+						}
+					},
 				});
 				job = std::make_unique<MapJob<Session>>([load = game().maps.load, json = std::move(*save)](const MapMaking& making) {
 					return load(json, making);
@@ -89,20 +101,27 @@ namespace game {
 		  private:
 			void showFailure(const std::string& reason) {
 				failure = reason;
-				page = kit::openPage(*this, page, "Continue", "This campaign can't be continued.");
-				kit::text(page.body, failure, "failure");
-				kit::button(
-					page.footer,
-					"start_fresh",
-					"Start a new campaign",
-					[this] { app().scenes().reset<FoundingScene>(); },
-					ui::ButtonVariant::Primary
-				);
-				kit::button(page.footer, "back", "Back", [this] { app().scenes().switchTo(scenes::kMainMenu); });
+				const AtlasPage		   opened = openAtlasPage(*this, sheetPage, {.identity = scenes::kLoading, .title = "Continue"});
+				ui::Ref<ui::Component> foot = failureBox(opened.body, "This campaign can't be continued", summary, failure);
+				foot.addChild<atlas::AtlasButton>({
+					.id = "back",
+					.size = {kButtonWidth, ui::kAuto},
+					.label = "Back",
+					.onPress = [this] { app().scenes().switchTo(scenes::kMainMenu); },
+				});
+				foot.addChild<atlas::AtlasButton>({
+					.id = "start_fresh",
+					.label = "Start a new campaign",
+					.road = atlas::Road::Highway,
+					.shield = true,
+					.onPress = [this] { app().scenes().reset<FoundingScene>(); },
+				});
 			}
 
 			std::unique_ptr<MapJob<Session>> job;
-			ui::Ref<ui::Text>				 progressLine;
+			AtlasPage						 sheetPage;
+			MapProgressBox					 progress;
+			std::string						 summary;
 			std::string						 shown;
 			std::string						 failure;
 		};
