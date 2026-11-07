@@ -78,6 +78,14 @@ Each is the simplest option where the spec leaves the call open, and a line or t
 - No NEW tag: the campaign doesn't record when a driver joined.
 - No portrait in the deck's header: the chosen driver's card beside it has one, and the room goes to the deck at 1024x600.
 
+## In the C++ alpha
+
+2026-11-06. `crew` (`apps/wasteland-wheels/scenes/crew/CrewScene.cpp`), in the atlas, opened by the compound's bunkhouse and the Crew tab on the compound, the area map and the run route. One W2 sheet with the section tabs (Menu, Compound, Area map, Crew), the title, and three legend boxes: the driver pool (driver cards, the chosen one marked in highlighter, the lost below under "Lost on runs", faded and not pickable), the chosen driver's default deck (the vehicle and specialty, the HP, hand limit, deck and standing chips, the minis with Remove, the cost curve, and the limits), and the locker (the filter, its chosen kind in highlighter, the minis with Add and Scrap, and the note on what scrapping pays). The deck and the locker scroll on their own, and the three lint 0 at 1280x800, 1440x900, and 1920x1080 with every card in the locker.
+
+The deck builder is `scenes/crew/DeckBuilder.h`: a card entry is its key, its card, its copies, its mini state, and its controls, each with the rules' reason or off with nothing said, and `cardGrid` lays them out, the controls compact back roads (`AtlasButton::compact`) and the reason under them (`cardRefusalText`, Words.h). Scrap arms on its first press ("Confirm", "Press again to scrap" in Stronghold red), ignores a second within 0.3 s, and lets go after 3 s, on Escape, or on any other change. Each press is saved as it's made, the page built again, and focus goes back to the control that had it, or its card when the control went.
+
+Not ported: Page Up and Page Down, the focus heirs past a control's own card, and a driver card's detail view.
+
 ## Consequences
 
 - Customize (DDB-321) builds the deck builder with its own side column, header, and foot, and two sources over `moveCards` with a run deck at one end. A card's own copies and its borrowed ones are two entries of one card type with keys of their own; the +N, HOME, and LOCKED looks are the mini's states, which an entry's state passes through; and a control at a limit can be disabled with no line of its own beside one that says why.

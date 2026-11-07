@@ -36,6 +36,7 @@ add_library(ddb_game STATIC
     scenes/compound/CompoundPlate.cpp
     scenes/compound/CompoundScene.cpp
     scenes/crew/CrewScene.cpp
+    scenes/crew/CustomizeScene.cpp
     scenes/crew/DeckBuilder.cpp
     scenes/debrief/DebriefScene.cpp
     scenes/end/CampaignEndScene.cpp

@@ -26,10 +26,11 @@ namespace game::crew {
 		namespace styles = atlas::styles::print;
 		namespace palette = atlas::tokens::palette;
 
-		// An entry is wide enough for two compact controls side by side, "Add" and "Confirm", and the longest reason on two
-		// lines; minis in a grid sit at least kGridGap apart.
+		// An entry with controls is wide enough for two compact ones side by side, "Add" and "Confirm", and the longest reason
+		// on two lines; one with none, a view only deck, is a mini and its grid gap.
 		constexpr float kEntryWidth = 108.0F;
-		constexpr float kEntryGap = cards::mini::kGridGap - (kEntryWidth - cards::mini::kSize.x);
+		constexpr float kViewWidth = cards::mini::kSize.x + cards::mini::kGridGap;
+		constexpr float kEntryGap = 8.0F;
 		constexpr float kCurveHeight = 36.0F;
 
 		constexpr std::array<std::pair<CardKind, const char*>, 5> kKinds{{
@@ -127,7 +128,7 @@ namespace game::crew {
 			const std::string	   id = spec.id + "_" + entry.key;
 			ui::Ref<ui::Component> box = grid.addChild<ui::Component>({
 				.id = id + "_entry",
-				.size = {kEntryWidth, ui::kAuto},
+				.size = {entry.controls.empty() ? kViewWidth : kEntryWidth, ui::kAuto},
 				.layout = fixed(column(6.0F, ui::AlignItems::Center)),
 			});
 			box.addChild<cards::Card>({

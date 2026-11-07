@@ -8,6 +8,7 @@
 
 #include <rules/campaign/Locker.h>
 #include <rules/campaign/Recruits.h>
+#include <rules/campaign/RunDecks.h>
 
 #include <ui/shapes/Text.h>
 
@@ -115,6 +116,21 @@ namespace {
 			frame(0.25);
 		}
 		EXPECT_EQ(state()["armed"], "") << "it lets go after a while";
+	}
+
+	TEST_F(Crew, ADriverOutOnARunShowsTheirSeatAndTheirDeckCantChange) {
+		open({{CardId{"headshot"}, 1}});
+		const rules::campaign::CrewId out = played().drivers[0].id;
+		rules::campaign::startRun(played(), testRules().content, {.seats = {out}, .stage = 0});
+		go(scenes::kCrew);
+		ASSERT_EQ(chosen(), out.value);
+		const auto* card = dynamic_cast<const cards::DriverCard*>(find("roster_" + out.value));
+		ASSERT_NE(card, nullptr);
+		EXPECT_EQ(card->getFace().tag, "SEAT 1");
+		EXPECT_GT(inDeck(played().run->seats[0].own.begin()->first.value), 0) << "their default deck as their run deck holds it";
+		EXPECT_FALSE(enabled("locker_headshot_add"));
+		EXPECT_EQ(textOf("locker_headshot_reason"), "Out on a run");
+		EXPECT_EQ(lintAt(1280, 800), "");
 	}
 
 	TEST_F(Crew, ChoosingADriverMarksThemAndShowsTheirDeck) {

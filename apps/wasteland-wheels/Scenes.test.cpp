@@ -204,9 +204,7 @@ namespace {
 		ASSERT_TRUE(press("route_" + std::to_string(route.poi) + "_" + std::to_string(route.route)));
 		ASSERT_TRUE(press("load_out_crew"));
 		ASSERT_EQ(top(), "load_out");
-		EXPECT_FALSE(enabled("start_run"));
-		ASSERT_TRUE(press("pool_" + played().drivers[0].id.value));
-		ASSERT_TRUE(press("pool_" + played().drivers[1].id.value));
+		// It opens on a crew that can go (call 177).
 		ASSERT_TRUE(enabled("start_run")) << state();
 		ASSERT_TRUE(press("start_run"));
 		ASSERT_EQ(top(), scenes::kRun);
