@@ -12,6 +12,8 @@ namespace game::scenes {
 	inline constexpr const char* kSplash = "splash";
 	inline constexpr const char* kMainMenu = "main_menu";
 	inline constexpr const char* kSettings = "settings";
+	inline constexpr const char* kCredits = "credits";
+	inline constexpr const char* kCampaignHistory = "campaign_history";
 	inline constexpr const char* kFounding = "founding";
 	inline constexpr const char* kLoading = "loading";
 	inline constexpr const char* kCompound = "compound";
@@ -30,6 +32,8 @@ namespace game::scenes {
 	[[nodiscard]] std::unique_ptr<app::Scene> makeSplashScene();
 	[[nodiscard]] std::unique_ptr<app::Scene> makeMainMenuScene();
 	[[nodiscard]] std::unique_ptr<app::Scene> makeSettingsScene();
+	[[nodiscard]] std::unique_ptr<app::Scene> makeCreditsScene();
+	[[nodiscard]] std::unique_ptr<app::Scene> makeCampaignHistoryScene();
 	[[nodiscard]] std::unique_ptr<app::Scene> makeLoadingScene();
 	[[nodiscard]] std::unique_ptr<app::Scene> makeCompoundScene();
 	[[nodiscard]] std::unique_ptr<app::Scene> makeAreaMapScene();

@@ -45,7 +45,7 @@ How the tests drive the scenes:
 | `atlas/` | the atlas look (UI Art Direction): its theme, the paper (procedural-paper.md), the art drawn at a size and a tint (`ArtView`), and the parts a meta scene is built from, its gauges and markers included |
 | `cards/` | the card in its sizes, its detail view, and the decks' backs ([cards-and-kit-on-salal.md](./cards-and-kit-on-salal.md)) |
 | `road/` | the road's pieces: the vehicle token |
-| `scenes/` | one folder a scene, `GameScene.h` for what they share, `SceneKit` for the placeholder look, `Scenes` for their names |
+| `scenes/` | one folder a scene, `GameScene.h` for what they share, `AtlasPage` for the sheet the menu's appendices and the waits on a map share, `SceneKit` for the placeholder look, `Scenes` for their names |
 
 **The scenes.** Each is a salal `Scene` on the App's stack, its page rebuilt from the campaign whenever it changes. A scene with arguments is pushed by type and has no name; the rest are added by name, for `--scene`, the dev server's `scene` control, and each other.
 
@@ -54,12 +54,12 @@ splash -> main_menu -> founding -> compound -> area_map -> run_route -> load_out
               |            ^           |                                             |  ^
               |            |           +-> campaign_end <- debrief                   |  |
               +-> loading -+-> compound or run                                       battle
-              +-> settings
+              +-> settings, credits, campaign_history
 ```
 
-- `splash`: the name, then the menu after a second and a half or a press.
-- `main_menu`: Continue with "Day 12 - 3 drivers - 1 stronghold taken", or disabled with the line under it saying why (nothing to continue, a damaged save, another save format); New Campaign, which asks first in a dialog over a campaign in progress; Settings; Quit; and Campaign History. Continue skips the load when the session already holds the saved campaign.
-- `founding`: the map made on a worker on the seed given or a fresh one, its progress shown ("Making the area map: water (2 of 9)"), then `foundCampaign`, the save, and the compound. Cancel stops the making at the next stage and goes back with nothing kept. A seed whose attempts all fail says so and offers another.
+- `splash`: the closed atlas on the table with the two decks partly under it, and the scale-bar loader filling while it fades in and holds; the menu after a second and a half or a press.
+- `main_menu`: the atlas cover with the logo in its cartouche and the decks set on it, and the contents page: Continue first, with the day in its shield and "Day 12 - 3 drivers - 1 stronghold taken" under it, or in faded print with the line under it saying why (nothing to continue, a damaged save, another save format) and New Campaign first; New Campaign, which asks first in a dialog over a campaign in progress; Campaign History; and the appendices, settings, the card showcase, credits, developer tools (the art gallery, in a build with the dev server), and Exit. Continue skips the load when the session already holds the saved campaign.
+- `founding`: the map made on a worker on the seed given or a fresh one, its progress shown ("Making the area map: water (2 of 9)"), then `foundCampaign`, the save, and the compound. Cancel stops the making at the next stage and goes back with nothing kept, disabled once pressed. A seed whose attempts all fail says so and offers another.
 - `loading`: Continue. The save's map made again on a worker by `loadCampaign`, then the compound, the run when one is on the road, or the campaign's end. A save the rules refuse, its fingerprint another map's or anything else, shows the reason and offers a new campaign; there are no migrations.
 - `compound`: in the atlas ([compound-screen.md](./compound-screen.md), In the C++ alpha): the plate of the yard, the chosen building, the needs, the day's two ways to end it with what each costs, and the log, with Plan a supply run.
 - `area_map`: in the atlas ([area-map-route-pick.md](./area-map-route-pick.md) and [area-map-atlas-style.md](./area-map-atlas-style.md), each In the C++ alpha): the map drawn from the whole `AreaMap` the session holds, fitted to what's revealed, the POIs found as destinations, the chosen one's box, and Plan a run here.
@@ -69,7 +69,7 @@ splash -> main_menu -> founding -> compound -> area_map -> run_route -> load_out
 - `battle`: each driver's hand as rows, a card's targets once it's picked (a card with one way to play plays at once), and the raiders with their intents (`intentsOf`) and who's arriving (`arrivalsOf`). Every play is one of `legalActions`, made with `apply`; the raiders plan each turn through `OpponentPolicies`. It finishes with the fight, and the run writes it back with `endRunFight`.
 - `debrief`: what a run brought home and the injuries it came back with, or what a failed one lost and what became of each seat, and the night after it.
 - `campaign_end`: how the compound fell and why, the days it held, and the tally. The rules have no win yet, so a fall is the only end.
-- `settings`: vsync, fullscreen, the ui's scale, and reduced motion.
+- `settings`, `credits`, `campaign_history`: the menu's appendices, an atlas sheet each with tabs between them and Menu (Escape goes back too): vsync, fullscreen, the ui's scale, and reduced motion; the licence, the authors, the faces and what the game is built with, a test holding every bundled face to an entry; and past campaigns newest first, each with its ending, days, strongholds and seed.
 - `art_gallery`: a developer's page, outside the flow, reached by `--scene` or the dev server: every piece in `art/` at the size a screen uses it, and the closed atlas's pieces laid on a cover as the splash will lay them. Its test fails when a piece in `art/` isn't on it.
 - `crew`: in the atlas ([crew-screen.md](./crew-screen.md), In the C++ alpha), from the bunkhouse and the Crew tabs: the driver pool, the chosen driver's default deck, and the locker, every move the rules' and saved as it's made.
 - `customize`: pushed by load out with a seat's driver ([customize-screen.md](./customize-screen.md), In the C++ alpha): that driver's run deck against the locker, and the escort cards.
@@ -94,7 +94,7 @@ splash -> main_menu -> founding -> compound -> area_map -> run_route -> load_out
 - `/api/dev/continue`: the save continued, through the loading scene.
 - While a fight is up, `/api/state?what=battle` with the actions on offer in order, `/api/dev/battle-act?index=N` to take one, and `/api/dev/battle-play-out`, which plays the rest of the fight with the player's seats on the first playable card, for a session that needs a fight over rather than played well.
 
-**The placeholder look**, every scene's but the compound's, is salal's default tokens and its controls: a page with a title, a row of panels, rows (`ListRow`) and buttons, and a notice line, with no game art, theme, or icons.
+**The placeholder look**, every scene's still to be ported, is salal's default tokens and its controls: a page with a title, a row of panels, rows (`ListRow`) and buttons, and a notice line, with no game art, theme, or icons.
 
 **The faces** are the game's own (UI Art Direction, Type), the msdf-atlas-gen atlases the TypeScript built, copied from `_legacy/src/assets/fonts/` into `fonts/` with each face's OFL and staged beside the exe: Barlow Condensed Bold and SemiBold for display, Open Sans Regular for body, the default, and JetBrains Mono Regular for mono, a family each (`Fonts.h`). salal reads msdf-atlas-gen's JSON and lays text out by code point since v0.35.0. Every scene's ui loads ui's own tokens with its font roles on those families (`fonts::theme()`, from `GameScene`), so headings are display, prose body, and figures mono, as ui's tokens assign them: a page's, a panel's, and a dialog's titles are display; rows, buttons, and lines of text are body; and a row's trailing text is mono, as is a line `kit::figures` makes for a ledger or a code (the stores, unrest, a seed). A font is one weight, so the display role is both Barlow faces under one name, registered with their weights, and a style's weight picks the face (salal since v0.37.0): ui's display typography at 700 draws the bold, its title at 600 the semibold. Open Sans SemiBold isn't loaded: salal's text reads no weight, so nothing would ask for it.
 
