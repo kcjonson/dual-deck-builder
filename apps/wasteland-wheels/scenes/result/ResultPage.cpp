@@ -52,25 +52,35 @@ namespace game::result {
 			.id = "heading",
 			.layout = [] {
 				ui::Layout layout = row(28.0F);
-				layout.alignSelf = ui::AlignItems::Start;
 				layout.flexShrink = 0.0F;
 				return layout;
 			}(),
 		});
-		ui::Ref<ui::Component> words = head.addChild<ui::Component>({.layout = column(6.0F)});
-		words.addChild<ui::Text>({.id = "heading_kicker", .style = styles::kicker, .text = heading.kicker});
+		// The words give way to the stamp when the sheet is narrow (a high ui scale), wrapping rather than running off it.
+		ui::Ref<ui::Component> words = head.addChild<ui::Component>({
+			.minSize = {0.0F, 0.0F},
+			.maxSize = {kStoryWidth, ui::kAuto},
+			.layout = [] {
+				ui::Layout layout = column(6.0F);
+				layout.alignItems = ui::AlignItems::Stretch;
+				layout.flexShrink = 1.0F;
+				return layout;
+			}(),
+		});
+		words.addChild<ui::Text>({.id = "heading_kicker", .style = styles::kicker, .text = heading.kicker, .wrap = true});
 		words.addChild<ui::Text>({
 			.id = "heading_title",
 			.style = heading.hostile ? tinted(styles::screenTitle, head, atlas::tokens::palette::stronghold) : styles::screenTitle,
 			.text = heading.title,
+			.wrap = true,
 		});
 		if (!heading.story.empty()) {
-			words.addChild<ui::Text>(
-				{.id = "heading_story", .size = {kStoryWidth, ui::kAuto}, .style = styles::subtitle, .text = heading.story, .wrap = true}
-			);
+			words.addChild<ui::Text>({.id = "heading_story", .style = styles::subtitle, .text = heading.story, .wrap = true});
 		}
 		if (!heading.stamp.empty()) {
-			head.addChild<atlas::ArtView>({.id = "stamp", .size = {kStampWidth, ui::kAuto}, .art = heading.stamp});
+			head.addChild<atlas::ArtView>(
+				{.id = "stamp", .size = {kStampWidth, ui::kAuto}, .layout = {.flexShrink = 0.0F}, .art = heading.stamp}
+			);
 		}
 
 		page.body = page.sheet.addChild<ui::Component>({

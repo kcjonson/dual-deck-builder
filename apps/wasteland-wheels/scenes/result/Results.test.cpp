@@ -62,6 +62,8 @@ namespace {
 			EXPECT_EQ(lintAt(1280, 800), "");
 			EXPECT_EQ(lintAt(1440, 900), "");
 			EXPECT_EQ(lintAt(1920, 1080), "");
+			EXPECT_EQ(lintAt(1280, 800, 1.5F), "");
+			EXPECT_EQ(lintAt(1280, 800), "") << "back at 100% for what follows";
 		}
 	};
 
