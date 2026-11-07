@@ -76,7 +76,7 @@ The day is Rest a day and Scavenge side by side, then one line for both: what th
 
 Provisional calls, each a line or two to change:
 
-- The Area map tab opens the area map, as Plan a supply run does, and turns off while a run is out. The Crew tab is there, disabled, until the Crew scene is.
+- The Area map tab opens the area map, as Plan a supply run does, and turns off while a run is out. The Crew tab and the bunkhouse's Open the bunkhouse open the Crew screen.
 - With a run out, the highway is Back on the road, or Give up the load out for a load out not yet on the road.
 - The log shows five entries.
 - The plate starts on the first building the campaign holds.

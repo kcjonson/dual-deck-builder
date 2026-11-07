@@ -52,7 +52,11 @@ Focus starts on Done. Tab goes Done, the driver card, Reset, the escort cards, t
 
 ## In the C++ alpha
 
-The screen waits for salal's ui. Its rules are in `libs/rules/campaign/Locker.h` (2026-10-31, DDB-573), and [campaign.md](./campaign.md), The garage, finds, and escorts on the road, has how: a `CardMove` names its stack's copies as `copies` (`Own`, `Borrowed`, or `Home`), and the rules refuse one whose copies wait their turn with `OwnAtHome` or `BorrowedFirst`, so each control can ask `cardMoveBlocker` for exactly its stack, as calls 53 and 54 have it.
+2026-11-06. `CustomizeScene` (`apps/wasteland-wheels/scenes/crew/`), in the atlas, pushed by load out with the seat's driver and handing back `CustomizeDone`, which load out answers by showing the campaign again. Its rules are in `libs/rules/campaign/Locker.h` (2026-10-31, DDB-573), and [campaign.md](./campaign.md), The garage, finds, and escorts on the road, has how: a `CardMove` names its stack's copies as `copies` (`Own`, `Borrowed`, or `Home`), and the rules refuse one whose copies wait their turn with `OwnAtHome` or `BorrowedFirst`, so each control asks `cardMoveBlocker` for exactly its stack, as calls 53 and 54 have it. A refusal of `TooFew` on the run deck's own or home copies is the quiet one above.
+
+One W2 sheet with no section tabs, since it's a step inside load out: the title, the subtitle, and Done as the highway at the right. Three legend boxes: "Driver 1 of 2" (the driver card with CUSTOM, the vehicle, the line on how the run deck differs, Reset to default, and the escort cards, LOCKED, with Give to driver N), the run deck (its three chips, the stacks with - and +, and the foot on borrowing), and the locker (its kicker, the filter, Borrow). It shares the Crew screen's deck builder (`scenes/crew/DeckBuilder.h`), and the filter's chosen kind is marked in highlighter. Each press is saved as it's made, and the page is built again, focus going back to the control that had it or its card.
+
+Not ported: the focus heirs (a +N or HOME stack that empties hands focus to the card's plain stack), and Page Up and Page Down. Focus lands on the control's own card when the control goes.
 
 ## Provisional calls
 

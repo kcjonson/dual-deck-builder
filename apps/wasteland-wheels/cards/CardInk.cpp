@@ -289,4 +289,26 @@ namespace game::cards {
 		});
 	}
 
+	float drawTag(const std::string& text, float right, float top, bool dim, int32_t key) {
+		if (text.empty()) {
+			return 0.0F;
+		}
+		const float			   width = wordsWidth(text, fonts::kMono, mini::kTagSize, 0.6F) + mini::kTagPad * 2.0F;
+		const Foundation::Rect box{right - width, top - mini::kTagHeight * 0.5F, width, mini::kTagHeight};
+		drawRounded(box, 2.0F, dim ? dimmed(kGround) : kGround, dim ? dimmed(kMuted) : kMuted, 1.0F, key);
+		drawWords({
+			.text = text,
+			.at = {box.x, box.y},
+			.face = fonts::kMono,
+			.size = mini::kTagSize,
+			.color = dim ? dimmedText(kName) : kName,
+			.align = Foundation::HorizontalAlign::Center,
+			.boxWidth = box.width,
+			.boxHeight = box.height,
+			.letterSpacing = 0.6F,
+			.key = key,
+		});
+		return width;
+	}
+
 } // namespace game::cards

@@ -48,7 +48,7 @@ namespace rules::campaign {
 				break;
 			}
 		}
-		return titleOf(archetypeNamed(content, record.archetype, "driverName").name) + " " + std::to_string(ordinal);
+		return archetypeTitle(content, record.archetype) + " " + std::to_string(ordinal);
 	}
 
 	std::string archetypeTitle(const Content& content, const DriverId& archetype) {

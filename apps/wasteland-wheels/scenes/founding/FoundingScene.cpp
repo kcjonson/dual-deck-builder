@@ -1,6 +1,8 @@
 #include "scenes/founding/FoundingScene.h"
 
 #include "Words.h"
+#include "atlas/AtlasTheme.h"
+#include "atlas/Tokens.h"
 
 #include <rules/campaign/Founding.h>
 #include <rules/map/MapPipeline.h>
@@ -14,8 +16,18 @@ namespace game {
 
 	using rules::campaign::MapMaking;
 
+	namespace {
+
+		constexpr float kButtonWidth = 180.0F;
+
+	} // namespace
+
 	FoundingScene::FoundingScene(FoundingArgs args)
 		: asked(args.seed) {}
+
+	const ui::Theme& FoundingScene::sceneTheme() const {
+		return atlas::theme();
+	}
 
 	void FoundingScene::enter() {
 		start(asked.value_or(game().newSeed()));
@@ -26,18 +38,38 @@ namespace game {
 		cancelling = false;
 		failure.clear();
 		shown = "Making the area map";
-		page = kit::openPage(*this, page, "New campaign", "Seed " + std::to_string(seed));
-		progressLine = kit::text(page.body, shown, "progress");
-		kit::button(page.footer, "cancel", "Cancel", [this] {
-			if (job && !cancelling) {
-				job->cancel();
-				cancelling = true;
-				kit::setNotice(page, "Cancelling");
-			}
+		const AtlasPage opened = openAtlasPage(*this, sheetPage, {.identity = scenes::kFounding, .title = "New campaign"});
+		progress = mapProgressBox(opened.body, "SEED " + std::to_string(seed));
+		cancelLine = progress.foot.addChild<ui::Text>({
+			.id = "cancelling",
+			.visible = false,
+			.layout = {.flexGrow = 1.0F},
+			.style = atlas::styles::print::note,
+			.text = "Cancelling at the next stage",
+		});
+		cancelButton = progress.foot.addChild<atlas::AtlasButton>({
+			.id = "cancel",
+			.size = {kButtonWidth, ui::kAuto},
+			.label = "Cancel",
+			.onPress = [this] { cancel(); },
 		});
 		job = std::make_unique<MapJob<FoundingMap>>([found = game().maps.found, seed = onSeed](const MapMaking& making) {
 			return found(seed, making);
 		});
+	}
+
+	void FoundingScene::cancel() {
+		if (!job || cancelling) {
+			return;
+		}
+		job->cancel();
+		cancelling = true;
+		if (atlas::AtlasButton* button = cancelButton.get()) {
+			button->setEnabled(false);
+		}
+		if (ui::Text* line = cancelLine.get()) {
+			line->setVisible(true);
+		}
 	}
 
 	void FoundingScene::update(const app::FrameContext& /*frame*/) {
@@ -77,25 +109,34 @@ namespace game {
 	}
 
 	void FoundingScene::showProgress() {
-		const std::optional<MapProgress> progress = job->progress();
-		if (!progress) {
+		const std::optional<MapProgress> reached = job->progress();
+		if (!reached) {
 			return;
 		}
-		std::string text = progressText(*progress);
+		std::string text = progressText(*reached);
 		if (text != shown) {
 			shown = std::move(text);
-			if (ui::Text* line = progressLine.get()) {
-				line->setText(shown);
-			}
+			game::showProgress(progress, *reached);
 		}
 	}
 
 	void FoundingScene::showFailure(const std::string& reason) {
 		failure = reason;
-		page = kit::openPage(*this, page, "New campaign", "Seed " + std::to_string(seed));
-		kit::text(page.body, failure, "failure");
-		kit::button(page.footer, "another_seed", "Try another seed", [this] { start(game().newSeed()); }, ui::ButtonVariant::Primary);
-		kit::button(page.footer, "back", "Back", [this] { app().scenes().switchTo(scenes::kMainMenu); });
+		const AtlasPage		   opened = openAtlasPage(*this, sheetPage, {.identity = scenes::kFounding, .title = "New campaign"});
+		ui::Ref<ui::Component> foot = failureBox(opened.body, "No map on this seed", "SEED " + std::to_string(seed), failure);
+		foot.addChild<atlas::AtlasButton>({
+			.id = "back",
+			.size = {kButtonWidth, ui::kAuto},
+			.label = "Back",
+			.onPress = [this] { app().scenes().switchTo(scenes::kMainMenu); },
+		});
+		foot.addChild<atlas::AtlasButton>({
+			.id = "another_seed",
+			.label = "Try another seed",
+			.road = atlas::Road::Highway,
+			.shield = true,
+			.onPress = [this] { start(game().newSeed()); },
+		});
 	}
 
 	std::string FoundingScene::exportState() const {

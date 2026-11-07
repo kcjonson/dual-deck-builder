@@ -11,6 +11,7 @@
 #include <rules/campaign/Campaign.h>
 #include <rules/campaign/DayClock.h>
 #include <rules/campaign/EventStops.h>
+#include <rules/campaign/Locker.h>
 #include <rules/campaign/RunDecks.h>
 #include <rules/campaign/SupplyRun.h>
 #include <rules/core/JsonReader.h>
@@ -58,6 +59,10 @@ namespace game {
 	[[nodiscard]] std::string stopText(const rules::map::Stop& stop);
 
 	[[nodiscard]] std::string seatRefusalText(const rules::campaign::SeatBlocker& blocker);
+	// The few words under a card's control that a move refuses, naming nobody: "Deck full", "Road Warrior only", "Out on
+	// a run" (crew-screen.md, An entry is a mini, its controls, and the reason).
+	[[nodiscard]] std::string
+	cardRefusalText(const rules::campaign::Campaign& campaign, const rules::campaign::CardBlocker& blocker, const rules::Content& content);
 	[[nodiscard]] std::string departRefusalText(const rules::campaign::DepartBlocker& blocker);
 	[[nodiscard]] std::string scavengeRefusalText(rules::campaign::ScavengeRefusal refusal);
 	[[nodiscard]] std::string choiceRefusalText(

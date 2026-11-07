@@ -121,6 +121,38 @@ namespace game {
 		return "Can't be seated";
 	}
 
+	std::string
+	cardRefusalText(const rules::campaign::Campaign& campaign, const rules::campaign::CardBlocker& blocker, const rules::Content& content) {
+		using rules::campaign::CardRefusal;
+		switch (blocker.reason) {
+			case CardRefusal::CampaignOver:
+				return "Campaign over";
+			case CardRefusal::DriverAway: {
+				const rules::campaign::DriverRecord* away = blocker.driver ? campaign.findDriver(*blocker.driver) : nullptr;
+				return away != nullptr && away->status == rules::campaign::DriverStatus::Dead ? "Killed on a run" : "Missing on a run";
+			}
+			case CardRefusal::OnRun:
+				return "Out on a run";
+			case CardRefusal::OwnAtHome:
+				return "Yours at home";
+			case CardRefusal::TooFew:
+				return "None left";
+			case CardRefusal::AlreadyBorrowed:
+				return "Other seat has it";
+			case CardRefusal::CardLocked:
+				return "Escort's card";
+			case CardRefusal::BorrowedFirst:
+				return "Borrowed go first";
+			case CardRefusal::OtherArchetype:
+				return rules::campaign::archetypeTitle(content, *blocker.archetype) + " only";
+			case CardRefusal::DeckFull:
+				return "Deck full";
+			case CardRefusal::DeckAtMinimum:
+				return "Deck at minimum";
+		}
+		return "Can't move";
+	}
+
 	std::string departRefusalText(const rules::campaign::DepartBlocker& blocker) {
 		using rules::campaign::DepartRefusal;
 		switch (blocker.reason) {

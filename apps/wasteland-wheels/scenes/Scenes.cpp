@@ -8,10 +8,13 @@ namespace game::scenes {
 		stack.add(kSplash, makeSplashScene);
 		stack.add(kMainMenu, makeMainMenuScene);
 		stack.add(kSettings, makeSettingsScene);
+		stack.add(kCredits, makeCreditsScene);
+		stack.add(kCampaignHistory, makeCampaignHistoryScene);
 		stack.add<FoundingScene>(kFounding);
 		stack.add(kLoading, makeLoadingScene);
 		stack.add(kCompound, makeCompoundScene);
 		stack.add(kAreaMap, makeAreaMapScene);
+		stack.add(kCrew, makeCrewScene);
 		stack.add(kRun, makeRunScene);
 		stack.add(kCampaignEnd, makeCampaignEndScene);
 		stack.add(kArtGallery, makeArtGalleryScene);

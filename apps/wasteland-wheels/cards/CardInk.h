@@ -91,6 +91,11 @@ namespace game::cards {
 	void
 	drawArt(const Foundation::Rect& box, float radius, std::optional<int> seat, ArtGlyph glyph, float glyphSize, bool dim, int32_t key);
 
+	// A status tag across a card's top edge, its right side at `right` and its middle on `top`: mono capitals in a box of
+	// the card's ground with a muted rule (a driver card's INJURED and CUSTOM, an escort card's STAYING). It returns how
+	// wide it drew, so a second tag can stand beside it.
+	float drawTag(const std::string& text, float right, float top, bool dim, int32_t key);
+
 	// A rounded rect: `fill` with an optional border inside its edge.
 	void drawRounded(
 		const Foundation::Rect&				   box,
