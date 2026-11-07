@@ -53,7 +53,7 @@ How the tests drive the scenes:
 splash -> main_menu -> founding -> compound -> area_map -> run_route -> load_out -> run -> debrief -> compound
               |            ^           |                                             |  ^
               |            |           +-> campaign_end <- debrief                   |  |
-              +-> loading -+-> compound or run                                       battle, event
+              +-> loading -+-> compound or run                                       battle -> battle_result, event
               +-> settings, credits, campaign_history
 ```
 
@@ -68,8 +68,9 @@ splash -> main_menu -> founding -> compound -> area_map -> run_route -> load_out
 - `run`: in the atlas ([mvp-supply-run.md](./mvp-supply-run.md), In the C++ alpha): the step `ahead` says comes next in a fresh box, a fight, a find to take or leave, an event to pull over for, a reward's cards as cards, the objective, or the road home; the crew and the cargo under it; the road's stops in driving order beside it; and the step's highway.
 - `event`: pushed over the run at an event stop ([event-screen.md](./event-screen.md), In the C++ alpha): the plate, the journal, and the choices as cards with `choiceBlocker`'s reasons; the outcome once one's taken, and back to the run or into its fight.
 - `battle`: each driver's hand as rows, a card's targets once it's picked (a card with one way to play plays at once), and the raiders with their intents (`intentsOf`) and who's arriving (`arrivalsOf`). Every play is one of `legalActions`, made with `apply`; the raiders plan each turn through `OpponentPolicies`. It finishes with the fight, and the run writes it back with `endRunFight`.
-- `debrief`: what a run brought home and the injuries it came back with, or what a failed one lost and what became of each seat, and the night after it.
-- `campaign_end`: how the compound fell and why, the days it held, and the tally. The rules have no win yet, so a fall is the only end.
+- `battle_result`: in the atlas ([result-screens.md](./result-screens.md)), pushed by the run over itself after a fight won or broken off is written back: the outcome and what the run carries out of it, then back on the road. A lost fight's result is the debrief.
+- `debrief`: in the atlas ([result-screens.md](./result-screens.md)): where the run went and what it brought home, stamped LOOTED, or what a failed one lost, stamped LOST; the crew as they stand after the night; and the night.
+- `campaign_end`: in the atlas ([result-screens.md](./result-screens.md)), on a burnt sheet: how the compound fell and why, stamped FALLEN, the last day's log, and the record. The rules have no win yet, so a fall is the only end.
 - `settings`, `credits`, `campaign_history`: the menu's appendices, an atlas sheet each with tabs between them and Menu (Escape goes back too): vsync, fullscreen, the ui's scale, and reduced motion; the licence, the authors, the faces and what the game is built with, a test holding every bundled face to an entry; and past campaigns newest first, each with its ending, days, strongholds and seed.
 - `art_gallery`: a developer's page, outside the flow, reached by `--scene` or the dev server: every piece in `art/` at the size a screen uses it, and the closed atlas's pieces laid on a cover as the splash will lay them. Its test fails when a piece in `art/` isn't on it.
 - `crew`: in the atlas ([crew-screen.md](./crew-screen.md), In the C++ alpha), from the bunkhouse and the Crew tabs: the driver pool, the chosen driver's default deck, and the locker, every move the rules' and saved as it's made.
@@ -95,7 +96,7 @@ splash -> main_menu -> founding -> compound -> area_map -> run_route -> load_out
 - `/api/dev/continue`: the save continued, through the loading scene.
 - While a fight is up, `/api/state?what=battle` with the actions on offer in order, `/api/dev/battle-act?index=N` to take one, and `/api/dev/battle-play-out`, which plays the rest of the fight with the player's seats on the first playable card, for a session that needs a fight over rather than played well.
 
-**The placeholder look**, every scene's still to be ported, is salal's default tokens and its controls: a page with a title, a row of panels, rows (`ListRow`) and buttons, and a notice line, with no game art, theme, or icons.
+**The placeholder look**, every scene's not yet in the atlas, is salal's default tokens and its controls: a page with a title, a row of panels, rows (`ListRow`) and buttons, and a notice line, with no game art, theme, or icons.
 
 **The faces** are the game's own (UI Art Direction, Type), the msdf-atlas-gen atlases the TypeScript built, copied from `_legacy/src/assets/fonts/` into `fonts/` with each face's OFL and staged beside the exe: Barlow Condensed Bold and SemiBold for display, Open Sans Regular for body, the default, and JetBrains Mono Regular for mono, a family each (`Fonts.h`). salal reads msdf-atlas-gen's JSON and lays text out by code point since v0.35.0. Every scene's ui loads ui's own tokens with its font roles on those families (`fonts::theme()`, from `GameScene`), so headings are display, prose body, and figures mono, as ui's tokens assign them: a page's, a panel's, and a dialog's titles are display; rows, buttons, and lines of text are body; and a row's trailing text is mono, as is a line `kit::figures` makes for a ledger or a code (the stores, unrest, a seed). A font is one weight, so the display role is both Barlow faces under one name, registered with their weights, and a style's weight picks the face (salal since v0.37.0): ui's display typography at 700 draws the bold, its title at 600 the semibold. Open Sans SemiBold isn't loaded: salal's text reads no weight, so nothing would ask for it.
 

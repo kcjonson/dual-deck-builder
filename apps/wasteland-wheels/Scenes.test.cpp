@@ -245,6 +245,10 @@ namespace {
 				ASSERT_TRUE(press("leave"));
 				ASSERT_EQ(top(), scenes::kRun) << "the fight written back, the run goes on or fails";
 				frame();
+				if (top() == "battle_result") {
+					ASSERT_TRUE(press("continue"));
+					ASSERT_EQ(top(), scenes::kRun) << "a fight won or broken off goes back on the road";
+				}
 			} else if (ahead == "find") {
 				ASSERT_TRUE(press("take_find"));
 			} else if (ahead == "event") {

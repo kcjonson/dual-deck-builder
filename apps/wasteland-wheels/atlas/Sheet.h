@@ -17,11 +17,15 @@ namespace game::atlas {
 		struct Args {
 			UI_COMMON_ARGS
 			std::string identity; // what seeds its wear: the scene's name
+			// W3's hero mark, for a sheet a game event touched (a defeat burns it); none keeps it W2.
+			HeroMark mark = HeroMark::None;
+			Corner	 hero = Corner::TopRight;
 		};
 
 		explicit Sheet(const Args& args);
 
-		[[nodiscard]] const char* typeName() const override { return "Sheet"; }
+		[[nodiscard]] const PaperLook& getLook() const { return look; }
+		[[nodiscard]] const char*	   typeName() const override { return "Sheet"; }
 		// The tape runs off the sheet's corners into the table, and the shadow past its edge.
 		[[nodiscard]] float inkExtent() const override { return 24.0F; }
 

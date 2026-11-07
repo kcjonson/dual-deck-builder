@@ -63,6 +63,8 @@ add_library(ddb_game STATIC
     scenes/map/RunRouteScene.cpp
     scenes/menu/MainMenuScene.cpp
     scenes/menu/MenuCover.cpp
+    scenes/result/BattleResultScene.cpp
+    scenes/result/ResultPage.cpp
     scenes/run/RunScene.cpp
     scenes/settings/SettingsScene.cpp
     scenes/showcase/CardShowcaseScene.cpp

@@ -1,6 +1,7 @@
 #include "CombatBridge.h"
 
 #include "CampaignEnd.h"
+#include "Recruits.h"
 #include "RunDecks.h"
 
 #include <rules/battle/Battle.h>
@@ -84,15 +85,16 @@ namespace rules::campaign {
 			return VehicleCondition{.structure = vehicle.structure, .armor = std::min(vehicle.armor, vehicle.baseArmor)};
 		}
 
-		// "Cargo lost with the run: 2 fuel, 30 scrap, and Repair Kit x2." (call 23), or nothing for a run that carried nothing.
-		void logCargoLost(Campaign& campaign, const Content& content, const RunLost& lost) {
-			std::vector<std::string> items = resourceAmounts(lost.cargo);
-			for (const auto& [card, count] : lost.cargoCards) {
-				const std::string& name = content.cards.at(card).name;
-				items.push_back(count == 1 ? name : name + " x" + std::to_string(count));
+		// "A run was lost: Road Warrior 1 is dead and Interceptor 1 is missing.", then "Cargo lost with the run: 2 fuel, 30
+		// scrap, and Repair Kit x2." (call 23), which a run that carried nothing leaves out.
+		void logRunLost(Campaign& campaign, const Content& content, const FightWriteBack& lost) {
+			std::vector<std::string> fates;
+			for (const SeatWriteBack& seat : lost.seats) {
+				fates.push_back(driverName(campaign, content, seat.driver) + (seat.fate == SeatFate::Dead ? " is dead" : " is missing"));
 			}
-			if (!items.empty()) {
-				addLog(campaign, "Cargo lost with the run: " + listed(items) + ".");
+			addLog(campaign, "A run was lost: " + listed(fates) + ".");
+			if (const std::string cargo = cargoText(content, lost.lost->cargo, lost.lost->cargoCards); !cargo.empty()) {
+				addLog(campaign, "Cargo lost with the run: " + cargo + ".");
 			}
 		}
 
@@ -105,6 +107,7 @@ namespace rules::campaign {
 				.dividends = {},
 				.lost = RunLost{
 					.run = run.id,
+					.poi = run.route ? std::optional<int>(run.route->poi) : std::nullopt,
 					.cardsLost = {},
 					.cargo = run.cargo,
 					.cargoCards = run.cargoCards,
@@ -133,10 +136,14 @@ namespace rules::campaign {
 				addCards(result.lost->cardsLost, unwindRunDeck(campaign, deck));
 			}
 			std::erase_if(campaign.convoy, [&](const ConvoyEscort& escort) {
-				return std::ranges::find(run.escorts, escort.id) != run.escorts.end();
+				const bool along = std::ranges::find(run.escorts, escort.id) != run.escorts.end();
+				if (along) {
+					result.lost->escorts.push_back(escort);
+				}
+				return along;
 			});
 			++campaign.tally.runsFailed;
-			logCargoLost(campaign, content, *result.lost);
+			logRunLost(campaign, content, result);
 			if (nobodyAtCompound(campaign)) {
 				endCampaign(campaign, rules, EndCause::LastDriver);
 			}

@@ -66,6 +66,8 @@ namespace rules::campaign {
 	// A lost fight ends the run, and this is what went with it.
 	struct RunLost {
 		RunId run;
+		// The POI it was out to, none for a run that never left on a route.
+		std::optional<int> poi;
 		// What the dead took with them: their own run deck and what they borrowed.
 		CardCounts cardsLost;
 		Resources  cargo;
@@ -73,6 +75,8 @@ namespace rules::campaign {
 		// Who it was bringing home: the missing it found stay missing, and someone new never joins (calls 43 and 212).
 		std::vector<CrewId>	  found;
 		std::vector<DriverId> recruits;
+		// Every escort that came along, gone from the convoy with it, as each stood when it left the convoy.
+		std::vector<ConvoyEscort> escorts;
 	};
 
 	struct FightWriteBack {
@@ -90,8 +94,8 @@ namespace rules::campaign {
 	// leave the convoy and take their cards out of the run decks, the rest keep their structure, and after a win each
 	// surviving hauler pays its dividend: fuel and scrap into the cargo, HP to every seat still above 0. Lost, the run
 	// ends there: the down are dead and the rest missing, the dead lose their run decks and the missing get theirs back
-	// (call 138), the cargo, everyone it found, and every escort that came along are lost, with a log line for the cargo
-	// (call 23), and the campaign ends if nobody is left at the compound (call 37). A won fight counts in the tally.
+	// (call 138), the cargo, everyone it found, and every escort that came along are lost, with a log line for who was lost
+	// and one for the cargo (call 23), and the campaign ends if nobody is left at the compound (call 37). A won fight counts in the tally.
 	// Throws std::invalid_argument for a fight still on, one already written back or from another run, and one that
 	// doesn't seat the run's drivers and escorts.
 	FightWriteBack writeBackFight(Campaign& campaign, const Content& content, const CampaignRules& rules, const CampaignFight& fight);

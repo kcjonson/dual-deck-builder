@@ -253,13 +253,16 @@ namespace game::testing {
 
 		[[nodiscard]] rules::campaign::Campaign& played() { return context->session->campaign; }
 
-		// The top scene laid out at a window size and linted: each violation a line, empty when there are none.
-		[[nodiscard]] std::string lintAt(int width, int height) {
+		// The top scene laid out at a window size and the ui's scale, and linted: each violation a line, empty when there are
+		// none.
+		[[nodiscard]] std::string lintAt(int width, int height, float scale = 1.0F) {
+			app->setUiScale(scale);
 			platform->resize(width, height);
 			frame();
 			frame();
-			const ui::LintResult result = ui::lint(app->scenes().top()->ui(), {static_cast<float>(width), static_cast<float>(height)});
-			std::ostringstream	 found;
+			const ui::LintResult result =
+				ui::lint(app->scenes().top()->ui(), {static_cast<float>(width) / scale, static_cast<float>(height) / scale});
+			std::ostringstream found;
 			for (const ui::LintViolation& violation : result.violations) {
 				const Foundation::Rect& box = violation.bounds;
 				found << ui::lintRuleName(violation.rule) << " " << violation.path << " at " << box.x << "," << box.y << " " << box.width

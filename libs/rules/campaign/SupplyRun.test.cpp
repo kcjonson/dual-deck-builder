@@ -211,7 +211,9 @@ namespace {
 		for (BattleDriver& driver : lost.state.drivers) {
 			driver.hitpoints = 0;
 		}
-		(void)endRunFight(campaign, testContent(), testRules(), layers(), lost);
+		const FightWriteBack back = endRunFight(campaign, testContent(), testRules(), layers(), lost);
+		ASSERT_TRUE(back.lost.has_value());
+		EXPECT_EQ(back.lost->poi, choice.poi);
 		EXPECT_FALSE(campaign.run.has_value());
 		EXPECT_EQ(campaign.mapState, MapState{});
 	}
@@ -394,6 +396,7 @@ namespace {
 		EXPECT_EQ(campaign.tally.runsHome, 1);
 		EXPECT_EQ(campaign.tally.fightsWon, fights);
 		EXPECT_EQ(campaign.mapState.clearedPois, std::vector{offer.destination.poi});
+		EXPECT_EQ(home.poi, offer.destination.poi);
 		ASSERT_EQ(campaign.mapState.stops.size(), left.stops.size());
 		for (const StopState& stop : campaign.mapState.stops) {
 			EXPECT_NE(std::ranges::find(left.stops, stop.stop), left.stops.end());

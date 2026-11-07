@@ -46,6 +46,7 @@ The trade-offs: what gets easier, what gets harder, what it risks.
 - [The campaign's end: death, missing drivers, and the compound falling](./campaign-end.md)
 - [Compound campaign and the area map](./compound-and-area-map.md)
 - [The compound screen, the campaign's hub](./compound-screen.md)
+- [The result screens: a fight's result, the debrief, and the campaign's end](./result-screens.md)
 - [The day clock and the end of a day](./day-clock.md)
 - [Injuries and the infirmary](./injuries.md)
 - [The scavenging party](./scavenging-party.md)

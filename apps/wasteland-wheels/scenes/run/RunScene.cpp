@@ -22,6 +22,7 @@
 #include "scenes/event/EventText.h"
 #include "scenes/map/MapPage.h"
 #include "scenes/map/Planning.h"
+#include "scenes/result/BattleResultScene.h"
 
 #include <rules/campaign/CombatBridge.h>
 #include <rules/campaign/DayClock.h>
@@ -724,10 +725,10 @@ namespace game {
 					);
 					return;
 				}
-				notice =
-					back.outcome == rules::Outcome::Won ? "The fight is won." : "The raiders broke off. The run goes on, with nothing won.";
+				notice.clear();
 				saved();
 				build();
+				app().scenes().push<BattleResultScene>(BattleResultArgs{.fight = std::move(fought), .back = back});
 			}
 
 			void driveHome() {

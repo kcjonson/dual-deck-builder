@@ -224,6 +224,9 @@ namespace {
 		const Unloaded unloaded = unloadRun(campaign, testContent(), testRules());
 		EXPECT_EQ(unloaded.resources.fuel, 3);
 		EXPECT_EQ(unloaded.cards, (CardCounts{{card("headshot"), 2}}));
+		EXPECT_EQ(unloaded.seats, start.seats);
+		EXPECT_FALSE(unloaded.poi.has_value()) << "it never left on a route";
+		EXPECT_EQ(campaign.log.back().text, "A run came home with 3 fuel and Headshot x2.");
 		EXPECT_FALSE(campaign.run.has_value());
 		EXPECT_EQ(campaign.stores.fuel, home.stores.fuel + 3);
 		EXPECT_EQ(campaign.locker, (CardCounts{{card("headshot"), 2}, {card("ram"), 1}})) << "the borrowed Ram back, the cards won in";

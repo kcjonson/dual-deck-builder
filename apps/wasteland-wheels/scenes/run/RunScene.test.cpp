@@ -81,13 +81,17 @@ namespace {
 			return {};
 		}
 
-		// The fight up, played out and left.
+		// The fight up, played out and left, and past its result if the run is still going.
 		void fightThrough() {
 			ASSERT_EQ(top(), "battle");
 			static_cast<BattleScene*>(app->scenes().top())->playOut();
 			frame();
 			ASSERT_TRUE(press("leave"));
 			frame();
+			if (top() == "battle_result") {
+				ASSERT_TRUE(press("continue"));
+				frame();
+			}
 		}
 
 		[[nodiscard]] std::string lintThree() { return lintAt(1280, 800) + lintAt(1440, 900) + lintAt(1920, 1080); }
