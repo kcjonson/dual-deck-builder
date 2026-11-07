@@ -14,6 +14,7 @@ namespace game::scenes {
 		stack.add(kLoading, makeLoadingScene);
 		stack.add(kCompound, makeCompoundScene);
 		stack.add(kAreaMap, makeAreaMapScene);
+		stack.add(kCrew, makeCrewScene);
 		stack.add(kRun, makeRunScene);
 		stack.add(kCampaignEnd, makeCampaignEndScene);
 		stack.add(kArtGallery, makeArtGalleryScene);

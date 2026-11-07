@@ -42,6 +42,19 @@ None of these is in a spec. They're calls 177 to 181 in [gameplay-calls.md](../g
 - 180: a solo run shows the second seat empty with "Solo run: nobody else is fit to go", and the synergy line says there's no partner.
 - 181: the main menu's Skirmish entry goes with driver selection (call 119's condition met).
 
+## In the C++ alpha
+
+2026-11-06. `LoadOutScene` (`apps/wasteland-wheels/scenes/loadout/`), in the atlas, replacing the placeholder rows. One W2 sheet with no section tabs: Back to the route at the top left, the title and the pool note, and the route line (the destination, then the road, the stops, the fuel, and home by, the fuel and the time in Stronghold red when the stores are short or it runs past dark). Under it, in a body that scrolls when the window is short: the two seats as legend boxes, each its driver card, Clear seat and Customize, and the deck they take as minis, view only (their run deck once dealt: their own, what they borrowed as +N, the escort cards LOCKED); then the pool as driver cards with Seat and the rules' reason under each, and the convoy, the pair line, Swap seats, and the escort cards, each marked Coming in highlighter or faded with STAYING and At home. Start run is the highway at the foot, with why it can't go, or what the drivers take and who comes along, beside it.
+
+The plan is the scene's: its seats and escorts until the run decks are out, the run's after. The decks are dealt by Customize or Start run (`startRun`), a seat change or Swap seats gives them up first (`giveUpLoadOut`, call 178), and Back gives them up and replaces load out with the run route on its POI (call 179). An escort brought or left once they're out moves only its own card, through the rules' `bringEscort` and `leaveEscort`, so customizing stays. Start run and Customize ask the same questions: whether the seats can go (`startRun` on a copy), and for Start run, whether the route can (`departBlocker` on that copy).
+
+Provisional, each a line to change:
+
+- The pair line names the two drivers and their specialties ("Road Warrior 1 and Interceptor 2: a defensive tank beside an agile striker."). The TypeScript's synergy analysis isn't in the rules, and isn't ported.
+- A seated driver's Seat reads Seated, off, with "In seat 1" under it; Clear seat empties a seat.
+- The lost aren't in the pool: the Crew screen keeps them for the record.
+- Driver and escort cards have no detail views yet.
+
 ## Trade-offs
 
 - Losing customizing on a seat change is blunt, but it's honest about what the campaign can do and is a click away from being redone. Moving a run deck between seats would need a campaign operation of its own.

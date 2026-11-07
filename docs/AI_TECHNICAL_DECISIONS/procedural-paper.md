@@ -54,7 +54,7 @@ Contrast is checked without a GPU. The hook darkens the tint by at most its wear
 
 ## Trade-offs and consequences
 
-- salal's fill hooks and the game's own faces are both in since salal v0.35.0 ([game-app.md](./game-app.md)); the hook is `shaders/paper.frag.glsl`, its params packed and its block tuned by `atlas/Paper.h` (`packPaper`, `kPaperTuning`), with the contrast test beside it.
+- salal's fill hooks and the game's own faces are both in since salal v0.35.0 ([game-app.md](./game-app.md)); the hook is `shaders/paper.frag.glsl`, its params packed and its block tuned by `atlas/Paper.h` (`packPaper`, `kPaperTuning`), with the contrast test beside it. The highlighter is `shaders/highlighter.frag.glsl`, drawn by `atlas/Highlighter.h` (`drawHighlight`, and `Highlight`, which marks whatever it wraps): one pass of a chisel tip, its ends leaning cuts, its fibres streaking it, darker where it landed, and the hand wandering a little up and down. It has no block: its seed, the pool's most and the streaks' depth ride in the draw's params from `kHighlighterInk`, which its contrast test reads too, holding ink to 4.5:1 on the darkest mark over every paper. One pass is Highlighter yellow at 0.66.
 - The mottle is fractal noise in GLSL. It looks like the mocks' `feTurbulence`, not the same, and two GPUs can differ in its last bits. Nothing compares it pixel for pixel, and the seed is what holds a surface steady.
 - Every pixel of a hooked rect runs the hook, so it costs GPU time where the atlas cost a texture read. Most of a sheet is window and exits early, and the cost gets measured against main when the hook lands.
 - Paper is rects only. A non-rect paper shape is a rect with the hook cutting it by alpha.

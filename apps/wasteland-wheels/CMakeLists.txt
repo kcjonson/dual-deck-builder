@@ -9,6 +9,7 @@ add_library(ddb_game STATIC
     atlas/ContentsEntry.cpp
     atlas/Gauges.cpp
     atlas/Glyphs.cpp
+    atlas/Highlighter.cpp
     atlas/Ink.cpp
     atlas/LegendBox.cpp
     atlas/Markers.cpp
@@ -23,6 +24,8 @@ add_library(ddb_game STATIC
     cards/CardInk.cpp
     cards/CardStyle.cpp
     cards/DeckStack.cpp
+    cards/DriverCard.cpp
+    cards/EscortCard.cpp
     DevRoutes.cpp
     Fonts.cpp
     GameRules.cpp
@@ -36,6 +39,9 @@ add_library(ddb_game STATIC
     scenes/compound/CompoundPlate.cpp
     scenes/compound/CompoundScene.cpp
     scenes/credits/CreditsScene.cpp
+    scenes/crew/CrewScene.cpp
+    scenes/crew/CustomizeScene.cpp
+    scenes/crew/DeckBuilder.cpp
     scenes/debrief/DebriefScene.cpp
     scenes/end/CampaignEndScene.cpp
     scenes/gallery/ArtGalleryScene.cpp

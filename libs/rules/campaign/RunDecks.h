@@ -58,6 +58,15 @@ namespace rules::campaign {
 	// come along, or a driver who isn't seated.
 	void moveEscortCard(Campaign& campaign, const ConvoyId& escort, const CrewId& toSeat);
 
+	// An escort brought along once the run decks are out, before the run leaves: it joins the run in roster order and its
+	// card goes in Driver 1's run deck, as startRun deals it. Throws std::invalid_argument with no run out, for one that has
+	// left (giveUpLoadOut's test), and for an escort not in the convoy or already along.
+	void bringEscort(Campaign& campaign, const Content& content, const ConvoyId& escort);
+
+	// An escort left at home once the run decks are out, before the run leaves: its card comes out of whichever seat holds
+	// it. Throws std::invalid_argument with no run out, for one that has left, and for an escort that isn't along.
+	void leaveEscort(Campaign& campaign, const ConvoyId& escort);
+
 	// Puts everything a seat left at home back in their run deck and everything they borrowed back in the locker. Escort
 	// cards stay where they are (call 139). Throws std::invalid_argument for a driver who isn't seated.
 	void resetRunDeck(Campaign& campaign, const CrewId& driver);
