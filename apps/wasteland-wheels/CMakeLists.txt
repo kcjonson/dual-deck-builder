@@ -6,6 +6,7 @@ add_library(ddb_game STATIC
     atlas/ArtView.cpp
     atlas/AtlasButton.cpp
     atlas/AtlasTheme.cpp
+    atlas/ContentsEntry.cpp
     atlas/Gauges.cpp
     atlas/Glyphs.cpp
     atlas/Ink.cpp
@@ -21,6 +22,7 @@ add_library(ddb_game STATIC
     cards/CardDetail.cpp
     cards/CardInk.cpp
     cards/CardStyle.cpp
+    cards/DeckStack.cpp
     DevRoutes.cpp
     Fonts.cpp
     GameRules.cpp
@@ -28,13 +30,16 @@ add_library(ddb_game STATIC
     Session.cpp
     Words.cpp
     scenes/SceneKit.cpp
+    scenes/AtlasPage.cpp
     scenes/Scenes.cpp
     scenes/battle/BattleScene.cpp
     scenes/compound/CompoundPlate.cpp
     scenes/compound/CompoundScene.cpp
+    scenes/credits/CreditsScene.cpp
     scenes/debrief/DebriefScene.cpp
     scenes/end/CampaignEndScene.cpp
     scenes/gallery/ArtGalleryScene.cpp
+    scenes/history/CampaignHistoryScene.cpp
     scenes/founding/FoundingScene.cpp
     scenes/loading/LoadingScene.cpp
     scenes/loadout/LoadOutScene.cpp
@@ -47,9 +52,11 @@ add_library(ddb_game STATIC
     scenes/map/Planning.cpp
     scenes/map/RunRouteScene.cpp
     scenes/menu/MainMenuScene.cpp
+    scenes/menu/MenuCover.cpp
     scenes/run/RunScene.cpp
     scenes/settings/SettingsScene.cpp
     scenes/showcase/CardShowcaseScene.cpp
+    scenes/splash/ClosedAtlas.cpp
     scenes/splash/SplashScene.cpp
 )
 add_library(ddb::game ALIAS ddb_game)
