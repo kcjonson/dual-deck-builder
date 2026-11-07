@@ -13,14 +13,6 @@ namespace game {
 
 	namespace {
 
-		std::string capitalised(std::string_view text) {
-			std::string out(text);
-			if (!out.empty() && out[0] >= 'a' && out[0] <= 'z') {
-				out[0] = static_cast<char>(out[0] - 'a' + 'A');
-			}
-			return out;
-		}
-
 		std::string resourceName(rules::map::Resource resource) {
 			return std::string(nameOf(rules::map::kResourceNames, resource));
 		}
@@ -129,6 +121,38 @@ namespace game {
 		return "Can't be seated";
 	}
 
+	std::string
+	cardRefusalText(const rules::campaign::Campaign& campaign, const rules::campaign::CardBlocker& blocker, const rules::Content& content) {
+		using rules::campaign::CardRefusal;
+		switch (blocker.reason) {
+			case CardRefusal::CampaignOver:
+				return "Campaign over";
+			case CardRefusal::DriverAway: {
+				const rules::campaign::DriverRecord* away = blocker.driver ? campaign.findDriver(*blocker.driver) : nullptr;
+				return away != nullptr && away->status == rules::campaign::DriverStatus::Dead ? "Killed on a run" : "Missing on a run";
+			}
+			case CardRefusal::OnRun:
+				return "Out on a run";
+			case CardRefusal::OwnAtHome:
+				return "Yours at home";
+			case CardRefusal::TooFew:
+				return "None left";
+			case CardRefusal::AlreadyBorrowed:
+				return "Other seat has it";
+			case CardRefusal::CardLocked:
+				return "Escort's card";
+			case CardRefusal::BorrowedFirst:
+				return "Borrowed go first";
+			case CardRefusal::OtherArchetype:
+				return rules::campaign::archetypeTitle(content, *blocker.archetype) + " only";
+			case CardRefusal::DeckFull:
+				return "Deck full";
+			case CardRefusal::DeckAtMinimum:
+				return "Deck at minimum";
+		}
+		return "Can't move";
+	}
+
 	std::string departRefusalText(const rules::campaign::DepartBlocker& blocker) {
 		using rules::campaign::DepartRefusal;
 		switch (blocker.reason) {
@@ -169,16 +193,16 @@ namespace game {
 		using rules::campaign::ChoiceRefusal;
 		switch (blocker.reason) {
 			case ChoiceRefusal::Archetype:
-				return "Needs " + (needs.archetype ? content.drivers.at(*needs.archetype).name : std::string("a driver"));
+				return "Needs " + (needs.archetype ? anArchetype(content, *needs.archetype) : std::string("a driver"));
 			case ChoiceRefusal::Card:
-				return "Needs " + (needs.card ? content.cards.at(*needs.card).name : std::string("a card"));
+				return "Needs " + (needs.card ? content.cards.at(*needs.card).name : std::string("a card")) + " in a run deck";
 			case ChoiceRefusal::Escort:
-				return "Needs " + (needs.escort ? content.escorts.at(*needs.escort).name : std::string("an escort"));
+				return "Needs " + (needs.escort ? withArticle(content.escorts.at(*needs.escort).name) : std::string("an escort"));
 			case ChoiceRefusal::ConvoyFull:
 				return "The convoy is full";
 			case ChoiceRefusal::Cost:
-				return capitalised(resourceName(blocker.resource)) + " (need " + std::to_string(blocker.needed) + ", have " +
-					   std::to_string(blocker.held) + ")";
+				return "Need " + std::to_string(blocker.needed) + " " + resourceName(blocker.resource) + ", have " +
+					   std::to_string(blocker.held);
 		}
 		return "Can't be taken";
 	}
@@ -188,32 +212,68 @@ namespace game {
 		return definition.name + " (" + std::to_string(definition.cost) + ")";
 	}
 
-	std::string fighterName(const rules::BattleState& state, const rules::Content& content, rules::DriverIndex driver) {
+	std::string withArticle(const std::string& name) {
+		const bool vowel = !name.empty() && std::string_view("AEIOUaeiou").find(name.front()) != std::string_view::npos;
+		return (vowel ? "an " : "a ") + name;
+	}
+
+	std::string anArchetype(const rules::Content& content, const rules::DriverId& archetype) {
+		return withArticle(rules::campaign::archetypeTitle(content, archetype));
+	}
+
+	std::vector<std::string> seatNames(const Campaign& campaign, const rules::Content& content) {
+		std::vector<std::string> names;
+		if (campaign.run) {
+			for (const rules::campaign::RunDeck& seat : campaign.run->seats) {
+				names.push_back(rules::campaign::driverName(campaign, content, seat.driver));
+			}
+		}
+		return names;
+	}
+
+	std::string fighterName(
+		const rules::BattleState&	 state,
+		const rules::Content&		 content,
+		rules::DriverIndex			 driver,
+		std::span<const std::string> seats
+	) {
 		const rules::BattleDriver& fighter = state.driver(driver);
 		if (const auto* archetype = std::get_if<rules::DriverId>(&fighter.profile)) {
-			return content.drivers.at(*archetype).name;
+			// The player's seats come first in a fight, in seat order (CombatBridge).
+			const auto seat = static_cast<size_t>(driver.value);
+			return seat < seats.size() ? seats[seat] : rules::campaign::archetypeTitle(content, *archetype);
 		}
 		return content.opponents.at(std::get<rules::OpponentId>(fighter.profile)).name;
 	}
 
-	std::string vehicleName(const rules::BattleState& state, const rules::Content& content, rules::VehicleIndex vehicle) {
+	std::string vehicleName(
+		const rules::BattleState&	 state,
+		const rules::Content&		 content,
+		rules::VehicleIndex			 vehicle,
+		std::span<const std::string> seats
+	) {
 		const rules::BattleVehicle& on = state.vehicle(vehicle);
 		if (on.escort) {
 			return content.escorts.at(*on.escort).name;
 		}
 		if (on.owner) {
-			return fighterName(state, content, *on.owner) + "'s vehicle";
+			return fighterName(state, content, *on.owner, seats) + "'s vehicle";
 		}
 		return "a vehicle";
 	}
 
-	std::string playText(const rules::BattleState& state, const rules::Content& content, const rules::action::PlayCard& play) {
+	std::string playText(
+		const rules::BattleState&	   state,
+		const rules::Content&		   content,
+		const rules::action::PlayCard& play,
+		std::span<const std::string>   seats
+	) {
 		std::string text;
 		if (play.target) {
-			text = "at " + vehicleName(state, content, *play.target);
+			text = "at " + vehicleName(state, content, *play.target, seats);
 		}
 		if (play.occupant) {
-			text += (text.empty() ? "on " : ", on ") + fighterName(state, content, *play.occupant);
+			text += (text.empty() ? "on " : ", on ") + fighterName(state, content, *play.occupant, seats);
 		}
 		if (play.destination) {
 			text += (text.empty() ? "to " : ", to ") + laneName(play.destination->lane) + ", " +
@@ -222,7 +282,12 @@ namespace game {
 		return text.empty() ? "play it" : text;
 	}
 
-	std::string intentText(const rules::BattleState& state, const rules::Content& content, const rules::Intent& intent) {
+	std::string intentText(
+		const rules::BattleState&	 state,
+		const rules::Content&		 content,
+		const rules::Intent&		 intent,
+		std::span<const std::string> seats
+	) {
 		if (intent.hidden) {
 			return "?";
 		}
@@ -258,7 +323,7 @@ namespace game {
 		if (intent.area) {
 			text += " on everyone";
 		} else if (intent.target) {
-			text += " on " + vehicleName(state, content, *intent.target);
+			text += " on " + vehicleName(state, content, *intent.target, seats);
 		}
 		if (intent.card) {
 			text += " [" + content.cards.at(*intent.card).name + "]";

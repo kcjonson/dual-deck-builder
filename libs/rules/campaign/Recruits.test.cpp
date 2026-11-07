@@ -34,6 +34,7 @@ namespace {
 		) << "the founding Mechanic's deck is the starting deck too";
 		EXPECT_EQ(driverName(campaign, testContent(), second), "Mechanic 2");
 		EXPECT_EQ(driverName(campaign, testContent(), crewOf(campaign, "road_warrior")), "Road Warrior 1");
+		EXPECT_EQ(archetypeTitle(testContent(), DriverId{"road_warrior"}), "Road Warrior");
 		EXPECT_THROW((void)recruitDriver(campaign, testContent(), DriverId{"war_boy"}), std::invalid_argument);
 	}
 

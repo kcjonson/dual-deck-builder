@@ -73,6 +73,14 @@ The run on the road is the campaign's `Run::route` (`libs/rules/campaign/SupplyR
 - The run's end doesn't end the day itself: the caller runs `endDay` after `unloadRun`, or after a lost fight unless it ended the campaign, so one run a day still holds without a counter.
 - No run leaves for a stronghold yet (call 410), where `routesOnOffer` left strongholds out of the offer; the C++ offer keeps them, and departure says why.
 
+The run scene (`apps/wasteland-wheels/scenes/run/`, 2026-11-06) is in the atlas, on the page the area map and the run route share (`MapPage`): the Area map tab active, "Run to" the destination and the day over the step box, fresh paper, which says where the run is ("stop 2 of 5"), what it meets, and what pressing on does; the crew, each seat's HP on a cased bar in its driver's colour, and the cargo, the stores as a strip and the cards won as mini cards, under it; the road beside, its stops as contents rows, the one the run is at in highlighter, then the destination and home; and the step's highway at the foot. A find says what it holds and the objective its yield before either is taken, each the rules' own call on a copy of the campaign, so the return ambush stays unknown until the objective's taken. A reward's cards are card faces with their detail views, taken by a press, with Skip the card the back road. Once the objective's in the cargo the step carries the LOOTED stamp, the screen's one hero mark. A run home or failed still ends on the debrief.
+
+UI calls, each a line or two to change:
+
+- The run sits under the Area map tab, as the run route does; the Compound tab leaves it on the road, and the compound's Back on the road returns.
+- A find and the objective show what they hold before they're taken; the TypeScript did for a find too.
+- The stamp goes on once the objective's taken, though the POI clears only when the run gets home.
+
 ## Provisional calls
 
 None of these is in a spec.

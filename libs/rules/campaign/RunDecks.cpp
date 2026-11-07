@@ -24,6 +24,16 @@ namespace rules::campaign {
 			return *campaign.run;
 		}
 
+		// The run out while it's still a load out: not on a route, and nothing fought or picked up.
+		Run& atCompound(Campaign& campaign, std::string_view action) {
+			Run& run = runOut(campaign, action);
+			if (run.route || run.fights > 0 || run.cargo != Resources{} || !run.cargoCards.empty() || !run.found.empty() ||
+				!run.recruits.empty()) {
+				throw std::invalid_argument(std::string(action) + ": " + run.id.value + " has left, and ends by coming home or failing");
+			}
+			return run;
+		}
+
 		RunDeck& seatOf(Campaign& campaign, const CrewId& driver, std::string_view action) {
 			RunDeck* deck = campaign.runDeckOf(driver);
 			if (deck == nullptr) {
@@ -175,12 +185,34 @@ namespace rules::campaign {
 		return {};
 	}
 
-	void giveUpLoadOut(Campaign& campaign) {
-		const Run& run = runOut(campaign, "giveUpLoadOut");
-		if (run.route || run.fights > 0 || run.cargo != Resources{} || !run.cargoCards.empty() || !run.found.empty() ||
-			!run.recruits.empty()) {
-			throw std::invalid_argument("giveUpLoadOut: " + run.id.value + " has left, and ends by coming home or failing");
+	void bringEscort(Campaign& campaign, const Content& content, const ConvoyId& escort) {
+		Run&				run = atCompound(campaign, "bringEscort");
+		const ConvoyEscort* joining = campaign.findEscort(escort);
+		if (joining == nullptr || std::ranges::find(run.escorts, escort) != run.escorts.end()) {
+			throw std::invalid_argument("bringEscort: " + escort.value + " isn't in the convoy, or is already along");
 		}
+		std::vector<ConvoyId> along;
+		for (const ConvoyEscort& member : campaign.convoy) {
+			if (member.id == escort || std::ranges::find(run.escorts, member.id) != run.escorts.end()) {
+				along.push_back(member.id);
+			}
+		}
+		run.escorts = std::move(along);
+		run.seats.front().escortCards.push_back(EscortCard{.card = content.escorts.at(joining->type).signatureCard, .broughtBy = escort});
+	}
+
+	void leaveEscort(Campaign& campaign, const ConvoyId& escort) {
+		Run& run = atCompound(campaign, "leaveEscort");
+		if (std::erase(run.escorts, escort) == 0) {
+			throw std::invalid_argument("leaveEscort: " + escort.value + " isn't along");
+		}
+		for (RunDeck& seat : run.seats) {
+			std::erase_if(seat.escortCards, [&](const EscortCard& card) { return card.broughtBy == escort; });
+		}
+	}
+
+	void giveUpLoadOut(Campaign& campaign) {
+		const Run& run = atCompound(campaign, "giveUpLoadOut");
 		for (const RunDeck& deck : run.seats) {
 			(void)unwindRunDeck(campaign, deck);
 		}

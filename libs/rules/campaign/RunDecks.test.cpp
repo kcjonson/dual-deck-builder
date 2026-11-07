@@ -176,6 +176,31 @@ namespace {
 		) << "no run deck at either end";
 	}
 
+	TEST(RunDecks, AnEscortBroughtOrLeftAtLoadOutMovesOnlyItsOwnCard) {
+		Campaign	   campaign = foundTestCampaign({"fuel_hauler", "outrider"});
+		const CrewId   warrior = crewOf(campaign, "road_warrior");
+		const CrewId   interceptor = crewOf(campaign, "interceptor");
+		const RunStart start{.seats = {warrior, interceptor}, .escorts = {kOutrider}};
+		startRun(campaign, testContent(), start);
+		moveEscortCard(campaign, kOutrider, interceptor);
+		move(campaign, "ramming_speed", 1, RunDeckOf{warrior}, Locker{});
+		const RunDeck customized = campaign.run->seats[0];
+
+		bringEscort(campaign, testContent(), kHauler);
+		EXPECT_EQ(campaign.run->escorts, (std::vector{kHauler, kOutrider})) << "in roster order";
+		EXPECT_EQ(campaign.run->seats[0].escortCards, (std::vector{EscortCard{.card = card("top_off"), .broughtBy = kHauler}}));
+		EXPECT_EQ(campaign.run->seats[0].leftHome, customized.leftHome) << "customizing stays";
+		EXPECT_THROW(bringEscort(campaign, testContent(), kHauler), std::invalid_argument);
+
+		leaveEscort(campaign, kOutrider);
+		EXPECT_EQ(campaign.run->escorts, (std::vector{kHauler}));
+		EXPECT_TRUE(campaign.run->seats[1].escortCards.empty());
+		EXPECT_THROW(leaveEscort(campaign, kOutrider), std::invalid_argument);
+
+		campaign.run->fights = 1;
+		EXPECT_THROW(bringEscort(campaign, testContent(), kOutrider), std::invalid_argument) << "it has left";
+	}
+
 	TEST(RunDecks, AGivenUpLoadOutPutsEveryDeckBackAndARunHomeUnloadsItsCargo) {
 		Campaign campaign = foundTestCampaign({"fuel_hauler"});
 		campaign.locker = {{card("ram"), 1}};

@@ -22,7 +22,8 @@ namespace game::atlas {
 			UI_COMMON_ARGS
 			std::string			  label;
 			Road				  road = Road::BackRoad;
-			bool				  shield = false; // the highway's shield glyph at the right
+			bool				  shield = false;  // the highway's shield glyph at the right
+			bool				  compact = false; // a back road 30 px tall, its label at 15: a deck builder's controls
 			std::function<void()> onPress;
 		};
 
@@ -47,6 +48,7 @@ namespace game::atlas {
 		std::string			  label;
 		Road				  road;
 		bool				  shield;
+		bool				  compact;
 		std::function<void()> onPress;
 		ui::Ref<ui::Text>	  text;
 	};
