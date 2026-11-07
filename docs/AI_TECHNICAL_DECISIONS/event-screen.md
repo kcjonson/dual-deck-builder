@@ -42,13 +42,25 @@ The screen takes the event, the party, the draw, and optionally a result to reop
 
 ## In the C++ alpha
 
-The content and its rules are `libs/rules/campaign/Events.h` (2026-10-31, DDB-573), and [campaign.md](./campaign.md), Events, the objective, and the return, has how; the screen waits for salal's `ui`. Calls 250 to 259 hold. What differs:
+The content and its rules are `libs/rules/campaign/Events.h` (2026-10-31, DDB-573), and [campaign.md](./campaign.md), Events, the objective, and the return, has how, and the scene is `apps/wasteland-wheels/scenes/event/` (2026-11-06). Calls 250 to 259 hold. What differs:
 
 - Events are pack content, `events/*.json` in every loaded pack, read by `loadEvents` over the packs' override rule: a later pack adds an event or overrides one by id, and only over a pack it requires. The base pack's file is this one's, as it stands.
-- The text caps are gone, since they were the room this screen had at 1024x600; the event scene sets its own. The other bounds stand.
+- The text caps are gone, since they were the room this screen had at 1024x600: the journal scrolls and the choice cards grow with their words. The other bounds stand.
 - An event's stop type is one the run resolves as an event, a wreck or a distress signal (call 407), and each of those has to have an event, so no stop the map places is left without one.
 - The lock's order holds, with `ConvoyFull` before the cost (call 408), and `resolveChoice` and `landOutcome` are `takeEventChoice` and `landedOutcome`, over the campaign (`EventStops.h`): with no screen to hand an `EventResult` to, the run applies the outcome where the choice is taken.
-- `choicePreview` and `EventResult` are the screen's, and aren't built.
+- `choicePreview` and `EventResult` aren't built. The scene reads the choice for its card's icons (`EventText`'s `choiceIcons`), takes it with `takeEventChoice` and saves at once, and shows the outcome `landedOutcome` landed on from what `EventTaken` says.
+
+### The scene
+
+`event` is pushed over `run` by Pull over, and hands back where the run goes next (`EventNext`): back to the road untaken, on, into the fight the outcome turned into, or to the card it opened. The page is the TypeScript's, in salal's `ui`: one atlas sheet, no tabs, the plate (`EventPlate`, the stand-in) at three parts to the journal's four, the kicker, title and ruled journal (`JournalPage`) beside it, and the choice cards (`ChoiceCard`) along the foot, one Tab stop whose arrows move between them. A card's band, icons, and the outcome's ledger are `EventText`'s, and every reason a card can't be taken is `choiceBlocker`'s, worded by `choiceRefusalText`. The cards an outcome gives are mini cards (`cards/Card`) with their detail views, in a For the locker box beside the outcome.
+
+UI calls, each a line or two to change:
+
+- Back to the road, beside the title until a choice is taken, leaves the event untaken; the run's Pull over opens it again. Only a choice gets past it (call 407).
+- Fight them goes straight into the fight, as the TypeScript's did; Pick a card and Drive on go back to the run, which shows the reward or the next stop.
+- The journal is body at 16 px over 1.45 at every window size, where the TypeScript went from 14 to 17 at 800 tall.
+- The icons are the stores' and the TypeScript's strokes, drawn in the card's render, until there's icon art for skulls, swords, the clock, cards, an escort, a driver, a wrench and a heart.
+- An escort an outcome gives is a ledger line, since the escort card isn't ported.
 
 ## Provisional calls
 

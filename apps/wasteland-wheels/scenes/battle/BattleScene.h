@@ -55,7 +55,9 @@ namespace game {
 		std::optional<std::pair<rules::DriverIndex, int>> picked;
 		std::string										  lastLine;
 		bool											  leaving = false;
-		std::vector<app::DevServer::Registration>		  devRoutes;
+		// The run's seats by name, for the player's drivers (seatNames).
+		std::vector<std::string>				  seats;
+		std::vector<app::DevServer::Registration> devRoutes;
 	};
 
 } // namespace game

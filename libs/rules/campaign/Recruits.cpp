@@ -51,6 +51,10 @@ namespace rules::campaign {
 		return titleOf(archetypeNamed(content, record.archetype, "driverName").name) + " " + std::to_string(ordinal);
 	}
 
+	std::string archetypeTitle(const Content& content, const DriverId& archetype) {
+		return titleOf(archetypeNamed(content, archetype, "archetypeTitle").name);
+	}
+
 	CrewId recruitDriver(Campaign& campaign, const Content& content, const DriverId& archetype) {
 		refuseOver(campaign, "recruitDriver");
 		const DriverDefinition& definition = archetypeNamed(content, archetype, "recruitDriver");

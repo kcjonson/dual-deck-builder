@@ -19,6 +19,10 @@ namespace rules::campaign {
 	// (call 4). Throws std::invalid_argument for a driver outside the pool.
 	[[nodiscard]] std::string driverName(const Campaign& campaign, const Content& content, const CrewId& driver);
 
+	// "Road Warrior": an archetype by its title, as driverName names one of its drivers, without the count. Throws
+	// std::invalid_argument for an archetype no loaded pack defines.
+	[[nodiscard]] std::string archetypeTitle(const Content& content, const DriverId& archetype);
+
 	// A driver joins the pool now: the next driver id, at their archetype's full HP, their vehicle whole, and its
 	// starting deck as their default deck. Returns their id. Throws std::invalid_argument once the campaign is over, and
 	// for an archetype no loaded pack defines.

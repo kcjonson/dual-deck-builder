@@ -34,6 +34,10 @@ add_library(ddb_game STATIC
     scenes/compound/CompoundScene.cpp
     scenes/debrief/DebriefScene.cpp
     scenes/end/CampaignEndScene.cpp
+    scenes/event/ChoiceCard.cpp
+    scenes/event/EventPlate.cpp
+    scenes/event/EventScene.cpp
+    scenes/event/EventText.cpp
     scenes/gallery/ArtGalleryScene.cpp
     scenes/founding/FoundingScene.cpp
     scenes/loading/LoadingScene.cpp

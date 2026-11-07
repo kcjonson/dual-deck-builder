@@ -257,7 +257,17 @@ namespace {
 					return !rules::campaign::choiceBlocker(session.campaign, testRules().events, session.layers(), choice.id);
 				});
 				ASSERT_NE(open, event.choices.end());
+				ASSERT_TRUE(press("pull_over"));
+				ASSERT_EQ(top(), "event");
 				ASSERT_TRUE(press("choice_" + open->id));
+				ASSERT_TRUE(press("event_go"));
+				if (top() == "battle") {
+					// The event turned into a fight, which the highway goes straight into.
+					static_cast<BattleScene*>(app->scenes().top())->playOut();
+					frame();
+					ASSERT_TRUE(press("leave"));
+					frame();
+				}
 			} else if (ahead == "reward") {
 				ASSERT_TRUE(press("reward_0"));
 			} else if (ahead == "objective") {

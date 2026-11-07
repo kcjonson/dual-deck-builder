@@ -38,7 +38,7 @@ How the tests drive the scenes:
 | `Session` | the campaign being played and its map (`SessionMap`, which owns a made map or borrows a test's layers), and `MapMakers`, makeCampaignMap and loadCampaign over the packs, the seam a test swaps |
 | `MapJob.h` | a map made on a worker: its progress, its result or its throw, and its cancel |
 | `CampaignStore` | the save and the history over salal's `SaveStore` |
-| `Words` | what the scenes call things: names from the packs and the rules' blockers worded |
+| `Words` | what the scenes call things: names from the packs and the rules' blockers worded. A driver is "Road Warrior 1" everywhere, the fight's seats included, and an archetype as a need "a Mechanic" |
 | `DevRoutes` | the game's dev server routes |
 | `Fonts` | the game's faces, a font family each, and the theme that puts ui's font roles on them |
 | `shaders/`, `tokens/`, `icons/`, `art/` | the base shader's fill hooks (`salal_base_shader`), the atlas theme (`salal_tokens`), the icons (`salal_icons`), and the flat-fill vector art (`salal_art`; `scripts/vector-art.mjs` writes the logo, the marks and the stamps), each built into the library |
@@ -53,7 +53,7 @@ How the tests drive the scenes:
 splash -> main_menu -> founding -> compound -> area_map -> run_route -> load_out -> run -> debrief -> compound
               |            ^           |                                             |  ^
               |            |           +-> campaign_end <- debrief                   |  |
-              +-> loading -+-> compound or run                                       battle
+              +-> loading -+-> compound or run                                       battle, event
               +-> settings
 ```
 
@@ -65,7 +65,8 @@ splash -> main_menu -> founding -> compound -> area_map -> run_route -> load_out
 - `area_map`: in the atlas ([area-map-route-pick.md](./area-map-route-pick.md) and [area-map-atlas-style.md](./area-map-atlas-style.md), each In the C++ alpha): the map drawn from the whole `AreaMap` the session holds, fitted to what's revealed, the POIs found as destinations, the chosen one's box, and Plan a run here.
 - `run_route`: pushed over the area map with a POI: the map cropped to its routes, a card per route, the picked route's stops and its time home against dark, and Load out the crew.
 - `load_out`: two seats and the pool, each driver who can't be seated faded with `seatBlocker`'s reason, and the escorts to bring. Start run is enabled once a departure tried on a copy of the campaign passes (`startRun`, then `departBlocker`), so the page's reason is the rules', and it seats one driver only when nobody else can be seated beside them (solo-driver-fights.md's call). Run decks are the defaults until Customize lands.
-- `run`: the route's stops in driving order, how far down them the run is, the crew and the cargo, and what `ahead` says comes next: a fight, a find to take or leave, an event's choices with `choiceBlocker`'s reasons, a reward to pick from, the objective, or the road home.
+- `run`: in the atlas ([mvp-supply-run.md](./mvp-supply-run.md), In the C++ alpha): the step `ahead` says comes next in a fresh box, a fight, a find to take or leave, an event to pull over for, a reward's cards as cards, the objective, or the road home; the crew and the cargo under it; the road's stops in driving order beside it; and the step's highway.
+- `event`: pushed over the run at an event stop ([event-screen.md](./event-screen.md), In the C++ alpha): the plate, the journal, and the choices as cards with `choiceBlocker`'s reasons; the outcome once one's taken, and back to the run or into its fight.
 - `battle`: each driver's hand as rows, a card's targets once it's picked (a card with one way to play plays at once), and the raiders with their intents (`intentsOf`) and who's arriving (`arrivalsOf`). Every play is one of `legalActions`, made with `apply`; the raiders plan each turn through `OpponentPolicies`. It finishes with the fight, and the run writes it back with `endRunFight`.
 - `debrief`: what a run brought home and the injuries it came back with, or what a failed one lost and what became of each seat, and the night after it.
 - `campaign_end`: how the compound fell and why, the days it held, and the tally. The rules have no win yet, so a fall is the only end.
