@@ -21,6 +21,8 @@ namespace game::atlas {
 
 		constexpr float kHighwayHeight = 68.0F;
 		constexpr float kBackRoadHeight = 46.0F;
+		constexpr float kCompactHeight = 30.0F;
+		constexpr float kCompactLabel = 15.0F;
 		constexpr float kHighwayBorder = 4.0F;
 		constexpr float kBackRoadBorder = 1.6F;
 		constexpr float kOffset = 3.0F; // the highway's casing beneath it
@@ -56,6 +58,7 @@ namespace game::atlas {
 		: label(args.label),
 		  road(args.road),
 		  shield(args.shield),
+		  compact(args.compact && args.road == Road::BackRoad),
 		  onPress(args.onPress) {}
 
 	void AtlasButton::setLabel(std::string value) {
@@ -83,14 +86,20 @@ namespace game::atlas {
 		layout.flexDirection = ui::FlexDirection::Row;
 		layout.alignItems = ui::AlignItems::Center;
 		layout.justifyContent = shield ? ui::JustifyContent::SpaceBetween : ui::JustifyContent::Center;
-		layout.padding = ui::Edges(0.0F, highway ? 20.0F : 14.0F);
+		layout.padding = ui::Edges(0.0F, highway ? 20.0F : (compact ? 8.0F : 14.0F));
 		layout.gap = 12.0F;
 		setLayout(layout);
-		setMinSize({0.0F, highway ? kHighwayHeight : kBackRoadHeight});
+		setMinSize({0.0F, highway ? kHighwayHeight : (compact ? kCompactHeight : kBackRoadHeight)});
 		const std::string id = getId();
+		ui::Style		  labelStyle = styles::print::backRoadLabel;
+		if (highway) {
+			labelStyle = styles::print::highwayLabel;
+		} else if (compact) {
+			labelStyle = styles::print::backRoadLabel.extend({.fontSize = kCompactLabel});
+		}
 		text = addChild<ui::Text>({
 			.id = id.empty() ? std::string() : id + "_label",
-			.style = highway ? styles::print::highwayLabel : styles::print::backRoadLabel,
+			.style = labelStyle,
 			.text = label,
 		});
 		if (shield) {

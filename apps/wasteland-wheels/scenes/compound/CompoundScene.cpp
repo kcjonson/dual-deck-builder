@@ -206,7 +206,9 @@ namespace game {
 						 .label = "Area map",
 						 .enabled = planOpen,
 						 .onPress = [this] { app().scenes().switchTo(scenes::kAreaMap); }},
-						{.id = "tab_crew", .label = "Crew", .enabled = false, .deckGlyph = true},
+						{.id = "tab_crew", .label = "Crew", .deckGlyph = true, .onPress = [this] {
+							 app().scenes().switchTo(scenes::kCrew);
+						 }},
 					}
 				);
 				ui::Layout layout = row.get()->getLayout();
@@ -329,19 +331,18 @@ namespace game {
 					);
 				}
 				const bool mapRoom = chosen == Building::MapRoom;
+				const bool bunkhouse = chosen == Building::Bunkhouse;
 				box.addChild<atlas::AtlasButton>({
 					.id = "open_building",
-					.enabled = mapRoom && !campaign.run.has_value(),
+					.enabled = bunkhouse || (mapRoom && !campaign.run.has_value()),
 					.label = "Open the " + lowered(buildingName(chosen)),
-					.onPress = [this] { app().scenes().switchTo(scenes::kAreaMap); },
+					.onPress = [this, bunkhouse] { app().scenes().switchTo(bunkhouse ? scenes::kCrew : scenes::kAreaMap); },
 				});
-				if (!mapRoom) {
+				if (!mapRoom && !bunkhouse) {
 					box.addChild<ui::Text>({
 						.id = "building_reason",
 						.style = styles::note,
-						.text = chosen == Building::Bunkhouse
-									? "The Crew screen isn't in the alpha yet."
-									: "The " + lowered(buildingName(chosen)) + "'s screen isn't in the alpha yet.",
+						.text = "The " + lowered(buildingName(chosen)) + "'s screen isn't in the alpha yet.",
 						.wrap = true,
 					});
 				}

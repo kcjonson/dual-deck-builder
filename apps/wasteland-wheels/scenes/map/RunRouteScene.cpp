@@ -106,7 +106,7 @@ namespace game {
 				 {.id = "main_menu", .label = "Menu", .onPress = [this] { app().scenes().switchTo(scenes::kMainMenu); }},
 				 {.id = "tab_compound", .label = "Compound", .onPress = [this] { app().scenes().switchTo(scenes::kCompound); }},
 				 {.id = "tab_area_map", .label = "Area map", .active = true},
-				 {.id = "tab_crew", .label = "Crew", .enabled = false, .deckGlyph = true},
+				 {.id = "tab_crew", .label = "Crew", .deckGlyph = true, .onPress = [this] { app().scenes().switchTo(scenes::kCrew); }},
 			 }
 		 );
 		// The back link on a line of its own over the title, so neither squeezes the other on a narrow plate.

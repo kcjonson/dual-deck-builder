@@ -83,7 +83,9 @@ namespace game {
 						 {.id = "main_menu", .label = "Menu", .onPress = [this] { app().scenes().switchTo(scenes::kMainMenu); }},
 						 {.id = "tab_compound", .label = "Compound", .onPress = [this] { app().scenes().switchTo(scenes::kCompound); }},
 						 {.id = "tab_area_map", .label = "Area map", .active = true},
-						 {.id = "tab_crew", .label = "Crew", .enabled = false, .deckGlyph = true},
+						 {.id = "tab_crew", .label = "Crew", .deckGlyph = true, .onPress = [this] {
+							  app().scenes().switchTo(scenes::kCrew);
+						  }},
 					 }
 				 );
 				page.heading.addChild<ui::Text>({.id = "title", .style = styles::screenTitle, .text = "The area map"});

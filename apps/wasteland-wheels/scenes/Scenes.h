@@ -16,6 +16,7 @@ namespace game::scenes {
 	inline constexpr const char* kLoading = "loading";
 	inline constexpr const char* kCompound = "compound";
 	inline constexpr const char* kAreaMap = "area_map";
+	inline constexpr const char* kCrew = "crew";
 	inline constexpr const char* kRun = "run";
 	inline constexpr const char* kCampaignEnd = "campaign_end";
 	// A developer's page of the game's vector art, for a launch to look at and the tests to lint.
@@ -32,6 +33,7 @@ namespace game::scenes {
 	[[nodiscard]] std::unique_ptr<app::Scene> makeLoadingScene();
 	[[nodiscard]] std::unique_ptr<app::Scene> makeCompoundScene();
 	[[nodiscard]] std::unique_ptr<app::Scene> makeAreaMapScene();
+	[[nodiscard]] std::unique_ptr<app::Scene> makeCrewScene();
 	[[nodiscard]] std::unique_ptr<app::Scene> makeRunScene();
 	[[nodiscard]] std::unique_ptr<app::Scene> makeCampaignEndScene();
 	[[nodiscard]] std::unique_ptr<app::Scene> makeArtGalleryScene();
