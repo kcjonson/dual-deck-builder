@@ -62,6 +62,9 @@ namespace game {
 		: fight(std::move(args.start.fight)) {}
 
 	void BattleScene::enter() {
+		if (game().session) {
+			seats = seatNames(game().session->campaign, game().rules.content);
+		}
 		afterAction();
 #ifdef SALAL_DEV_SERVER
 		app::DevServer& server = app().devServer();
@@ -129,9 +132,9 @@ namespace game {
 	std::string BattleScene::actionText(const Action& action) const {
 		if (const auto* play = std::get_if<rules::action::PlayCard>(&action)) {
 			const rules::BattleDriver& driver = fight.state.driver(play->driver);
-			return fighterName(fight.state, game().rules.content, play->driver) + " plays " +
+			return fighterName(fight.state, game().rules.content, play->driver, seats) + " plays " +
 				   game().rules.content.cards.at(driver.hand[static_cast<size_t>(play->handIndex)].card).name + " " +
-				   playText(fight.state, game().rules.content, *play);
+				   playText(fight.state, game().rules.content, *play, seats);
 		}
 		return "End the turn";
 	}
@@ -190,7 +193,7 @@ namespace game {
 			}
 			kit::text(
 				convoy,
-				fighterName(state, content, driver) + ": " + std::to_string(fighter.hitpoints) + "/" +
+				fighterName(state, content, driver, seats) + ": " + std::to_string(fighter.hitpoints) + "/" +
 					std::to_string(fighter.maxHitpoints) + " HP, " + std::to_string(fighter.adrenaline) + "/" +
 					std::to_string(fighter.maxAdrenaline) + " adrenaline, deck " + std::to_string(fighter.deck.size()) + ", discard " +
 					std::to_string(fighter.discard.size())
@@ -203,7 +206,9 @@ namespace game {
 		for (int index = 0; index < static_cast<int>(state.vehicles.size()); ++index) {
 			const rules::BattleVehicle& vehicle = state.vehicle(VehicleIndex{index});
 			if (vehicle.side == rules::Side::Player && vehicle.escort) {
-				kit::caption(convoy, vehicleName(state, content, VehicleIndex{index}) + ": " + vehicleLine(state, VehicleIndex{index}));
+				kit::caption(
+					convoy, vehicleName(state, content, VehicleIndex{index}, seats) + ": " + vehicleLine(state, VehicleIndex{index})
+				);
 			}
 		}
 
@@ -212,7 +217,7 @@ namespace game {
 			for (size_t index = 0; index < legal.size(); ++index) {
 				const auto* play = std::get_if<rules::action::PlayCard>(&legal[index]);
 				if (play && play->driver == picked->first && play->handIndex == picked->second) {
-					kit::listRow(targets, "target_" + std::to_string(index), playText(state, content, *play), "", [this, index] {
+					kit::listRow(targets, "target_" + std::to_string(index), playText(state, content, *play, seats), "", [this, index] {
 						act(index);
 					});
 				}
@@ -231,12 +236,12 @@ namespace game {
 			const std::optional<VehicleIndex> riding = rules::vehicleCarrying(state, driver);
 			kit::text(
 				raiders,
-				fighterName(state, content, driver) + ": " + std::to_string(fighter.hitpoints) + "/" +
+				fighterName(state, content, driver, seats) + ": " + std::to_string(fighter.hitpoints) + "/" +
 					std::to_string(fighter.maxHitpoints) + " HP" + (riding ? ", " + vehicleLine(state, *riding) : "")
 			);
 			for (const rules::Intent& intent : intents) {
 				if (intent.raider == driver) {
-					kit::caption(raiders, "  intends: " + intentText(state, content, intent));
+					kit::caption(raiders, "  intends: " + intentText(state, content, intent, seats));
 				}
 			}
 		}

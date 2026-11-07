@@ -21,10 +21,12 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace game {
 
@@ -72,11 +74,41 @@ namespace game {
 	// A card by its pack name, "Ram (2)" with its adrenaline cost.
 	[[nodiscard]] std::string cardText(const rules::Content& content, const rules::CardId& card);
 
-	// A fight's side of things: who a driver or a vehicle is, a play's target, and a raider's intent.
-	[[nodiscard]] std::string fighterName(const rules::BattleState& state, const rules::Content& content, rules::DriverIndex driver);
-	[[nodiscard]] std::string vehicleName(const rules::BattleState& state, const rules::Content& content, rules::VehicleIndex vehicle);
-	[[nodiscard]] std::string playText(const rules::BattleState& state, const rules::Content& content, const rules::action::PlayCard& play);
-	[[nodiscard]] std::string intentText(const rules::BattleState& state, const rules::Content& content, const rules::Intent& intent);
+	// "a Med Truck", "an Outrider".
+	[[nodiscard]] std::string withArticle(const std::string& name);
+
+	// "a Mechanic", "an Interceptor": an archetype as a need, by its title.
+	[[nodiscard]] std::string anArchetype(const rules::Content& content, const rules::DriverId& archetype);
+
+	// The run's seats by name, driver 1 first, as a fight's player drivers are: "Road Warrior 1".
+	[[nodiscard]] std::vector<std::string> seatNames(const rules::campaign::Campaign& campaign, const rules::Content& content);
+
+	// A fight's side of things: who a driver or a vehicle is, a play's target, and a raider's intent. A player's driver is
+	// named by its seat in `seats`, seatNames', or by its archetype's title without them.
+	[[nodiscard]] std::string fighterName(
+		const rules::BattleState&	 state,
+		const rules::Content&		 content,
+		rules::DriverIndex			 driver,
+		std::span<const std::string> seats = {}
+	);
+	[[nodiscard]] std::string vehicleName(
+		const rules::BattleState&	 state,
+		const rules::Content&		 content,
+		rules::VehicleIndex			 vehicle,
+		std::span<const std::string> seats = {}
+	);
+	[[nodiscard]] std::string playText(
+		const rules::BattleState&	   state,
+		const rules::Content&		   content,
+		const rules::action::PlayCard& play,
+		std::span<const std::string>   seats = {}
+	);
+	[[nodiscard]] std::string intentText(
+		const rules::BattleState&	 state,
+		const rules::Content&		 content,
+		const rules::Intent&		 intent,
+		std::span<const std::string> seats = {}
+	);
 	[[nodiscard]] std::string outcomeText(rules::Outcome outcome);
 
 } // namespace game
