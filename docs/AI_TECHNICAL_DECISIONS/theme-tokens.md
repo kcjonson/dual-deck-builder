@@ -48,6 +48,10 @@ Departures from worldsim's defaults, all allowed by 11.2 ("values are its defaul
 - `shadow_pop` is blur 24 at offset (0, 12) where the mock's inspected card is blur 40 at offset (0, 16); R11.5 says large blurs aren't used for elevation. Its colour is `shadow_strong`, not `scrim`, so re-theming the modal backdrop doesn't move a shadow.
 - Added tokens the spec names only in prose: `dur_tooltip_hide` (R12.22's 80 ms), `press_offset` (R11.12's 1 px), `control_fs_sm/md/lg` (R11.10's 13, 15, 18), `inset_field` and `inset_row` (R11.9), `tone_auto_crit` and `tone_auto_warn` (R11.10's 0.25 and 0.5), `tooltip_delay` 500 and `hover_move_tolerance` 4 (worldsim's literals). Icon sizes 14, 16, 20 are new; worldsim had no icon tokens.
 
+## In the C++ alpha
+
+2026-11-09. The starting palette above is the dark mode of the game's tokens (`apps/wasteland-wheels/tokens/modes/dark.tokens.json`), its colours in the `battle` group the modes share, which the battle scene loads ([battle-scene.md](./battle-scene.md)); the meta scenes load the atlas mode (UI Art Direction, Tokens). One resolver holds both, so every token exists in both modes.
+
 ## Not in the tokens yet
 
 - Game identity colours: the driver amber and teal, raider red, structure, armor, and HP hues from Battle Screen Design section 7. They are content colours, not UI accents, and R11.6 keeps the UI to two accents plus ok and crit, none of which reuses them. They go in the game's tokens file as base colours of their own.

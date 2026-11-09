@@ -41,5 +41,5 @@ The layout lint can't see words a card prints itself, so a test does the card da
 
 - The card's words aren't `ui::Text`, so the lint's overflowing-text rule doesn't see them; the card data test does.
 - Pinning and opening on focus are the card's, not salal's. A driver or escort card with a detail view of its own copies the pattern, or salal's tooltip service learns both.
-- The token has no tooltips on its chips and intents yet, and nothing fills it from the fight; both come with the battle scene's port.
+- The token has no tooltips on its chips and intents yet. The battle scene fills it from the fight (`road/RoadPicture`, [battle-scene.md](./battle-scene.md)).
 - Driver and escort cards (Game Flow 7.0's second table) came with the Crew screen and load out (`cards/DriverCard`, 104 by 146 on a riveted double frame, and `cards/EscortCard`, mini size under a hazard-stripe header), each drawing itself on the card's stock with its tags through `drawTag`. Neither has its detail view yet.
