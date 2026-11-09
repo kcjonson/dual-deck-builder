@@ -246,6 +246,42 @@ namespace game::testing {
 			return true;
 		}
 
+		// A pointer drag from the middle of one component to the middle of another, through the App's own input: the press,
+		// moves along the line past the drag threshold, and the release, a frame between each; false, with a failure, when
+		// either isn't there.
+		bool drag(std::string_view from, std::string_view to) {
+			ui::Component* source = find(from);
+			ui::Component* target = find(to);
+			if (source == nullptr || target == nullptr) {
+				ADD_FAILURE() << "nothing shown has the id " << (source == nullptr ? from : to) << " in " << top();
+				return false;
+			}
+			const Foundation::Rect start = source->screenBounds();
+			const Foundation::Rect end = target->screenBounds();
+			const Foundation::Vec2 a{start.x + start.width * 0.5F, start.y + start.height * 0.5F};
+			const Foundation::Vec2 b{end.x + end.width * 0.5F, end.y + end.height * 0.5F};
+			platform->push({.type = foundation::InputEvent::Type::PointerMove, .position = a});
+			platform->push(
+				{.type = foundation::InputEvent::Type::PointerDown, .mouseButton = foundation::MouseButton::Left, .position = a}
+			);
+			frame();
+			for (int step = 1; step <= 4; ++step) {
+				const float along = static_cast<float>(step) / 4.0F;
+				platform->push({.type = foundation::InputEvent::Type::PointerMove, .position = a + (b - a) * along});
+				frame();
+			}
+			platform->push({.type = foundation::InputEvent::Type::PointerUp, .mouseButton = foundation::MouseButton::Left, .position = b});
+			frame();
+			return true;
+		}
+
+		// A key pressed and let go, then a frame.
+		void key(foundation::Key pressed) {
+			platform->push({.type = foundation::InputEvent::Type::KeyDown, .key = pressed});
+			platform->push({.type = foundation::InputEvent::Type::KeyUp, .key = pressed});
+			frame();
+		}
+
 		[[nodiscard]] bool enabled(std::string_view id) {
 			ui::Component* component = find(id);
 			return component != nullptr && component->isEnabledInTree();

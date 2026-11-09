@@ -1,0 +1,39 @@
+{
+	"$schema": "https://www.designtokens.org/schemas/2025.10/resolver.json",
+	"version": "2025.10",
+	"description": "The game's theme: its palettes and styles in every mode, and a mode for each look, the atlas for the meta scenes and dark for the battle scene.",
+	"sets": {
+		"game": {
+			"sources": [
+				{
+					"$ref": "game.tokens.json"
+				}
+			]
+		}
+	},
+	"modifiers": {
+		"theme": {
+			"contexts": {
+				"atlas": [
+					{
+						"$ref": "modes/atlas.tokens.json"
+					}
+				],
+				"dark": [
+					{
+						"$ref": "modes/dark.tokens.json"
+					}
+				]
+			},
+			"default": "atlas"
+		}
+	},
+	"resolutionOrder": [
+		{
+			"$ref": "#/sets/game"
+		},
+		{
+			"$ref": "#/modifiers/theme"
+		}
+	]
+}

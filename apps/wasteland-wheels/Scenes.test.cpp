@@ -218,26 +218,31 @@ namespace {
 				ASSERT_TRUE(press("fight"));
 				ASSERT_EQ(top(), "battle");
 				auto& battle = *static_cast<BattleScene*>(app->scenes().top());
-				// One play through its rows, aimed where it has to be, then the turn ended through its button.
+				// One play dragged from the hand onto the vehicle it is aimed at, then the turn ended and played back.
 				const std::vector<rules::Action>& offered = battle.actions();
-				const auto						  play = std::ranges::find_if(offered, [](const rules::Action& action) {
-					   return std::holds_alternative<rules::action::PlayCard>(action);
-				   });
+				const auto						  oneDrop = [&](const rules::Action& action) {
+					   const auto* card = std::get_if<rules::action::PlayCard>(&action);
+					   return card != nullptr && card->target && std::ranges::all_of(offered, [&](const rules::Action& other) {
+								  const auto* same = std::get_if<rules::action::PlayCard>(&other);
+								  return same == nullptr || same->driver != card->driver || same->handIndex != card->handIndex ||
+										 (!same->destination && !same->occupant);
+							  });
+				};
+				const auto play = std::ranges::find_if(offered, oneDrop);
 				if (!fought && play != offered.end()) {
-					// Copied, since a play rebuilds what's on offer.
+					// Copied, since a play changes what is on offer.
 					const rules::action::PlayCard card = std::get<rules::action::PlayCard>(*play);
-					const auto					  index = static_cast<size_t>(play - offered.begin());
-					const auto					  ways = std::ranges::count_if(offered, [&](const rules::Action& action) {
-						   const auto* other = std::get_if<rules::action::PlayCard>(&action);
-						   return other && other->driver == card.driver && other->handIndex == card.handIndex;
-					   });
-					const int					  adrenaline = battle.current().state.driver(card.driver).adrenaline;
-					ASSERT_TRUE(press("hand_" + std::to_string(card.driver.value) + "_" + std::to_string(card.handIndex)));
-					if (ways > 1) {
-						ASSERT_TRUE(press("target_" + std::to_string(index)));
-					}
-					EXPECT_LT(battle.current().state.driver(card.driver).adrenaline, adrenaline);
+					const rules::BattleState	  before = battle.current().state;
+					ASSERT_TRUE(drag(
+						"hand_" + std::to_string(card.driver.value) + "_" + std::to_string(card.handIndex),
+						"vehicle_" + std::to_string(card.target->value)
+					));
+					EXPECT_NE(battle.current().state, before) << "the drop played the card";
 					ASSERT_TRUE(press("end_turn"));
+					for (int beat = 0; beat < 600 && battle.playing(); ++beat) {
+						frame();
+					}
+					EXPECT_FALSE(battle.playing());
 				}
 				fought = true;
 				battle.playOut();

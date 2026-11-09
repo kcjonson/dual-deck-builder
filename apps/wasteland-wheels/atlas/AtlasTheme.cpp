@@ -9,14 +9,26 @@
 
 namespace game::atlas {
 
-	const ui::Theme& theme() {
-		static const ui::Theme kTheme = [] {
-			ui::ThemeLoad load = ui::Theme::load({.tokens = &tokenTable(), .fontFamilies = fonts::familyNames()});
+	namespace {
+
+		ui::Theme load(const char* mode) {
+			ui::ThemeLoad load =
+				ui::Theme::load({.tokens = &tokenTable(), .inputs = {{"theme", mode}}, .fontFamilies = fonts::familyNames()});
 			for (const ui::dtcg::Diagnostic& diagnostic : load.diagnostics) {
-				LOG_ERROR(Game, "The atlas theme: %s", diagnostic.text().c_str());
+				LOG_ERROR(Game, "The game's theme, %s: %s", mode, diagnostic.text().c_str());
 			}
 			return std::move(load.theme);
-		}();
+		}
+
+	} // namespace
+
+	const ui::Theme& theme() {
+		static const ui::Theme kTheme = load("atlas");
+		return kTheme;
+	}
+
+	const ui::Theme& darkTheme() {
+		static const ui::Theme kTheme = load("dark");
 		return kTheme;
 	}
 

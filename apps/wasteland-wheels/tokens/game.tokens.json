@@ -1,5 +1,5 @@
 {
-	"$description": "The atlas theme (UI Art Direction): the palette as the game's base tokens, ui's semantic roles pointed at it, and the atlas's own text styles. The meta scenes load it; combat keeps ui's own.",
+	"$description": "The game's tokens every mode shares: the atlas palette and the battle screen's (theme-tokens.md), the faces, and the atlas's text styles. The modes under modes/ point ui's semantic roles at one palette or the other (game.resolver.json).",
 	"palette": {
 		"$type": "color",
 		"$description": "UI Art Direction, Palette: the atlas and the hand that marks it.",
@@ -121,6 +121,82 @@
 			"$value": { "colorSpace": "srgb", "components": [0.0784, 0.0588, 0.0392], "alpha": 0.75, "hex": "#140F0A" }
 		}
 	},
+	"battle": {
+		"$type": "color",
+		"$description": "Battle Screen Design 7 and theme-tokens.md: the battle mock's grounds and text, and the three UI hues nothing else on the road uses.",
+		"ground": {
+			"$value": { "colorSpace": "srgb", "components": [0.0667, 0.0706, 0.0784], "hex": "#111214" }
+		},
+		"asphalt": {
+			"$value": { "colorSpace": "srgb", "components": [0.102, 0.1098, 0.1176], "hex": "#1A1C1E" }
+		},
+		"inset": {
+			"$value": { "colorSpace": "srgb", "components": [0.1294, 0.1412, 0.1529], "hex": "#212427" }
+		},
+		"panel": {
+			"$value": { "colorSpace": "srgb", "components": [0.149, 0.1608, 0.1725], "hex": "#26292C" }
+		},
+		"panelRaised": {
+			"$value": { "colorSpace": "srgb", "components": [0.1882, 0.2039, 0.2275], "hex": "#30343A" }
+		},
+		"bone": {
+			"$value": { "colorSpace": "srgb", "components": [0.9137, 0.8941, 0.8392], "hex": "#E9E4D6" }
+		},
+		"muted": {
+			"$value": { "colorSpace": "srgb", "components": [0.6392, 0.6196, 0.5725], "hex": "#A39E92" }
+		},
+		"dim": {
+			"$value": { "colorSpace": "srgb", "components": [0.4353, 0.4196, 0.3882], "hex": "#6F6B63" }
+		},
+		"disabled": {
+			"$value": { "colorSpace": "srgb", "components": [0.3333, 0.3216, 0.298], "hex": "#55524C" }
+		},
+		"lineSubtle": {
+			"$value": { "colorSpace": "srgb", "components": [0.9137, 0.8941, 0.8392], "alpha": 0.1, "hex": "#E9E4D6" }
+		},
+		"lineEdge": {
+			"$value": { "colorSpace": "srgb", "components": [0.9137, 0.8941, 0.8392], "alpha": 0.2, "hex": "#E9E4D6" }
+		},
+		"lineStrong": {
+			"$value": { "colorSpace": "srgb", "components": [0.9137, 0.8941, 0.8392], "alpha": 0.36, "hex": "#E9E4D6" }
+		},
+		"warn": {
+			"$value": { "colorSpace": "srgb", "components": [0.9373, 0.8235, 0.3529], "hex": "#EFD25A" }
+		},
+		"warnSubtle": {
+			"$value": { "colorSpace": "srgb", "components": [0.9373, 0.8235, 0.3529], "alpha": 0.16, "hex": "#EFD25A" }
+		},
+		"warnActive": {
+			"$value": { "colorSpace": "srgb", "components": [0.9373, 0.8235, 0.3529], "alpha": 0.18, "hex": "#EFD25A" }
+		},
+		"data": {
+			"$value": { "colorSpace": "srgb", "components": [0.5176, 0.6078, 0.9608], "hex": "#849BF5" }
+		},
+		"dataSubtle": {
+			"$value": { "colorSpace": "srgb", "components": [0.5176, 0.6078, 0.9608], "alpha": 0.16, "hex": "#849BF5" }
+		},
+		"ok": {
+			"$value": { "colorSpace": "srgb", "components": [0.3373, 0.8235, 0.6196], "hex": "#56D29E" }
+		},
+		"okSubtle": {
+			"$value": { "colorSpace": "srgb", "components": [0.3373, 0.8235, 0.6196], "alpha": 0.16, "hex": "#56D29E" }
+		},
+		"crit": {
+			"$value": { "colorSpace": "srgb", "components": [0.9412, 0.4588, 0.702], "hex": "#F075B3" }
+		},
+		"critSubtle": {
+			"$value": { "colorSpace": "srgb", "components": [0.9412, 0.4588, 0.702], "alpha": 0.16, "hex": "#F075B3" }
+		},
+		"hover": {
+			"$value": { "colorSpace": "srgb", "components": [0.9137, 0.8941, 0.8392], "alpha": 0.06, "hex": "#E9E4D6" }
+		},
+		"pressed": {
+			"$value": { "colorSpace": "srgb", "components": [0.9137, 0.8941, 0.8392], "alpha": 0.1, "hex": "#E9E4D6" }
+		},
+		"scrim": {
+			"$value": { "colorSpace": "srgb", "components": [0, 0, 0], "alpha": 0.72, "hex": "#000000" }
+		}
+	},
 	"face": {
 		"$type": "fontFamily",
 		"$description": "The game's faces by the names Fonts.cpp registers them under.",
@@ -139,137 +215,6 @@
 			"$type": "dimension",
 			"$description": "The table showing round the screen sheet.",
 			"$value": { "value": 14, "unit": "px" }
-		}
-	},
-	"color": {
-		"$type": "color",
-		"surface": {
-			"base": {
-				"$value": "{palette.sheet}"
-			},
-			"raised": {
-				"$value": "{palette.paper}"
-			},
-			"sunken": {
-				"$value": "{palette.index}"
-			},
-			"overlay": {
-				"$value": "{palette.freshPaper}"
-			},
-			"control": {
-				"$value": "{palette.freshPaper}"
-			}
-		},
-		"text": {
-			"primary": {
-				"$value": "{palette.ink}"
-			},
-			"secondary": {
-				"$value": "{palette.inkDim}"
-			},
-			"disabled": {
-				"$value": "{palette.fadedPrint}"
-			},
-			"inverse": {
-				"$value": "{palette.onHighway}"
-			}
-		},
-		"line": {
-			"subtle": {
-				"$value": "{palette.inkHairline}"
-			},
-			"edge": {
-				"$value": "{palette.inkEdge}"
-			},
-			"strong": {
-				"$value": "{palette.inkStrong}"
-			}
-		},
-		"scrim": {
-			"$value": "{palette.tableScrim}"
-		},
-		"focus": {
-			"$value": "{palette.ink}"
-		}
-	},
-	"radius": {
-		"$type": "dimension",
-		"sm": {
-			"$value": { "value": 0, "unit": "px" }
-		},
-		"md": {
-			"$value": { "value": 0, "unit": "px" }
-		},
-		"lg": {
-			"$value": { "value": 0, "unit": "px" }
-		}
-	},
-	"tone": {
-		"$type": "color",
-		"accent": {
-			"color": {
-				"$value": "{palette.highway}"
-			},
-			"onColor": {
-				"$value": "{palette.onHighway}"
-			}
-		},
-		"info": {
-			"color": {
-				"$value": "{palette.river}"
-			},
-			"onColor": {
-				"$value": "{palette.onHighway}"
-			}
-		},
-		"positive": {
-			"color": {
-				"$value": "{palette.sage}"
-			},
-			"onColor": {
-				"$value": "{palette.onHighway}"
-			}
-		},
-		"warning": {
-			"color": {
-				"$value": "{palette.highway}"
-			},
-			"onColor": {
-				"$value": "{palette.onHighway}"
-			}
-		},
-		"danger": {
-			"color": {
-				"$value": "{palette.stronghold}"
-			},
-			"onColor": {
-				"$value": "{palette.onHighway}"
-			}
-		}
-	},
-	"state": {
-		"$type": "color",
-		"hover": {
-			"wash": {
-				"$value": "{palette.inkHover}"
-			}
-		},
-		"pressed": {
-			"wash": {
-				"$value": "{palette.inkPressed}"
-			}
-		},
-		"active": {
-			"wash": {
-				"$value": "{palette.highlighterActive}"
-			}
-		},
-		"disabled": {
-			"opacity": {
-				"$type": "number",
-				"$description": "Faded print: ink at 55%.",
-				"$value": 0.55
-			}
 		}
 	},
 	"styles": {

@@ -77,6 +77,64 @@ namespace game::road {
 		constexpr Foundation::Color kWreckDim = hex(0x5C5D5E);
 		constexpr Foundation::Color kWreckText = hex(0x8A8B8C);
 		constexpr Foundation::Color kStamp = hex(0xFF8A78);
+		constexpr Foundation::Color kDebuffEdge = hex(0xBE78E6, 0.6F);
+		constexpr Foundation::Color kMoveEdge = hex(0xD4513F, 0.55F);
+		constexpr Foundation::Color kBuffEdge = hex(0xA39E92, 0.6F);
+		// The aimed look (the mock's .valid, .targeted, i.ghost, .slotchip and .veh.acting).
+		constexpr Foundation::Color kGhostLight = hex(0xFFE2A0);
+		constexpr Foundation::Color kGhostDark = hex(0xC9953A);
+		constexpr float				kGhostStripe = 4.0F;
+		constexpr Foundation::Color kChipGround = hex(0x0D0E0F);
+		constexpr Foundation::Color kChipEdge = hex(0xE9E4D6, 0.2F);
+		constexpr Foundation::Color kChipText = hex(0x6F6B63);
+		constexpr Foundation::Color kChipInReach = hex(0xA39E92);
+		constexpr Foundation::Color kChipLandsEdge = hex(0xFF6A55);
+		constexpr Foundation::Color kChipLandsText = hex(0xFFB3A8);
+		constexpr Foundation::Color kActingGlow = hex(0xFF6E5A, 0.6F);
+		constexpr Foundation::Color kDim = hex(0x151618, 0.62F);
+		constexpr float				kOutlineGap = 3.0F;
+		constexpr float				kLegalWidth = 2.0F;
+		constexpr float				kChosenWidth = 3.0F;
+		constexpr float				kGlow = 22.0F;
+		constexpr float				kChipFace = 11.0F;
+
+		Foundation::Color intentEdge(rules::IntentKind kind) {
+			switch (kind) {
+				case rules::IntentKind::Attack:
+					return kRaiderRed;
+				case rules::IntentKind::Debuff:
+					return kDebuffEdge;
+				case rules::IntentKind::Defend:
+					return kArmor;
+				case rules::IntentKind::Move:
+					return kMoveEdge;
+				case rules::IntentKind::Buff:
+					return kBuffEdge;
+			}
+			return kRaiderRed;
+		}
+
+		Foundation::Color withAlpha(Foundation::Color color, float alpha) {
+			color.a = alpha;
+			return color;
+		}
+
+		// The 135 degree hatch the road's shoulders and the ghost share: stripes running up to the right, `stripe` wide
+		// and `stripe` apart across them, over `ground`.
+		void drawHatch(const Foundation::Rect& box, float stripe, Foundation::Color ground, Foundation::Color ink, int32_t key) {
+			Renderer::Primitives::drawRect({.bounds = box, .style = {.fill = ground}, .key = key});
+			Renderer::Primitives::pushClip(box);
+			const float step = stripe * 2.0F * std::numbers::sqrt2_v<float>;
+			for (float x = box.x - box.height; x < box.x + box.width + step; x += step) {
+				Renderer::Primitives::drawLine({
+					.start = {x, box.y + box.height},
+					.end = {x + box.height, box.y},
+					.style = {.color = ink, .width = stripe},
+					.key = key,
+				});
+			}
+			Renderer::Primitives::popClip();
+		}
 
 		Foundation::Color spriteTint(const TokenData& data) {
 			if (data.side == TokenSide::Raider) {
@@ -92,13 +150,21 @@ namespace game::road {
 			return std::to_string(meter.value) + "/" + std::to_string(meter.max);
 		}
 
-		void drawBar(const Foundation::Rect& bar, const Meter& meter, Foundation::Color fill, int32_t key) {
+		void drawBar(const Foundation::Rect& bar, const Meter& meter, Foundation::Color fill, int32_t key, int loss = 0) {
 			Renderer::Primitives::drawRect({.bounds = bar, .style = {.fill = kTrack}, .key = key});
-			const float share =
-				meter.max > 0 ? std::clamp(static_cast<float>(meter.value) / static_cast<float>(meter.max), 0.0F, 1.0F) : 0.0F;
+			const auto shareOf = [&meter](int value) {
+				return meter.max > 0 ? std::clamp(static_cast<float>(value) / static_cast<float>(meter.max), 0.0F, 1.0F) : 0.0F;
+			};
+			const float share = shareOf(meter.value);
 			if (share > 0.0F) {
 				Renderer::Primitives::drawRect(
 					{.bounds = {bar.x, bar.y, bar.width * share, bar.height}, .style = {.fill = fill}, .key = key}
+				);
+			}
+			if (loss > 0 && share > 0.0F) {
+				const float left = shareOf(meter.value - loss);
+				drawHatch(
+					{bar.x + bar.width * left, bar.y, bar.width * (share - left), bar.height}, kGhostStripe, kGhostDark, kGhostLight, key
 				);
 			}
 			cards::drawWords({
@@ -158,7 +224,24 @@ namespace game::road {
 
 	VehicleToken::VehicleToken(const Args& args)
 		: token(args.data),
-		  tokenScale(args.scale) {}
+		  tokenScale(args.scale),
+		  look(args.look) {}
+
+	void VehicleToken::setLook(std::function<TokenLook()> value) {
+		look = std::move(value);
+	}
+
+	Foundation::Rect VehicleToken::plateRect() const {
+		return {kPlateX, kPlateY, kPlateWidth, kPlateHeight + (token.passenger && token.side != TokenSide::Escort ? kPassengerRow : 0.0F)};
+	}
+
+	float VehicleToken::passengerRowY() {
+		return kPlateY + kPadY + kNameRow + kRowGap + kStructureRow + kRowGap + kHpRow + kRowGap;
+	}
+
+	float VehicleToken::inkExtent() const {
+		return kGlow * tokenScale;
+	}
 
 	float VehicleToken::heightFor(const TokenData& data) {
 		return data.passenger && data.side != TokenSide::Escort ? kPassengerHeight : kHeight;
@@ -235,17 +318,74 @@ namespace game::road {
 	}
 
 	void VehicleToken::render() {
-		const int32_t key = drawKey();
-		const bool	  wrecked = token.wreck != Wreck::None;
+		const int32_t	key = drawKey();
+		const bool		wrecked = token.wreck != Wreck::None;
+		const TokenLook shown = look ? look() : TokenLook{};
 		Renderer::Primitives::PushTransform(glm::scale(glm::mat4(1.0F), glm::vec3(tokenScale, tokenScale, 1.0F)));
+		// Glows go under the plate, so its opaque ground covers their middle.
+		if (shown.acting) {
+			cards::drawRounded(
+				plateRect(), 3.0F, kPlate, std::nullopt, 0.0F, key, std::nullopt, Foundation::BoxShadow{.color = kActingGlow, .blur = 10.0F}
+			);
+		}
+		if (shown.outline == TokenLook::Outline::Chosen) {
+			cards::drawRounded(
+				plateRect(),
+				3.0F,
+				kPlate,
+				std::nullopt,
+				0.0F,
+				key,
+				std::nullopt,
+				Foundation::BoxShadow{.color = withAlpha(shown.outlineColor, 0.45F), .blur = kGlow * 0.5F, .spread = kOutlineGap}
+			);
+		}
 		renderIntents(key, wrecked);
 		renderSprite(key, wrecked);
-		renderPlate(key, wrecked);
+		renderPlate(key, wrecked, shown);
 		renderChips(key, wrecked);
 		if (wrecked) {
 			renderStamp(key);
 		}
+		renderAim(key, shown);
 		Renderer::Primitives::PopTransform();
+	}
+
+	void VehicleToken::renderAim(int32_t key, const TokenLook& shown) {
+		if (shown.outline != TokenLook::Outline::None) {
+			const bool			   chosen = shown.outline == TokenLook::Outline::Chosen;
+			const float			   width = chosen ? kChosenWidth : kLegalWidth;
+			const float			   reach = kOutlineGap + width;
+			const Foundation::Rect plate = plateRect();
+			cards::drawRounded(
+				{plate.x - reach, plate.y - reach, plate.width + reach * 2.0F, plate.height + reach * 2.0F},
+				3.0F + reach,
+				{0.0F, 0.0F, 0.0F, 0.0F},
+				shown.outlineColor,
+				width,
+				key,
+				chosen ? std::nullopt : std::optional(Foundation::DashPattern{.dash = 6.0F, .gap = 4.0F})
+			);
+		}
+		if (shown.rangeChip) {
+			const float			   text = cards::wordsWidth(*shown.rangeChip, fonts::kMono, kChipFace);
+			const Foundation::Rect chip{0.0F, 2.0F, text + 10.0F, kChipFace + 6.0F};
+			cards::drawRounded(chip, 2.0F, kChipGround, shown.chipLands ? kChipLandsEdge : kChipEdge, 1.0F, key);
+			cards::drawWords({
+				.text = *shown.rangeChip,
+				.at = {chip.x, chip.y},
+				.face = fonts::kMono,
+				.size = kChipFace,
+				.color = shown.chipLands ? kChipLandsText : (*shown.rangeChip == "OUT" ? kChipText : kChipInReach),
+				.align = Foundation::HorizontalAlign::Center,
+				.boxWidth = chip.width,
+				.boxHeight = chip.height,
+				.key = key,
+			});
+		}
+		if (shown.dimmed) {
+			Renderer::Primitives::drawRect({.bounds = {0.0F, 0.0F, kWidth, heightFor(token)}, .style = {.fill = kDim}, .key = key});
+		}
 	}
 
 	void VehicleToken::renderIntents(int32_t key, bool wrecked) {
@@ -255,11 +395,13 @@ namespace game::road {
 		float						   right = kWidth;
 		const std::vector<std::string> shown = shownIntents();
 		for (size_t index = shown.size(); index-- > 0;) {
-			const bool			   more = index >= static_cast<size_t>(kMaxIntents);
-			const float			   text = cards::wordsWidth(shown[index], fonts::kDisplayBold, 15.0F);
-			const float			   width = 6.0F + text + (more ? 0.0F : 4.0F + 10.0F) + 6.0F;
-			const Foundation::Rect pill{right - width, (kIntentStrip - kIntentHeight) * 0.5F, width, kIntentHeight};
-			cards::drawRounded(pill, kIntentHeight * 0.5F, kIntentGround, kRaiderRed, 1.5F, key);
+			const bool						more = index >= static_cast<size_t>(kMaxIntents);
+			const std::optional<TargetMark> mark = more ? std::nullopt : token.intents[index].mark;
+			const Foundation::Color			edge = more ? kBuffEdge : intentEdge(token.intents[index].kind);
+			const float						text = cards::wordsWidth(shown[index], fonts::kDisplayBold, 15.0F);
+			const float						width = 6.0F + text + (mark ? 4.0F + 10.0F : 0.0F) + 6.0F;
+			const Foundation::Rect			pill{right - width, (kIntentStrip - kIntentHeight) * 0.5F, width, kIntentHeight};
+			cards::drawRounded(pill, kIntentHeight * 0.5F, kIntentGround, edge, 1.5F, key);
 			cards::drawWords({
 				.text = shown[index],
 				.at = {pill.x + 6.0F, pill.y},
@@ -269,10 +411,8 @@ namespace game::road {
 				.boxHeight = pill.height,
 				.key = key,
 			});
-			if (!more) {
-				drawMark(
-					token.intents[index].mark, {pill.x + 6.0F + text + 4.0F + 5.0F, pill.y + pill.height * 0.5F}, 10.0F, kRaiderRed, key
-				);
+			if (mark) {
+				drawMark(*mark, {pill.x + 6.0F + text + 4.0F + 5.0F, pill.y + pill.height * 0.5F}, 10.0F, withAlpha(edge, 1.0F), key);
 			}
 			right = pill.x - 4.0F;
 		}
@@ -313,7 +453,7 @@ namespace game::road {
 		});
 	}
 
-	void VehicleToken::renderPlate(int32_t key, bool wrecked) {
+	void VehicleToken::renderPlate(int32_t key, bool wrecked, const TokenLook& shown) {
 		const bool	escort = token.side == TokenSide::Escort;
 		const bool	striped = token.side == TokenSide::Player && token.seat.has_value();
 		const float height = kPlateHeight + (token.passenger && !escort ? kPassengerRow : 0.0F);
@@ -376,7 +516,8 @@ namespace game::road {
 			{barX, y + (kStructureRow - kStructureBar) * 0.5F, right - barX, kStructureBar},
 			token.structure,
 			wrecked ? kWreckDim : kStructure,
-			key
+			key,
+			shown.structureLoss
 		);
 		y += kStructureRow + kRowGap;
 
@@ -385,13 +526,13 @@ namespace game::road {
 		if (hp) {
 			const Foundation::Color fill = wrecked ? kWreckDim : (escort ? kPassenger : kHp);
 			drawHeart({left + kLead * 0.5F, y + kHpRow * 0.5F}, escort ? 10.0F : 14.0F, fill, key);
-			drawBar({barX, y + (kHpRow - kHpBar) * 0.5F, right - barX, kHpBar}, *hp, fill, key);
+			drawBar({barX, y + (kHpRow - kHpBar) * 0.5F, right - barX, kHpBar}, *hp, fill, key, shown.driverLoss);
 		}
 		y += kHpRow + kRowGap;
 		if (token.passenger && !escort) {
 			const Foundation::Color fill = wrecked ? kWreckDim : kPassenger;
 			drawHeart({left + kLead * 0.5F, y + 7.0F}, 10.0F, fill, key);
-			drawBar({barX, y + 1.0F, right - barX, kPassengerBar}, *token.passenger, fill, key);
+			drawBar({barX, y + 1.0F, right - barX, kPassengerBar}, *token.passenger, fill, key, shown.passengerLoss);
 		}
 	}
 
