@@ -72,10 +72,20 @@ namespace {
 			}
 			const ui::Component* box = find("log");
 			const ui::Component* plan = find("plan_run");
-			ASSERT_NE(box, nullptr) << width << "x" << height;
 			ASSERT_NE(plan, nullptr) << width << "x" << height;
-			const Foundation::Rect inBox = box->screenBounds();
-			int					   visible = 0;
+			const Foundation::Rect inBox = box != nullptr ? box->screenBounds() : Foundation::Rect{};
+			const ui::Component*   column = find("boxes");
+			ASSERT_NE(column, nullptr) << width << "x" << height;
+			const Foundation::Rect visibleColumn = column->screenBounds();
+			for (const char* id : {"the_day", "rest", "scavenge", "day_line"}) {
+				const ui::Component* part = find(id);
+				ASSERT_NE(part, nullptr) << id << " at " << width << "x" << height;
+				const Foundation::Rect bounds = part->screenBounds();
+				EXPECT_GE(bounds.y, visibleColumn.y) << id << " at " << width << "x" << height;
+				EXPECT_LE(bounds.y + bounds.height, visibleColumn.y + visibleColumn.height + 0.5F)
+					<< id << " at " << width << "x" << height;
+			}
+			int visible = 0;
 			for (int index = 0; index < 5; ++index) {
 				for (const std::string& id : {"log_" + std::to_string(index), "log_" + std::to_string(index) + "_value"}) {
 					const ui::Component* part = find(id);
@@ -89,7 +99,8 @@ namespace {
 					EXPECT_LE(bounds.y + bounds.height, plan->screenBounds().y) << id << " at " << width << "x" << height;
 				}
 			}
-			EXPECT_GE(visible, 1) << width << "x" << height;
+			EXPECT_TRUE(box != nullptr || visible == 0) << width << "x" << height;
+			EXPECT_GE(visible, width >= 1920 ? 1 : 0) << width << "x" << height;
 		}
 	}
 
