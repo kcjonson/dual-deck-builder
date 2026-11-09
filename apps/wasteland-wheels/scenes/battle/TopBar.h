@@ -5,6 +5,7 @@
 // text is in the log), and the LOG toggle, which opens and closes the drawer.
 
 #include <ui/Component.h>
+#include <ui/shapes/Text.h>
 
 #include <functional>
 #include <string>
@@ -38,13 +39,23 @@ namespace game::battle {
 		[[nodiscard]] const char* typeName() const override { return "TopBar"; }
 
 		// Everything below is the implementer's to change; the public API above is what the scene uses.
+		static constexpr float kHeight = 36.0F;
+
 	  protected:
 		void onMount() override;
 		void render() override;
 
 	  private:
-		std::function<void()> onToggleLog;
-		TopBarPicture		  shown;
+		void refresh();
+
+		std::function<void()>  onToggleLog;
+		TopBarPicture		   shown;
+		ui::Ref<ui::Text>	   wave;
+		ui::Ref<ui::Text>	   arriving;
+		ui::Ref<ui::Text>	   turn;
+		ui::Ref<ui::Text>	   whose;
+		ui::Ref<ui::Component> ticker;
+		ui::Ref<ui::Component> logButton;
 	};
 
 } // namespace game::battle

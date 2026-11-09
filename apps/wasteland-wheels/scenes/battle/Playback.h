@@ -15,6 +15,7 @@
 #include <rules/battle/BattleEvent.h>
 #include <rules/battle/BattleState.h>
 
+#include <cstddef>
 #include <optional>
 #include <vector>
 
@@ -33,7 +34,8 @@ namespace game::battle {
 
 	class Playback {
 	  public:
-		// Starts showing `events`, which took the fight from `before` to `after`. Anything still playing lands first.
+		// Starts showing `events`, which took the fight from `before` to `after`. Anything still playing lands first. No
+		// events make no beats: it isn't playing, and shows `after`.
 		void			   start(const rules::BattleState& before, const rules::BattleState& after, std::vector<rules::Event> events);
 		[[nodiscard]] bool playing() const;
 		// What the screen shows: the picture as the beats so far have moved it, or the fight itself once they've landed.
@@ -45,9 +47,17 @@ namespace game::battle {
 
 		// Everything below is the implementer's to change; the public API above is what the scene uses.
 	  private:
+		struct Timed {
+			double at = 0.0;
+			Beat   beat;
+		};
+
+		[[nodiscard]] Beat land(Timed& timed);
+
 		rules::BattleState picture;
 		rules::BattleState settled;
-		std::vector<Beat>  pending;
+		std::vector<Timed> pending;
+		size_t			   next = 0; // the first beat in `pending` still to land
 		double			   clock = 0.0;
 	};
 
