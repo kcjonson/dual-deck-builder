@@ -11,14 +11,15 @@
 // A card that can't be played dims, with its blocked strip when it has one, and takes no drag.
 //
 // Locked for the enemy turn and once the fight is over: the hands drop 60 and grey under the scrim, nothing takes input,
-// and End Turn reads WAIT.
+// and End Turn reads WAIT. Once the fight is over the column shows the outcome and Leave the fight in End Turn's place,
+// which takes input locked or not.
 
 #include "cards/Card.h"
 #include "scenes/battle/BattleAim.h"
 #include "scenes/battle/Targeting.h"
 
 #include <rules/battle/BattleState.h>
-#include <rules/core/Content.h>
+#include <rules/packs/Pack.h>
 
 #include <ui/Component.h>
 
@@ -29,6 +30,16 @@
 #include <vector>
 
 namespace game::battle {
+
+	// The dock's own parts, in Dock.cpp.
+	namespace dock {
+		class Button;
+		class Column;
+		class HandCardView;
+		class Note;
+		class Scrim;
+		class Tab;
+	} // namespace dock
 
 	struct DockCard {
 		HandCard					 card;
@@ -45,12 +56,13 @@ namespace game::battle {
 		rules::DriverIndex		   driver;
 		int						   seat = 0; // 0 or 1: the mark, the colour, the half
 		std::string				   name;
-		std::optional<std::string> tag; // PASSENGER, CRASHED OUT
+		std::optional<std::string> tag; // PASSENGER, CRASHED OUT, DOWN
 		int						   adrenaline = 0;
 		int						   maxAdrenaline = 0;
 		int						   draw = 0;
 		int						   discard = 0;
 		bool					   crashedOut = false;
+		bool					   down = false; // dead, so out of the fight with no hand, as a crashed-out driver is
 		std::vector<DockCard>	   hand;
 
 		bool operator==(const DockHalf&) const = default;
@@ -61,6 +73,8 @@ namespace game::battle {
 		int					  turn = 1;
 		int					  unspent = 0; // adrenaline left across both drivers who can still play
 		bool				  canEndTurn = false;
+		// Set once the fight is over: the End Turn column shows it and Leave the fight (id "leave").
+		std::optional<std::string> outcome;
 
 		bool operator==(const DockPicture&) const = default;
 	};
@@ -82,6 +96,7 @@ namespace game::battle {
 			std::function<void(std::optional<HandCard>)> onPresented;	   // the playable card pointed at or focused, or none
 			std::function<void(const HandCard&)>		 onDragStart;
 			std::function<void(const HandCard&, bool)>	 onDragEnd; // dropped on a target that took it, or not
+			std::function<void()>						 onLeave;
 		};
 
 		explicit Dock(const Args& args);
@@ -103,9 +118,42 @@ namespace game::battle {
 		void render() override;
 
 	  private:
-		Args		args;
-		DockPicture shown;
-		bool		isLocked = false;
+		// A driver's half: the tab over the fan, or the note that takes the fan's place once they're out of the fight.
+		struct Half {
+			rules::DriverIndex					driver;
+			ui::Ref<ui::Component>				root;
+			ui::Ref<dock::Tab>					tab;
+			ui::Ref<ui::Component>				fan;
+			ui::Ref<dock::Note>					note;
+			std::vector<ui::Ref<ui::Component>> cards; // dock::HandCardView, in hand order
+		};
+
+		void showHalf(Half& half, const DockHalf& picture);
+		// Where everything goes for the dock's width: on show, on lock, and on every layout pass that resizes it.
+		void				place();
+		void				placeFan(const Half& half, float width);
+		[[nodiscard]] float width() const;
+		void				cardChanged();
+		void				refreshPresented();
+		void				refreshEndTurnPreview();
+		void				applyLock();
+		void				applyDrop(float progress);
+
+		Args					args;
+		DockPicture				shown;
+		bool					isLocked = false;
+		ui::Ref<ui::Component>	hands;
+		ui::Ref<dock::Scrim>	scrim;
+		ui::Ref<dock::Column>	column;
+		ui::Ref<dock::Button>	endTurn;
+		ui::Ref<dock::Button>	leave;
+		std::vector<Half>		halves;
+		std::vector<HandCard>	presenting; // lit and playable, the latest last
+		std::optional<HandCard> presented;
+		bool					previewing = false;
+		std::optional<HandCard> dragged;
+		float					drop = 0.0F; // 0 with the hands in place, 1 dropped for the enemy turn
+		ui::Tween<float>		dropTween;
 	};
 
 } // namespace game::battle
