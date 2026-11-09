@@ -57,10 +57,20 @@ namespace game::battle {
 
 		// Everything below is the implementer's to change; the public API above is what the scene uses.
 	  protected:
-		void onMount() override;
+		void							onMount() override;
+		void							render() override;
+		[[nodiscard]] ui::PointerEvents defaultPointerEvents() const override { return ui::PointerEvents::Auto; }
 
 	  private:
-		std::vector<LogLine> kept;
+		void			   addRow(const LogLine& line);
+		[[nodiscard]] bool atFoot() const;
+		// Scrolls to the newest line after the layout that placed it, when the reader was at the foot.
+		void followFoot();
+
+		std::vector<LogLine>   kept;
+		ui::Ref<ui::Component> scroller;
+		ui::Ref<ui::Component> column;
+		bool				   following = true;
 	};
 
 } // namespace game::battle
