@@ -18,8 +18,9 @@ namespace game::battle {
 
 	class TurnBanner : public ui::Component {
 	  public:
-		// How long a banner holds before it starts to leave, and how long it takes to come and go.
-		static constexpr float kHold = 1.0F;
+		// How long a banner holds before it starts to leave, and how long it takes to come and go: in and held, it starts to
+		// leave as the raiders' first step lands (Playback's kEnemyLeadIn).
+		static constexpr float kHold = 0.7F;
 		static constexpr float kMotion = 0.2F;
 
 		struct Args {
