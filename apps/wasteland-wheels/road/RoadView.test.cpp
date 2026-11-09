@@ -360,6 +360,26 @@ namespace {
 		EXPECT_EQ(described["pops"], 0);
 	}
 
+	TEST_F(RoadViews, TwoHitsOnOneVehicleStackClearOfEachOtherAndTheTitleRow) {
+		open(false);
+		view().popNumber(VehicleIndex{2}, "-12", false);
+		view().popNumber(VehicleIndex{2}, "-3", false);
+		const VehicleToken* on = view().token(VehicleIndex{2});
+		ASSERT_NE(on, nullptr);
+		const float titleBottom = on->getPosition().y + VehicleToken::titleRowBottom() * on->scale();
+		for (int step = 0; step < 8; ++step) {
+			const auto boxes = view().popBoxes();
+			ASSERT_EQ(boxes.size(), 2U);
+			const Foundation::Rect a = boxes[0].box;
+			const Foundation::Rect b = boxes[1].box;
+			const bool			   apart = a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y;
+			EXPECT_TRUE(apart) << "step " << step;
+			EXPECT_GE(a.y, titleBottom) << "step " << step;
+			EXPECT_GE(b.y, titleBottom) << "step " << step;
+			frame(0.1);
+		}
+	}
+
 	TEST_F(RoadViews, TheHandsPreviewAndTheEndTurnLinesDrawOverTheRoadUntilTakenDown) {
 		open(false);
 		RoadPicture planned = picture();

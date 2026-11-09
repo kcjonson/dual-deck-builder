@@ -239,6 +239,10 @@ namespace game::road {
 		return kPlateY + kPadY + kNameRow + kRowGap + kStructureRow + kRowGap + kHpRow + kRowGap;
 	}
 
+	float VehicleToken::titleRowBottom() {
+		return kPlateY + kPadY + kNameRow;
+	}
+
 	float VehicleToken::inkExtent() const {
 		return kGlow * tokenScale;
 	}
