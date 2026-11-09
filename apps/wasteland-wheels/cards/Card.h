@@ -9,7 +9,9 @@
 // stack, its count and the tag are the card's own draws past its box, its ink (mini-card.md).
 //
 // Hover opens the detail view beside it after the tooltip delay, keyboard focus at once; a secondary click or I pins it
-// open, and again, or Escape, lets it go. A press is its onPress. Unaffordable dims it through colours, its cost dark red.
+// open, and again, or Escape, lets it go. A press is its onPress; with none, an activate passes on to whatever holds the
+// card, so a drag source picks it up. Unaffordable dims it through colours, its cost dark red; blocked dims it too, with a
+// strip across its art saying why.
 
 #include "cards/CardInk.h"
 #include "cards/CardStyle.h"
@@ -23,6 +25,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace game::cards {
@@ -41,6 +44,7 @@ namespace game::cards {
 			int							 copies = 1;
 			MiniState					 state = MiniState::None;
 			bool						 unaffordable = false;
+			std::optional<std::string>	 blocked; // a face's strip: NO ATTACKS, NO TARGET, CAN'T PLAY
 			bool						 selected = false;
 			bool						 inspectable = true;
 			std::function<void()>		 onPress;
@@ -59,6 +63,9 @@ namespace game::cards {
 		[[nodiscard]] bool faded() const;
 		[[nodiscard]] bool isPinned() const { return pinnedView.get() != nullptr; }
 		void			   setPinned(bool pinned);
+		// A hand's card stays the same element while its driver's adrenaline and the road change what it can do.
+		void setUnaffordable(bool value) { unaffordable = value; }
+		void setBlocked(std::optional<std::string> value) { blocked = std::move(value); }
 
 		[[nodiscard]] const char* typeName() const override { return "Card"; }
 		[[nodiscard]] float		  inkExtent() const override;
@@ -88,6 +95,7 @@ namespace game::cards {
 		int							 copies;
 		MiniState					 state;
 		bool						 unaffordable;
+		std::optional<std::string>	 blocked;
 		bool						 selected;
 		bool						 inspectable;
 		std::function<void()>		 onPress;

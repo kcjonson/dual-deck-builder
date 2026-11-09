@@ -40,7 +40,9 @@ add_library(ddb_game STATIC
     scenes/Scenes.cpp
     scenes/battle/BattleLog.cpp
     scenes/battle/BattleScene.cpp
+    scenes/battle/Dock.cpp
     scenes/battle/Playback.cpp
+    scenes/battle/Targeting.cpp
     scenes/battle/TopBar.cpp
     scenes/battle/TurnBanner.cpp
     scenes/compound/CompoundPlate.cpp

@@ -41,6 +41,9 @@ namespace game::cards {
 	inline constexpr Foundation::Color kDigits = hex(0x111214);
 	// "Unaffordable cards dim and their cost turns dark red" (Battle Screen Design 6).
 	inline constexpr Foundation::Color kDigitsUnpayable = hex(0x8D1D12);
+	// The strip across a card that can't be played for a reason other than its cost (the mock's .pblock).
+	inline constexpr Foundation::Color kBlockedText = hex(0xFFD0C8);
+	inline constexpr Foundation::Color kBlockedBand = hex(0x5A1F18, 0.95F);
 	inline constexpr Foundation::Color kArtGlyph = hex(0xE9E4D6, 0.22F);
 	// Hover and keyboard focus outline a card in the interaction yellow (Battle Screen Design 7); a selected one is brighter.
 	inline constexpr Foundation::Color kHover = hex(0xEFD25A);
@@ -112,6 +115,12 @@ namespace game::cards {
 		inline constexpr float			  kFootSize = 11.0F;
 		// How far it draws past its box: the hex and its edge, and the focus ring.
 		inline constexpr float kInk = 9.0F;
+		// The blocked strip, over the art: 6 in from each side, 64 down, its words from the left (call 367).
+		inline constexpr float kBlockedInset = 6.0F;
+		inline constexpr float kBlockedY = 64.0F;
+		inline constexpr float kBlockedHeight = 16.0F;
+		inline constexpr float kBlockedSize = 11.0F;
+		inline constexpr float kBlockedPad = 5.0F;
 	} // namespace face
 
 	// The mini card, 80 by 112 (Game Flow 7.0, mini-card.md): the face less the summary.
