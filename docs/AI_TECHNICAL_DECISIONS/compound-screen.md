@@ -68,7 +68,7 @@ Each is the simplest option where the spec leaves a choice open, and a line or t
 
 2026-11-02. The alpha's compound is UI Art Direction's, in the atlas theme, the first scene built in it (`apps/wasteland-wheels/scenes/compound/`, its parts in `atlas/`).
 
-One W2 sheet on the table, with section tabs hanging from its top edge: Menu, Compound, Area map, and Crew. The left column is the title, "day 9, dawn" beside it, the resource strip (a store that runs out within two days goes Stronghold red, with a line under the strip naming it), the plate, and its caption. The right column, 452 px, holds the chosen building's box, Needs, The day, and the log, which scroll together when the window is short, over Plan a supply run pinned at its foot with the number of destinations on the area map under it.
+One W2 sheet on the table, with section tabs hanging from its top edge: Menu, Compound, Area map, and Crew. The left column is the title, "day 9, dawn" beside it, the resource strip (a store that runs out within two days goes Stronghold red, with a line under the strip naming it), the plate, and its caption. The right column, 452 px, holds the chosen building's box, Needs, and The day, which scroll together when the window is short, over the log and Plan a supply run pinned at its foot with the number of destinations on the area map under it. The log takes the room the boxes above leave, never less than its head and one wrapped entry (the boxes scroll instead), and shows the newest entries that fit whole in it, so no entry is cut at the button or the box's edge and every dated tag stays with its entry.
 
 The plate is drawn as vector from the buildings the campaign holds (`CompoundPlate`), the canvas mock's yard mapped onto the plate so it fills it at every window size (positions by each axis, sizes by the smaller scale, so round things stay round): a corrugated roof and its shadow where one stands, string on stakes over the rust hatch where it doesn't, each labelled with its circled number, and its name and state in a paper halo. Each plot is a hit target placed in percentages of the plate; choosing one moves the grease-pencil loop to it and fills the box, which is fresh paper: the number, name, and state, the description, the bunkhouse's deck glyph with its drivers and default decks, and "Open the bunkhouse" and the like, disabled with the reason under it while the building's scene isn't in the alpha. The map room's opens the area map. An unbuilt building says it isn't built. The plate is one focus group, its arrows moving between plots and Enter choosing.
 
@@ -78,7 +78,7 @@ Provisional calls, each a line or two to change:
 
 - The Area map tab opens the area map, as Plan a supply run does, and turns off while a run is out. The Crew tab and the bunkhouse's Open the bunkhouse open the Crew screen.
 - With a run out, the highway is Back on the road, or Give up the load out for a load out not yet on the road.
-- The log shows five entries.
+- The log keeps five entries and shows as many of them as fit; the rest are hidden, not scrolled.
 - The plate starts on the first building the campaign holds.
 - Escape to the menu, focus starting on Menu, and the double-click guard aren't ported yet.
 

@@ -26,6 +26,7 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <memory>
 #include <optional>
 #include <string>
 #include <tuple>
@@ -43,7 +44,9 @@ namespace game {
 		// diamond.
 		constexpr int	 kShortWithinDays = 2;
 		constexpr size_t kLogLines = 5;
-		constexpr float	 kOrdersWidth = 452.0F;
+		// The least the log box is given, its head and a wrapped entry; Needs and the rest scroll instead of squeezing it past that.
+		constexpr float kLogMinHeight = 150.0F;
+		constexpr float kOrdersWidth = 452.0F;
 
 		ui::Layout column(float gap) {
 			return {
@@ -127,6 +130,54 @@ namespace game {
 			const bool both = what.find(" and ") != std::string::npos;
 			return what + (both ? " run out " : " runs out ") +
 				   (soonest == 0 ? std::string("tonight") : "in " + counted(soonest, "day", "days"));
+		}
+
+		// The log shows the newest entries that fit whole in the room its box is given, the rest hidden; a hidden entry's height
+		// is kept from when it last showed, and a new width starts the count again.
+		struct LogFit {
+			std::vector<float> heights;
+			float			   width = -1.0F;
+		};
+
+		void fitLog(ui::Component& box, ui::Component& rows, LogFit& fit) {
+			ui::Context* context = rows.getContext();
+			const auto&	 entries = rows.getChildren();
+			if (context == nullptr || entries.empty()) {
+				return;
+			}
+			bool reshown = false;
+			if (rows.getSize().x != fit.width) {
+				fit.width = rows.getSize().x;
+				fit.heights.assign(entries.size(), 0.0F);
+				for (const ui::ComponentId id : entries) {
+					ui::Component* entry = context->find(id);
+					reshown = reshown || !entry->isVisible();
+					entry->setVisible(true);
+				}
+			}
+			if (reshown) {
+				return;
+			}
+			for (size_t index = 0; index < entries.size(); ++index) {
+				const ui::Component* entry = context->find(entries[index]);
+				if (entry->isVisible()) {
+					fit.heights[index] = entry->getSize().y;
+				}
+			}
+			const float below = box.getLayout().padding.bottom;
+			const float top = rows.getBounds().y;
+			const float room = box.getSize().y - below - top;
+			float		used = 0.0F;
+			size_t		count = 0;
+			while (count < entries.size() && used + fit.heights[count] <= room + 0.5F) {
+				used += fit.heights[count];
+				++count;
+			}
+			for (size_t index = 0; index < entries.size(); ++index) {
+				context->find(entries[index])->setVisible(index < count);
+			}
+			// Everything fitting, the box is as tall as its entries rather than as the room.
+			box.setMaxSize({ui::kAuto, count == entries.size() ? ui::Length(top + used + below) : ui::kAuto});
 		}
 
 		class CompoundScene final : public GameScene<> {
@@ -289,7 +340,7 @@ namespace game {
 				buildingBox(boxes, campaign);
 				needsBox(boxes, campaign);
 				dayBox(boxes, campaign);
-				logBox(boxes, campaign);
+				logBox(right, campaign);
 				primary(right, campaign);
 			}
 
@@ -435,18 +486,34 @@ namespace game {
 				}
 			}
 
-			void logBox(ui::Ref<ui::Component> boxes, const Campaign& campaign) {
-				ui::Ref<atlas::LegendBox> box = boxes.addChild<atlas::LegendBox>({
+			void logBox(ui::Ref<ui::Component> right, const Campaign& campaign) {
+				auto					  fit = std::make_shared<LogFit>();
+				ui::Ref<atlas::LegendBox> box = right.addChild<atlas::LegendBox>({
 					.id = "log",
+					.minSize = {0.0F, kLogMinHeight},
+					.layout = {.flexGrow = 1.0F, .flexShrink = 1000.0F},
 					.look = {.seed = atlas::paperSeed("compound/log"), .grab = atlas::Corner::TopRight},
 					.title = "Log",
 				});
-				ui::Ref<ui::Component>	  rows = box.addChild<ui::Component>({.layout = column(0.0F)});
-				const size_t			  shown = std::min(campaign.log.size(), kLogLines);
+				ui::Ref<ui::Component>	  rows = box.addChild<ui::Component>({
+					   .id = "log_rows",
+					   .layout = [] {
+						   ui::Layout layout = column(0.0F);
+						   layout.flexShrink = 0.0F;
+						   return layout;
+					   }(),
+				   });
+				const auto				  refit = [box, rows, fit](ui::Component&) {
+					   fitLog(*box.get(), *rows.get(), *fit);
+				};
+				box.get()->setOnLayout(refit);
+				rows.get()->setOnLayout(refit);
+				const size_t shown = std::min(campaign.log.size(), kLogLines);
 				for (size_t index = 0; index < shown; ++index) {
 					const rules::campaign::LogEntry& entry = campaign.log[campaign.log.size() - 1 - index];
 					rows.addChild<atlas::ContentsRow>({
 						.id = "log_" + std::to_string(index),
+						.layout = {.flexShrink = 0.0F},
 						.label = entry.text,
 						.value = "DAY " + std::to_string(entry.day),
 						.labelStyle = styles::logLine,

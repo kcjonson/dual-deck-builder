@@ -7,6 +7,7 @@
 #include <ui/shapes/Text.h>
 
 #include <string>
+#include <utility>
 
 namespace {
 
@@ -49,6 +50,47 @@ namespace {
 		EXPECT_EQ(textOf("building_name"), "Radio mast");
 		EXPECT_EQ(textOf("building_reason"), "The radio mast isn't built yet.");
 		EXPECT_EQ(lintAt(1280, 800), "");
+	}
+
+	TEST_F(Compound, ALongLogShowsWhatFitsAboveThePlanButton) {
+		start(fixtureMakers(), true);
+		found();
+		for (int day = 1; day <= 5; ++day) {
+			played().log.push_back(
+				{.day = day,
+				 .text = "A run came home with 6 food, 4 water, Berserker, and Tail Gunner, and the long tail of everything else the road "
+						 "had to say about it on day " +
+						 std::to_string(day)}
+			);
+		}
+		go(scenes::kMainMenu);
+		go(scenes::kCompound);
+		for (const auto [width, height] : {std::pair{1280, 800}, std::pair{1440, 900}, std::pair{1920, 1080}}) {
+			EXPECT_EQ(lintAt(width, height), "") << width << "x" << height;
+			for (int settle = 0; settle < 6; ++settle) {
+				frame();
+			}
+			const ui::Component* box = find("log");
+			const ui::Component* plan = find("plan_run");
+			ASSERT_NE(box, nullptr) << width << "x" << height;
+			ASSERT_NE(plan, nullptr) << width << "x" << height;
+			const Foundation::Rect inBox = box->screenBounds();
+			int					   visible = 0;
+			for (int index = 0; index < 5; ++index) {
+				for (const std::string& id : {"log_" + std::to_string(index), "log_" + std::to_string(index) + "_value"}) {
+					const ui::Component* part = find(id);
+					if (part == nullptr) {
+						continue;
+					}
+					visible += id.ends_with("_value") ? 1 : 0;
+					const Foundation::Rect bounds = part->screenBounds();
+					EXPECT_GE(bounds.y, inBox.y) << id << " at " << width << "x" << height;
+					EXPECT_LE(bounds.y + bounds.height, inBox.y + inBox.height) << id << " at " << width << "x" << height;
+					EXPECT_LE(bounds.y + bounds.height, plan->screenBounds().y) << id << " at " << width << "x" << height;
+				}
+			}
+			EXPECT_GE(visible, 1) << width << "x" << height;
+		}
 	}
 
 } // namespace
