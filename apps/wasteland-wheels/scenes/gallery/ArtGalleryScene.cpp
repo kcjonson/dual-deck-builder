@@ -9,6 +9,7 @@
 #include "atlas/Tokens.h"
 #include "scenes/GameScene.h"
 
+#include <array>
 #include <optional>
 #include <string>
 
@@ -20,6 +21,10 @@ namespace game {
 
 		// The splash's cover at half the mock's 820 by 560.
 		constexpr Foundation::Vec2 kCover{410.0F, 280.0F};
+		// The vehicles' rear views, as the road draws them in a token at its largest, x1.25.
+		constexpr std::array<const char*, 7>
+			kVehicles{"vehicle-bike", "vehicle-buggy", "vehicle-car", "vehicle-truck", "vehicle-rig", "vehicle-tanker", "vehicle-generic"};
+		constexpr float kVehicleWidth = 75.0F;
 
 		ui::Layout column(float gap) {
 			return {
@@ -83,6 +88,9 @@ namespace game {
 				piece(pieces, "stamp-looted");
 				piece(pieces, "stamp-looted", 0.0F, atlas::tokens::palette::ink);
 				piece(pieces, "tape");
+				for (const char* vehicle : kVehicles) {
+					piece(pieces, vehicle, kVehicleWidth);
+				}
 			}
 
 		  private:

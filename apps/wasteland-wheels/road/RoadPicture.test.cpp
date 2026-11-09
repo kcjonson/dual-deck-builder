@@ -1,6 +1,6 @@
 // What the road shows of a fight (Battle Screen Design 1 and 3, vehicle-token.md), over a real one on the base pack: the
 // tokens and their order, names, meters, chips and wrecks, each intent as a pill with its mark, the lines the end-turn
-// preview draws, planned swerves, and the rows a wave pulls into.
+// preview draws, planned swerves, the rows a wave pulls into, and the rear view each vehicle's class draws.
 
 #include "road/RoadPicture.h"
 #include "GameTesting.h"
@@ -9,7 +9,9 @@
 #include <rules/battle/EnemyTurn.h>
 
 #include <algorithm>
+#include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -228,6 +230,52 @@ namespace {
 		EXPECT_EQ(picture.planned, (std::vector<road::PlannedMove>{{.raider = bike, .to = to}}));
 		EXPECT_EQ(picture.arrivals, (std::vector<rules::Row>{rules::Row::Ahead, rules::Row::Behind}));
 		EXPECT_EQ(tokenOf(picture, bike).intents.front().value, "MOVE");
+	}
+
+	TEST(RoadPicture, EachVehicleDrawsTheRearViewOfItsClassAndAClassWithNoneTheGenericOne) {
+		const BattleState state = fight();
+
+		const auto artByName = [](const RoadPicture& picture) {
+			std::map<std::string, std::string> art;
+			for (const road::RoadVehicle& vehicle : picture.vehicles) {
+				art[vehicle.token.name] = road::VehicleToken::artFor(vehicle.token.vehicleClass);
+			}
+			return art;
+		};
+		EXPECT_EQ(
+			artByName(pictureOf(state, {})),
+			(std::map<std::string, std::string>{
+				{"Road Warrior 1", "vehicle-rig"},
+				{"Interceptor 2", "vehicle-bike"},
+				{"Outrider", "vehicle-bike"},
+				{"Scavenger", "vehicle-bike"},
+				{"Wasteland Raider", "vehicle-buggy"},
+				{"Warlord", "vehicle-rig"},
+			})
+		);
+		rules::Content modded = game::testing::testRules().content;
+		modded.escorts.at(rules::EscortId{"outrider"}).vehicleClass = "hovercraft";
+		modded.opponents.at(rules::OpponentId{"warlord"}).vehicle.vehicleClass.clear();
+		const std::map<std::string, std::string> fallen = artByName(road::roadPicture(state, modded, {}, {}, kSeats));
+		EXPECT_EQ(fallen.at("Outrider"), "vehicle-generic") << "a class with no drawing";
+		EXPECT_EQ(fallen.at("Warlord"), "vehicle-generic") << "no class at all";
+	}
+
+	TEST(RoadPicture, EveryVehicleClassInTheBasePackHasADrawingOfItsOwn) {
+		const rules::Content&							 content = game::testing::testRules().content;
+		std::vector<std::pair<std::string, std::string>> classes;
+		for (const auto& [id, driver] : content.drivers) {
+			classes.emplace_back(driver.vehicle.name, driver.vehicle.vehicleClass);
+		}
+		for (const auto& [id, opponent] : content.opponents) {
+			classes.emplace_back(opponent.vehicle.name, opponent.vehicle.vehicleClass);
+		}
+		for (const auto& [id, escort] : content.escorts) {
+			classes.emplace_back(escort.name, escort.vehicleClass);
+		}
+		for (const auto& [vehicle, vehicleClass] : classes) {
+			EXPECT_NE(road::VehicleToken::artFor(vehicleClass), "vehicle-generic") << vehicle << " (" << vehicleClass << ")";
+		}
 	}
 
 } // namespace

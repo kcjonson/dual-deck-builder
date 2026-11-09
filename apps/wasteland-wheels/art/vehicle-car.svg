@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 40" width="60" height="40">
+<!-- A car from behind, facing up the road (Battle Screen Design 3), the token's 60 by 40 sprite: a closed cabin over a
+     wide body, its back window, tail lights and plate cut through, a bumper, and the tyres under it. Drawn tinted by
+     side, so its tones are alpha: the tyres at half, the cut-outs holes the road shows through. -->
+	<rect x="8" y="30" width="10" height="9" rx="2" fill="#77736A" fill-opacity="0.5"/>
+	<rect x="42" y="30" width="10" height="9" rx="2" fill="#77736A" fill-opacity="0.5"/>
+	<path d="M18 6 H42 L45.5 7.5 L50 18 L53 19 L55 21.5 V30 L54 31 H6 L5 30 V21.5 L7 19 L10 18 L14.5 7.5 Z M17 9.5 L13 17 H47 L43 9.5 Z M8 21.5 V25 H15 V21.5 Z M45 21.5 V25 H52 V21.5 Z M25 23 V28 H35 V23 Z" fill="#77736A"/>
+	<rect x="4" y="32" width="52" height="3" rx="1" fill="#77736A"/>
+</svg>

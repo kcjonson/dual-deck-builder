@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 40" width="60" height="40">
+<!-- A rig from behind, facing up the road (Battle Screen Design 3), the token's 60 by 40 sprite: a trailer the full
+     width with the cab's stacks over it, its door split, lock bars and tail lights cut through, the underride bar on its
+     struts, and doubled tyres each side. Drawn tinted by side, so its tones are alpha: the tyres at half, the cut-outs
+     holes the road shows through. -->
+	<rect x="3" y="29" width="7.5" height="10" rx="1.5" fill="#77736A" fill-opacity="0.5"/>
+	<rect x="11.5" y="29" width="7.5" height="10" rx="1.5" fill="#77736A" fill-opacity="0.5"/>
+	<rect x="41" y="29" width="7.5" height="10" rx="1.5" fill="#77736A" fill-opacity="0.5"/>
+	<rect x="49.5" y="29" width="7.5" height="10" rx="1.5" fill="#77736A" fill-opacity="0.5"/>
+	<rect x="3.5" y="0" width="3" height="8" fill="#77736A"/>
+	<rect x="53.5" y="0" width="3" height="8" fill="#77736A"/>
+	<path d="M3 7 H57 V30 H3 Z M29.4 9 V28 H30.6 V9 Z M17 9 V28 H17.9 V9 Z M42.1 9 V28 H43 V9 Z M5 24 V28 H9 V24 Z M51 24 V28 H55 V24 Z" fill="#77736A"/>
+	<rect x="14" y="30" width="2" height="3" fill="#77736A"/>
+	<rect x="44" y="30" width="2" height="3" fill="#77736A"/>
+	<rect x="8" y="32.5" width="44" height="2.5" fill="#77736A"/>
+</svg>

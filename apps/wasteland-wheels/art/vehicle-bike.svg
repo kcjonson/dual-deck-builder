@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 40" width="60" height="40">
+<!-- A bike from behind, facing up the road (Battle Screen Design 3), the token's 60 by 40 sprite: the rider's helmet and
+     back, arms out to the bars and grips, legs astride with boots on the pegs, the tail with its light cut through, and
+     the one fat tyre. Drawn tinted by side, so its tones are alpha: the tyre at half, the tail light a hole the road
+     shows through. -->
+	<rect x="25.5" y="26" width="9" height="13" rx="4" fill="#77736A" fill-opacity="0.5"/>
+	<rect x="10" y="17" width="40" height="2.5" rx="1.25" fill="#77736A"/>
+	<rect x="8.5" y="16" width="4" height="4.5" rx="1" fill="#77736A"/>
+	<rect x="47.5" y="16" width="4" height="4.5" rx="1" fill="#77736A"/>
+	<path d="M24 14.5 L12.5 17 V19.5 L24.5 18 Z" fill="#77736A"/>
+	<path d="M36 14.5 L47.5 17 V19.5 L35.5 18 Z" fill="#77736A"/>
+	<circle cx="30" cy="7.5" r="5.5" fill="#77736A"/>
+	<path d="M23 14.5 L30 13 L37 14.5 L38 25 H22 Z" fill="#77736A"/>
+	<path d="M22 23 H28 L25 30 L19 33 H15.5 L16 30.5 Z" fill="#77736A"/>
+	<path d="M38 23 H32 L35 30 L41 33 H44.5 L44 30.5 Z" fill="#77736A"/>
+	<path d="M25 25 H35 L34.5 29 H25.5 Z M27.5 26 V28 H32.5 V26 Z" fill="#77736A"/>
+</svg>

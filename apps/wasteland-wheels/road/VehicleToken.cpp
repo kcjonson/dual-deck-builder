@@ -1,6 +1,7 @@
 #include "road/VehicleToken.h"
 
 #include "Fonts.h"
+#include "atlas/ArtView.h"
 #include "atlas/Markers.h"
 #include "cards/CardInk.h"
 #include "cards/CardStyle.h"
@@ -15,6 +16,7 @@
 #include <array>
 #include <cmath>
 #include <numbers>
+#include <string_view>
 #include <utility>
 
 namespace game::road {
@@ -97,6 +99,19 @@ namespace game::road {
 		constexpr float				kChosenWidth = 3.0F;
 		constexpr float				kGlow = 22.0F;
 		constexpr float				kChipFace = 11.0F;
+
+		// Each vehicle class the base pack has, and its rear view in art/.
+		constexpr std::array<std::pair<std::string_view, std::string_view>, 6> kClassArt{{
+			{"bike", "vehicle-bike"},
+			{"buggy", "vehicle-buggy"},
+			{"car", "vehicle-car"},
+			{"truck", "vehicle-truck"},
+			{"rig", "vehicle-rig"},
+			{"tanker", "vehicle-tanker"},
+		}};
+
+		// A class with no drawing of its own, or none.
+		constexpr std::string_view kGenericArt = "vehicle-generic";
 
 		Foundation::Color intentEdge(rules::IntentKind kind) {
 			switch (kind) {
@@ -301,6 +316,7 @@ namespace game::road {
 
 	void VehicleToken::describe(nlohmann::json& node) const {
 		node["name"] = token.name;
+		node["art"] = artFor(token.vehicleClass);
 		node["structure"] = meterText(token.structure);
 		node["armor"] = token.armor;
 		if (token.driver) {
@@ -422,17 +438,18 @@ namespace game::road {
 		}
 	}
 
+	std::string_view VehicleToken::artFor(std::string_view vehicleClass) {
+		const auto found = std::ranges::find(kClassArt, vehicleClass, &std::pair<std::string_view, std::string_view>::first);
+		return found == kClassArt.end() ? kGenericArt : found->second;
+	}
+
 	void VehicleToken::renderSprite(int32_t key, bool wrecked) {
-		const Foundation::Color body = wrecked ? kWreckGrey : spriteTint(token);
-		const Foundation::Color dark = hex(0x111214);
-		// A rear view facing up the road: the wheels, the body over them, and its back window.
-		for (const float x : {kSprite.x + 6.0F, kSprite.x + kSprite.width - 16.0F}) {
-			cards::drawRounded({x, kSprite.y + 22.0F, 10.0F, 16.0F}, 2.0F, dark, std::nullopt, 0.0F, key);
-		}
-		cards::drawRounded({kSprite.x + 9.0F, kSprite.y + 4.0F, kSprite.width - 18.0F, 30.0F}, 5.0F, body, std::nullopt, 0.0F, key);
-		cards::drawRounded(
-			{kSprite.x + 15.0F, kSprite.y + 8.0F, kSprite.width - 30.0F, 9.0F}, 2.0F, hex(0x1D2023), std::nullopt, 0.0F, key
-		);
+		atlas::drawArt({
+			.name = artFor(token.vehicleClass),
+			.bounds = kSprite,
+			.tint = wrecked ? kWreckGrey : spriteTint(token),
+			.key = key,
+		});
 
 		const std::string		speed = std::to_string(token.speed);
 		const float				total = kSpeedIcon + 1.0F + cards::wordsWidth(speed, fonts::kMono, kValueSize);

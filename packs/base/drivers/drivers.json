@@ -15,6 +15,7 @@
 			},
 			"vehicle": {
 				"name": "Apocalypse Rig",
+				"vehicleClass": "rig",
 				"image": "vehicles/apocalypse_rig.png",
 				"maxStructure": 80,
 				"weight": 5,
@@ -60,6 +61,7 @@
 			},
 			"vehicle": {
 				"name": "Lightning Bike",
+				"vehicleClass": "bike",
 				"image": "vehicles/lightning_bike.png",
 				"maxStructure": 50,
 				"weight": 1,
@@ -113,6 +115,7 @@
 			},
 			"vehicle": {
 				"name": "Mobile Workshop",
+				"vehicleClass": "truck",
 				"image": "vehicles/mobile_workshop.png",
 				"maxStructure": 60,
 				"weight": 3,
@@ -159,6 +162,7 @@
 			},
 			"vehicle": {
 				"name": "Spike Buggy",
+				"vehicleClass": "buggy",
 				"image": "vehicles/spike_buggy.png",
 				"maxStructure": 65,
 				"weight": 2,

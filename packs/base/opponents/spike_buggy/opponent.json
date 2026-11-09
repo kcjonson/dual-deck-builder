@@ -14,6 +14,7 @@
 	},
 	"vehicle": {
 		"name": "Spike Buggy",
+		"vehicleClass": "buggy",
 		"image": "vehicles/spike_buggy.png",
 		"maxStructure": 55,
 		"weight": 2,

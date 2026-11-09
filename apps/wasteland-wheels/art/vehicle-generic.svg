@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 40" width="60" height="40">
+<!-- A vehicle of a class with no drawing of its own (Battle Screen Design 3), the token's 60 by 40 sprite: a plain rear
+     view facing up the road, its wheels and a body with its back window cut through. Drawn tinted by side, so its tones
+     are alpha: the wheels at half, the window a hole the road shows through. -->
+	<rect x="6" y="22" width="10" height="16" rx="2" fill="#77736A" fill-opacity="0.5"/>
+	<rect x="44" y="22" width="10" height="16" rx="2" fill="#77736A" fill-opacity="0.5"/>
+	<path d="M14 4 H46 A5 5 0 0 1 51 9 V29 A5 5 0 0 1 46 34 H14 A5 5 0 0 1 9 29 V9 A5 5 0 0 1 14 4 Z M15 8 V17 H45 V8 Z" fill="#77736A"/>
+</svg>

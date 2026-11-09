@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <string>
+#include <variant>
 
 namespace game::road {
 
@@ -128,6 +129,21 @@ namespace game::road {
 			return {.value = fighter.hitpoints, .max = fighter.maxHitpoints};
 		}
 
+		// An escort's type's class, else its owner's vehicle's as the pack has it.
+		std::string vehicleClassOf(const BattleState& state, const rules::Content& content, const BattleVehicle& vehicle) {
+			if (vehicle.escort) {
+				return content.escorts.at(*vehicle.escort).vehicleClass;
+			}
+			if (!vehicle.owner) {
+				return {};
+			}
+			const rules::BattleDriver& owner = state.driver(*vehicle.owner);
+			if (const auto* archetype = std::get_if<rules::DriverId>(&owner.profile)) {
+				return content.drivers.at(*archetype).vehicle.vehicleClass;
+			}
+			return content.opponents.at(std::get<rules::OpponentId>(owner.profile)).vehicle.vehicleClass;
+		}
+
 	} // namespace
 
 	TokenData tokenData(
@@ -141,6 +157,7 @@ namespace game::road {
 		TokenData			 data;
 		data.name = vehicle.owner && !vehicle.escort ? fighterName(state, content, *vehicle.owner, seats)
 													 : vehicleName(state, content, index, seats);
+		data.vehicleClass = vehicleClassOf(state, content, vehicle);
 		if (vehicle.side == Side::Raiders) {
 			data.side = TokenSide::Raider;
 		} else {
