@@ -44,9 +44,7 @@ namespace game {
 		// diamond.
 		constexpr int	 kShortWithinDays = 2;
 		constexpr size_t kLogLines = 5;
-		// The least the log box is given, its head and a wrapped entry; Needs and the rest scroll instead of squeezing it past that.
-		constexpr float kLogMinHeight = 150.0F;
-		constexpr float kOrdersWidth = 452.0F;
+		constexpr float	 kOrdersWidth = 452.0F;
 
 		ui::Layout column(float gap) {
 			return {
@@ -132,52 +130,58 @@ namespace game {
 				   (soonest == 0 ? std::string("tonight") : "in " + counted(soonest, "day", "days"));
 		}
 
-		// The log shows the newest entries that fit whole in the room its box is given, the rest hidden; a hidden entry's height
-		// is kept from when it last showed, and a new width starts the count again.
+		// The log gets only the room the boxes above it leave, and shows the newest entries that fit whole in it: just its head
+		// when no entry does, nothing when not even the head does. A hidden entry's height is kept from when it last showed,
+		// and a new width starts the count again.
 		struct LogFit {
 			std::vector<float> heights;
 			float			   width = -1.0F;
+			float			   chrome = -1.0F;
 		};
 
-		void fitLog(ui::Component& box, ui::Component& rows, LogFit& fit) {
-			ui::Context* context = rows.getContext();
+		void fitLog(ui::Component& slot, ui::Component& box, ui::Component& rows, LogFit& fit) {
+			ui::Context* context = slot.getContext();
 			const auto&	 entries = rows.getChildren();
 			if (context == nullptr || entries.empty()) {
 				return;
 			}
-			bool reshown = false;
-			if (rows.getSize().x != fit.width) {
-				fit.width = rows.getSize().x;
+			if (slot.getSize().x != fit.width) {
+				fit.width = slot.getSize().x;
 				fit.heights.assign(entries.size(), 0.0F);
+				bool reshown = !box.isVisible();
+				box.setVisible(true);
 				for (const ui::ComponentId id : entries) {
 					ui::Component* entry = context->find(id);
 					reshown = reshown || !entry->isVisible();
 					entry->setVisible(true);
 				}
-			}
-			if (reshown) {
-				return;
-			}
-			for (size_t index = 0; index < entries.size(); ++index) {
-				const ui::Component* entry = context->find(entries[index]);
-				if (entry->isVisible()) {
-					fit.heights[index] = entry->getSize().y;
+				if (reshown) {
+					return;
 				}
 			}
-			const float below = box.getLayout().padding.bottom;
-			const float top = rows.getBounds().y;
-			const float room = box.getSize().y - below - top;
+			if (box.isVisible()) {
+				fit.chrome = rows.getBounds().y + box.getLayout().padding.bottom;
+				for (size_t index = 0; index < entries.size(); ++index) {
+					const ui::Component* entry = context->find(entries[index]);
+					if (entry->isVisible()) {
+						fit.heights[index] = entry->getSize().y;
+					}
+				}
+			}
+			if (fit.chrome < 0.0F) {
+				return;
+			}
+			const float room = slot.getSize().y - fit.chrome;
 			float		used = 0.0F;
 			size_t		count = 0;
 			while (count < entries.size() && used + fit.heights[count] <= room + 0.5F) {
 				used += fit.heights[count];
 				++count;
 			}
+			box.setVisible(room >= -0.5F);
 			for (size_t index = 0; index < entries.size(); ++index) {
 				context->find(entries[index])->setVisible(index < count);
 			}
-			// Everything fitting, the box is as tall as its entries rather than as the room.
-			box.setMaxSize({ui::kAuto, count == entries.size() ? ui::Length(top + used + below) : ui::kAuto});
 		}
 
 		class CompoundScene final : public GameScene<> {
@@ -488,10 +492,19 @@ namespace game {
 
 			void logBox(ui::Ref<ui::Component> right, const Campaign& campaign) {
 				auto					  fit = std::make_shared<LogFit>();
-				ui::Ref<atlas::LegendBox> box = right.addChild<atlas::LegendBox>({
+				ui::Ref<ui::Component>	  slot = right.addChild<ui::Component>({
+					   .id = "log_slot",
+					   .size = {ui::kAuto, 0.0F},
+					   .minSize = {0.0F, 0.0F},
+					   .layout = [] {
+						   ui::Layout layout = column(0.0F);
+						   layout.flexGrow = 1.0F;
+						   return layout;
+					   }(),
+				   });
+				ui::Ref<atlas::LegendBox> box = slot.addChild<atlas::LegendBox>({
 					.id = "log",
-					.minSize = {0.0F, kLogMinHeight},
-					.layout = {.flexGrow = 1.0F, .flexShrink = 1000.0F},
+					.layout = {.flexShrink = 0.0F},
 					.look = {.seed = atlas::paperSeed("compound/log"), .grab = atlas::Corner::TopRight},
 					.title = "Log",
 				});
@@ -503,9 +516,10 @@ namespace game {
 						   return layout;
 					   }(),
 				   });
-				const auto				  refit = [box, rows, fit](ui::Component&) {
-					   fitLog(*box.get(), *rows.get(), *fit);
+				const auto				  refit = [slot, box, rows, fit](ui::Component&) {
+					   fitLog(*slot.get(), *box.get(), *rows.get(), *fit);
 				};
+				slot.get()->setOnLayout(refit);
 				box.get()->setOnLayout(refit);
 				rows.get()->setOnLayout(refit);
 				const size_t shown = std::min(campaign.log.size(), kLogLines);
