@@ -1,0 +1,134 @@
+{
+	"$description": "The atlas mode (UI Art Direction, Tokens): ui's semantic roles on the atlas palette, square corners. The meta scenes load it.",
+	"color": {
+		"$type": "color",
+		"surface": {
+			"base": {
+				"$value": "{palette.sheet}"
+			},
+			"raised": {
+				"$value": "{palette.paper}"
+			},
+			"sunken": {
+				"$value": "{palette.index}"
+			},
+			"overlay": {
+				"$value": "{palette.freshPaper}"
+			},
+			"control": {
+				"$value": "{palette.freshPaper}"
+			}
+		},
+		"text": {
+			"primary": {
+				"$value": "{palette.ink}"
+			},
+			"secondary": {
+				"$value": "{palette.inkDim}"
+			},
+			"disabled": {
+				"$value": "{palette.fadedPrint}"
+			},
+			"inverse": {
+				"$value": "{palette.onHighway}"
+			}
+		},
+		"line": {
+			"subtle": {
+				"$value": "{palette.inkHairline}"
+			},
+			"edge": {
+				"$value": "{palette.inkEdge}"
+			},
+			"strong": {
+				"$value": "{palette.inkStrong}"
+			}
+		},
+		"scrim": {
+			"$value": "{palette.tableScrim}"
+		},
+		"focus": {
+			"$value": "{palette.ink}"
+		}
+	},
+	"radius": {
+		"$type": "dimension",
+		"sm": {
+			"$value": { "value": 0, "unit": "px" }
+		},
+		"md": {
+			"$value": { "value": 0, "unit": "px" }
+		},
+		"lg": {
+			"$value": { "value": 0, "unit": "px" }
+		}
+	},
+	"tone": {
+		"$type": "color",
+		"accent": {
+			"color": {
+				"$value": "{palette.highway}"
+			},
+			"onColor": {
+				"$value": "{palette.onHighway}"
+			}
+		},
+		"info": {
+			"color": {
+				"$value": "{palette.river}"
+			},
+			"onColor": {
+				"$value": "{palette.onHighway}"
+			}
+		},
+		"positive": {
+			"color": {
+				"$value": "{palette.sage}"
+			},
+			"onColor": {
+				"$value": "{palette.onHighway}"
+			}
+		},
+		"warning": {
+			"color": {
+				"$value": "{palette.highway}"
+			},
+			"onColor": {
+				"$value": "{palette.onHighway}"
+			}
+		},
+		"danger": {
+			"color": {
+				"$value": "{palette.stronghold}"
+			},
+			"onColor": {
+				"$value": "{palette.onHighway}"
+			}
+		}
+	},
+	"state": {
+		"$type": "color",
+		"hover": {
+			"wash": {
+				"$value": "{palette.inkHover}"
+			}
+		},
+		"pressed": {
+			"wash": {
+				"$value": "{palette.inkPressed}"
+			}
+		},
+		"active": {
+			"wash": {
+				"$value": "{palette.highlighterActive}"
+			}
+		},
+		"disabled": {
+			"opacity": {
+				"$type": "number",
+				"$description": "Faded print: ink at 55%.",
+				"$value": 0.55
+			}
+		}
+	}
+}

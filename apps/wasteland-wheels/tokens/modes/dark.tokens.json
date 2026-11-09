@@ -1,0 +1,130 @@
+{
+	"$description": "The dark mode (theme-tokens.md): ui's semantic roles on the battle mock's palette, which the battle scene loads until combat gets its own pass (UI Art Direction, Building it).",
+	"color": {
+		"$type": "color",
+		"surface": {
+			"base": {
+				"$value": "{battle.asphalt}"
+			},
+			"raised": {
+				"$value": "{battle.panel}"
+			},
+			"sunken": {
+				"$value": "{battle.inset}"
+			},
+			"overlay": {
+				"$value": "{battle.panelRaised}"
+			},
+			"control": {
+				"$value": "{battle.panelRaised}"
+			}
+		},
+		"text": {
+			"primary": {
+				"$value": "{battle.bone}"
+			},
+			"secondary": {
+				"$value": "{battle.muted}"
+			},
+			"disabled": {
+				"$value": "{battle.disabled}"
+			},
+			"inverse": {
+				"$value": "{battle.ground}"
+			}
+		},
+		"line": {
+			"subtle": {
+				"$value": "{battle.lineSubtle}"
+			},
+			"edge": {
+				"$value": "{battle.lineEdge}"
+			},
+			"strong": {
+				"$value": "{battle.lineStrong}"
+			}
+		},
+		"scrim": {
+			"$value": "{battle.scrim}"
+		},
+		"focus": {
+			"$value": "{battle.warn}"
+		}
+	},
+	"tone": {
+		"$type": "color",
+		"accent": {
+			"color": {
+				"$value": "{battle.warn}"
+			},
+			"subtle": {
+				"$value": "{battle.warnSubtle}"
+			},
+			"onColor": {
+				"$value": "{battle.ground}"
+			}
+		},
+		"info": {
+			"color": {
+				"$value": "{battle.data}"
+			},
+			"subtle": {
+				"$value": "{battle.dataSubtle}"
+			},
+			"onColor": {
+				"$value": "{battle.ground}"
+			}
+		},
+		"positive": {
+			"color": {
+				"$value": "{battle.ok}"
+			},
+			"subtle": {
+				"$value": "{battle.okSubtle}"
+			},
+			"onColor": {
+				"$value": "{battle.ground}"
+			}
+		},
+		"warning": {
+			"color": {
+				"$value": "{battle.warn}"
+			},
+			"subtle": {
+				"$value": "{battle.warnSubtle}"
+			},
+			"onColor": {
+				"$value": "{battle.ground}"
+			}
+		},
+		"danger": {
+			"color": {
+				"$value": "{battle.crit}"
+			},
+			"subtle": {
+				"$value": "{battle.critSubtle}"
+			},
+			"onColor": {
+				"$value": "{battle.ground}"
+			}
+		}
+	},
+	"state": {
+		"$type": "color",
+		"hover": {
+			"wash": {
+				"$value": "{battle.hover}"
+			}
+		},
+		"pressed": {
+			"wash": {
+				"$value": "{battle.pressed}"
+			}
+		},
+		"active": {
+			"wash": {
+				"$value": "{battle.warnActive}"
+			}
+		}
+	}
+}
