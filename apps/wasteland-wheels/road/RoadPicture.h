@@ -9,7 +9,7 @@
 
 #include <rules/battle/BattleState.h>
 #include <rules/battle/EnemyTurn.h>
-#include <rules/core/Content.h>
+#include <rules/packs/Pack.h>
 
 #include <optional>
 #include <span>

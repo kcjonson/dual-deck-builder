@@ -6,7 +6,7 @@
 
 #include <rules/battle/BattleEvent.h>
 #include <rules/battle/BattleState.h>
-#include <rules/core/Content.h>
+#include <rules/packs/Pack.h>
 
 #include <ui/Component.h>
 
