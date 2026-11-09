@@ -56,6 +56,7 @@ namespace game::cards {
 		  copies(std::max(1, args.copies)),
 		  state(args.state),
 		  unaffordable(args.unaffordable),
+		  blocked(args.blocked),
 		  selected(args.selected),
 		  inspectable(args.inspectable),
 		  onPress(args.onPress) {}
@@ -84,6 +85,8 @@ namespace game::cards {
 		if (cardSize == CardSize::Face) {
 			node["summary"] = rules::plainText(rules::cardSummary(*card, upgraded));
 			node["summaryLines"] = summary.lines;
+			node["unaffordable"] = unaffordable;
+			node["blocked"] = blocked ? nlohmann::json(*blocked) : nlohmann::json(nullptr);
 		} else {
 			node["copies"] = copies;
 			node["state"] = stateName(state);
@@ -194,6 +197,10 @@ namespace game::cards {
 			event.consume();
 			return;
 		}
+		// Nothing to do on a press: the activate is left unconsumed for whatever holds the card, a drag source picking it up.
+		if (event.type == ui::KeyEvent::Type::Activate && !onPress) {
+			return;
+		}
 		ui::Control::handleKey(event);
 	}
 
@@ -230,7 +237,7 @@ namespace game::cards {
 
 	void Card::renderFace(int32_t key) {
 		const ui::InteractionState now = interaction();
-		const bool				   dim = unaffordable;
+		const bool				   dim = unaffordable || blocked.has_value();
 		const auto				   tone = [dim](Foundation::Color color) {
 			return dim ? dimmedText(color) : color;
 		};
@@ -271,6 +278,20 @@ namespace game::cards {
 			});
 		}
 		drawArt({face::kArtX, face::kArtY, face::kArtWidth, face::kArtHeight}, face::kArtRadius, seat, artGlyph(*card), 38.0F, dim, key);
+		if (blocked) {
+			// At full strength over the dimmed card: it's the one thing on it to read (call 367).
+			const Foundation::Rect strip{face::kBlockedInset, face::kBlockedY, size.x - face::kBlockedInset * 2.0F, face::kBlockedHeight};
+			drawRounded(strip, 2.0F, kBlockedBand, std::nullopt, 0.0F, key);
+			drawWords({
+				.text = fittedLine(*blocked, fonts::kMono, face::kBlockedSize, strip.width - face::kBlockedPad * 2.0F),
+				.at = {strip.x + face::kBlockedPad, strip.y},
+				.face = fonts::kMono,
+				.size = face::kBlockedSize,
+				.color = kBlockedText,
+				.boxHeight = strip.height,
+				.key = key,
+			});
+		}
 		drawFlow(summary, face::kRulesAt, tone(kRules), tone(kKeyword), face::kRulesLines, key);
 
 		const float footMiddle = face::kFootY + face::kFootHeight * 0.5F;
