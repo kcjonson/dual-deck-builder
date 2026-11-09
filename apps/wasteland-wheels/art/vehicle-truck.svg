@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 40" width="60" height="40">
+<!-- A box truck from behind, facing up the road (Battle Screen Design 3), the token's 60 by 40 sprite: a tall box with
+     the split between its doors and its tail lights cut through, a bumper, and the tyres under it. Drawn tinted by side,
+     so its tones are alpha: the tyres at half, the cut-outs holes the road shows through. -->
+	<rect x="8" y="30" width="11" height="9" rx="2" fill="#77736A" fill-opacity="0.5"/>
+	<rect x="41" y="30" width="11" height="9" rx="2" fill="#77736A" fill-opacity="0.5"/>
+	<path d="M8 3 H52 L53 4 V30 L52 31 H8 L7 30 V4 Z M29.5 5 V29 H30.5 V5 Z M9.5 22 V28 H12.5 V22 Z M47.5 22 V28 H50.5 V22 Z" fill="#77736A"/>
+	<rect x="6" y="32" width="48" height="3" rx="0.8" fill="#77736A"/>
+</svg>

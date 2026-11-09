@@ -34,6 +34,7 @@ namespace rules {
 			.id = EscortId{reader.requireString("id")},
 			.pack = {},
 			.name = reader.requireString("name"),
+			.vehicleClass = reader.optionalString("vehicleClass").value_or(""),
 			.role = reader.requireEnum("role", kEscortRoleNames),
 			.crew = readCrew(reader.requireObject("crew")),
 			.armor = reader.requireInt("armor"),

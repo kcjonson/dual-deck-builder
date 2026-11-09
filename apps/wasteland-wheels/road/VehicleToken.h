@@ -2,11 +2,12 @@
 
 // The vehicle token (Battle Screen Design 3, vehicle-token.md): a fixed layout at 196 by 117, 135 with a passenger's row,
 // that scales as a whole into its slot, between 1 and 1.25. A raider's intents run along the top, two pills then "+N";
-// the sprite sits left with its speed under it; the plate holds the name, the armor shield beside the structure bar, and
-// the driver's HP bar at the same weight; up to five status chips run under the plate, past five four and "+N". An
-// escort has no HP bar, and its passenger's row takes that place, so it stays 117 tall; SPENT leads its statuses. A
-// vehicle out of the fight greys out under a WRECKED stamp, or NO DRIVER for a raider with nobody alive aboard. It draws
-// in the combat screen's dark palette, whatever the scene's theme. The battle scene fills TokenData from the fight.
+// the sprite, its vehicle class's rear view, sits left with its speed under it; the plate holds the name, the armor
+// shield beside the structure bar, and the driver's HP bar at the same weight; up to five status chips run under the
+// plate, past five four and "+N". An escort has no HP bar, and its passenger's row takes that place, so it stays 117
+// tall; SPENT leads its statuses. A vehicle out of the fight greys out under a WRECKED stamp, or NO DRIVER for a raider
+// with nobody alive aboard. It draws in the combat screen's dark palette, whatever the scene's theme. The battle scene
+// fills TokenData from the fight.
 
 #include <rules/battle/EnemyTurn.h>
 
@@ -17,6 +18,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace game::road {
@@ -55,6 +57,7 @@ namespace game::road {
 
 	struct TokenData {
 		std::string				 name;
+		std::string				 vehicleClass; // the pack's, which picks the sprite's art
 		TokenSide				 side = TokenSide::Player;
 		std::optional<int>		 seat; // a player's vehicle's driver, 0 or 1: its mark and stripe
 		Meter					 structure;
@@ -96,6 +99,9 @@ namespace game::road {
 		// The scale it takes in a slot: slotScale held between 1 and `cap`, which the road passes so every token on it
 		// matches, itself at most 1.25.
 		[[nodiscard]] static float fitScale(Foundation::Vec2 slot, float tokenHeight, float cap = kMaxScale);
+		// The sprite's art for a vehicle class, a rear view in art/ tinted by side: vehicle-<class>, or vehicle-generic for a
+		// class with no drawing of its own, or none.
+		[[nodiscard]] static std::string_view artFor(std::string_view vehicleClass);
 
 		// The chips as they show: SPENT first, then the statuses, four and "+N" past five.
 		[[nodiscard]] std::vector<std::string> shownChips() const;
@@ -111,6 +117,8 @@ namespace game::road {
 		[[nodiscard]] Foundation::Rect plateRect() const;
 		// Where a passenger's row starts down the token at scale 1, under the driver's HP.
 		[[nodiscard]] static float passengerRowY();
+		// Where the plate's title row ends at scale 1; a number set on the plate starts below it.
+		[[nodiscard]] static float titleRowBottom();
 
 		[[nodiscard]] const char* typeName() const override { return "VehicleToken"; }
 		void					  describe(nlohmann::json& node) const override;

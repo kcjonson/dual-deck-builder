@@ -61,6 +61,8 @@ namespace game::road {
 		constexpr double kPopMs = 900.0;
 		constexpr float	 kPopRise = 28.0F;
 		constexpr float	 kPopFace = 30.0F;
+		constexpr float	 kPopGap = 2.0F;
+		constexpr float	 kPopStep = 32.0F;
 		// The row half of a swerve leads with the speed change (road-view.md): the theme has no emphasized curve, so it's
 		// the TypeScript's ease_emphasized.
 		const ui::Easing kEmphasized{0.16F, 1.0F, 0.3F, 1.0F};
@@ -719,7 +721,11 @@ namespace game::road {
 
 	void RoadView::popNumber(VehicleIndex vehicle, std::string text, bool miss) {
 		const double started = getContext()->getClock().now();
-		pops.push_back({.vehicle = vehicle, .text = std::move(text), .miss = miss, .started = started});
+		int			 slot = 0;
+		while (std::ranges::any_of(pops, [vehicle, slot](const Pop& pop) { return pop.vehicle == vehicle && pop.slot == slot; })) {
+			++slot;
+		}
+		pops.push_back({.vehicle = vehicle, .text = std::move(text), .miss = miss, .started = started, .slot = slot});
 		after(kPopMs, [this, vehicle, started] {
 			std::erase_if(pops, [vehicle, started](const Pop& pop) { return pop.vehicle == vehicle && pop.started == started; });
 		});
@@ -1008,6 +1014,35 @@ namespace game::road {
 		}
 	}
 
+	Foundation::Rect RoadView::popBox(const Pop& pop, const VehicleToken& on, double now) const {
+		const bool	still = getContext()->isReducedMotion();
+		const float progress = std::clamp(static_cast<float>((now - pop.started) / kPopMs), 0.0F, 1.0F);
+		const float rise = still ? 0.0F : kPopRise * progress;
+		const float scale = on.scale();
+		const Rect	plate = on.plateRect();
+		// Settles on its stack place just under the title row, so rising never climbs over the name.
+		const float settled = VehicleToken::titleRowBottom() + kPopGap + static_cast<float>(pop.slot) * kPopStep;
+		const float width =
+			std::max(cards::wordsWidth(pop.text, fonts::kDisplayBold, kPopFace), kPopFace * 0.55F * static_cast<float>(pop.text.size()));
+		return {
+			on.getPosition().x + (plate.x + 10.0F) * scale,
+			on.getPosition().y + (settled * scale) + kPopRise * scale - rise * scale,
+			width,
+			kPopFace,
+		};
+	}
+
+	std::vector<RoadView::PopBox> RoadView::popBoxes() const {
+		const double		now = getContext()->getClock().now();
+		std::vector<PopBox> boxes;
+		for (const Pop& pop : pops) {
+			if (const VehicleToken* on = token(pop.vehicle)) {
+				boxes.push_back({pop.vehicle, popBox(pop, *on, now)});
+			}
+		}
+		return boxes;
+	}
+
 	void RoadView::renderPops(int32_t key) {
 		const double now = getContext()->getClock().now();
 		const bool	 still = getContext()->isReducedMotion();
@@ -1017,12 +1052,11 @@ namespace game::road {
 				continue;
 			}
 			const float progress = std::clamp(static_cast<float>((now - pop.started) / kPopMs), 0.0F, 1.0F);
-			const float rise = still ? 0.0F : kPopRise * progress;
 			const float fade = still || progress < 0.6F ? 1.0F : 1.0F - (progress - 0.6F) / 0.4F;
-			const Rect	plate = on->plateRect();
+			const Rect	box = popBox(pop, *on, now);
 			cards::drawWords({
 				.text = pop.text,
-				.at = {on->getPosition().x + (plate.x + 10.0F) * on->scale(), on->getPosition().y + plate.y * on->scale() - rise},
+				.at = {box.x, box.y},
 				.face = fonts::kDisplayBold,
 				.size = kPopFace,
 				.color = withAlpha(pop.miss ? ink::kMissNumber : ink::kDamageNumber, fade),

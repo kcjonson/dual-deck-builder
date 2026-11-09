@@ -44,6 +44,8 @@ namespace rules {
 		// The pack that defined it, or the last one to override it.
 		PackId		pack;
 		std::string name;
+		// What it's built as (bike, truck, tanker...), which picks the art the road draws it with; empty for none.
+		std::string vehicleClass;
 		EscortRole	role{EscortRole::Gun};
 		CrewSkills	crew;
 		int			armor{0};

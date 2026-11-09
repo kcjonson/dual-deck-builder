@@ -3,6 +3,7 @@
 		{
 			"id": "outrider",
 			"name": "Outrider",
+			"vehicleClass": "bike",
 			"role": "gun",
 			"crew": {
 				"gunnery": 6,
@@ -21,6 +22,7 @@
 		{
 			"id": "pilot_car",
 			"name": "Pilot Car",
+			"vehicleClass": "car",
 			"role": "gun",
 			"crew": {
 				"gunnery": 5,
@@ -39,6 +41,7 @@
 		{
 			"id": "fuel_hauler",
 			"name": "Fuel Hauler",
+			"vehicleClass": "tanker",
 			"role": "hauler",
 			"crew": {
 				"gunnery": 1,
@@ -61,6 +64,7 @@
 		{
 			"id": "med_truck",
 			"name": "Med Truck",
+			"vehicleClass": "truck",
 			"role": "hauler",
 			"crew": {
 				"gunnery": 1,

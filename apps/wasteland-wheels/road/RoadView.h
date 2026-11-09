@@ -90,6 +90,13 @@ namespace game::road {
 		// on screen, which glows.
 		void popNumber(rules::VehicleIndex vehicle, std::string text, bool miss);
 		void setActing(std::optional<rules::VehicleIndex> vehicle);
+		// Where each live number is now, in the road's space. Numbers on one vehicle take separate stack slots, and all
+		// start under the plate's title row.
+		struct PopBox {
+			rules::VehicleIndex vehicle;
+			Foundation::Rect	box;
+		};
+		[[nodiscard]] std::vector<PopBox> popBoxes() const;
 
 		// A token swerving to a new slot.
 		[[nodiscard]] bool moving() const;
@@ -126,6 +133,7 @@ namespace game::road {
 			std::string			text;
 			bool				miss = false;
 			double				started = 0.0;
+			int					slot = 0; // the lowest stack place no live number on its vehicle held when it popped
 		};
 
 		[[nodiscard]] const RoadVehicle* vehicleIn(rules::VehicleIndex vehicle) const;
@@ -146,15 +154,16 @@ namespace game::road {
 		[[nodiscard]] std::optional<battle::AimPick> pickUnderDrag(const AimCache& cache) const;
 		void										 drop(const ui::Drag& drag, std::optional<battle::AimPick> pick);
 
-		[[nodiscard]] TokenLook lookOf(rules::VehicleIndex vehicle);
-		void					renderSlot(const ui::Component& target, rules::RoadSlot slot, int32_t key);
-		void					renderInk(int32_t key);
-		void					renderLanes(int32_t key);
-		void					renderHeader(int32_t key);
-		void					renderArrows(int32_t key);
-		void					renderIntentLines(int32_t key);
-		void					renderPops(int32_t key);
-		void					placeSpots();
+		[[nodiscard]] TokenLook		   lookOf(rules::VehicleIndex vehicle);
+		void						   renderSlot(const ui::Component& target, rules::RoadSlot slot, int32_t key);
+		void						   renderInk(int32_t key);
+		void						   renderLanes(int32_t key);
+		void						   renderHeader(int32_t key);
+		void						   renderArrows(int32_t key);
+		void						   renderIntentLines(int32_t key);
+		void						   renderPops(int32_t key);
+		[[nodiscard]] Foundation::Rect popBox(const Pop& pop, const VehicleToken& on, double now) const;
+		void						   placeSpots();
 
 		Aim											aim;
 		std::function<void(const battle::AimPick&)> onPick;

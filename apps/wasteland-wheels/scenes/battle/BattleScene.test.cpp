@@ -1,6 +1,7 @@
 // The battle scene driven the way a player drives it, through the App's own input: a card dragged onto a raider, a card
 // picked up and dropped with the keys, a slot pick and a two-step play, the turn ended and the raiders' turn played
-// back beat by beat until it settles on the fight, and the scene linted at three sizes.
+// back beat by beat until it settles on the fight, the top bar's menu opened by its key and by Escape once no card
+// waits, and left for the main menu, the run's scrap and fuel on the bar, and the scene linted at three sizes.
 
 #include "scenes/battle/BattleScene.h"
 #include "GameTesting.h"
@@ -10,12 +11,16 @@
 #include <rules/battle/Battle.h>
 #include <rules/battle/CardPlay.h>
 #include <rules/campaign/Campaign.h>
+#include <rules/campaign/RunDecks.h>
 
 #include <ui/Drag.h>
+#include <ui/shapes/Text.h>
 
 #include <algorithm>
+#include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace game::testing {
@@ -140,6 +145,11 @@ namespace game::testing {
 				ASSERT_FALSE(scene().playing());
 			}
 
+			[[nodiscard]] std::string textOf(std::string_view id) {
+				const auto* text = dynamic_cast<const ui::Text*>(find(id));
+				return text != nullptr ? text->getText() : "";
+			}
+
 			std::optional<rules::campaign::CampaignFight> left;
 		};
 
@@ -195,6 +205,7 @@ namespace game::testing {
 			ASSERT_NE(scene().ui().drag(), nullptr);
 			key(foundation::Key::Escape);
 			EXPECT_EQ(scene().ui().drag(), nullptr);
+			EXPECT_EQ(find("menu_dialog"), nullptr) << "the drag has the Escape, not the menu";
 			EXPECT_EQ(scene().current().state, before);
 		}
 
@@ -262,6 +273,7 @@ namespace game::testing {
 			auto* dock = dynamic_cast<battle::Dock*>(find("dock"));
 			ASSERT_NE(dock, nullptr);
 			EXPECT_TRUE(dock->locked());
+			EXPECT_FALSE(enabled("menu")) << "the menu waits on the raiders too";
 
 			// Nothing lands before the lead-in; the convoy goes down in steps after it, and the screen settles on the fight.
 			double seconds = 0.0;
@@ -283,6 +295,7 @@ namespace game::testing {
 			EXPECT_EQ(convoyStanding(battle.shown()), convoyStanding(battle.current().state));
 			EXPECT_FALSE(dock->locked());
 			EXPECT_TRUE(enabled("end_turn"));
+			EXPECT_EQ(enabled("menu"), !battle.current().state.outcome);
 		}
 
 		TEST_F(Battle, AFightPlayedOutLeavesForTheRun) {
@@ -290,9 +303,74 @@ namespace game::testing {
 			scene().playOut();
 			frame();
 			ASSERT_TRUE(scene().current().state.outcome);
+			EXPECT_FALSE(enabled("menu")) << "a fight that's over is written back, so Leave is the one way on";
+			key(foundation::Key::Escape);
+			EXPECT_EQ(find("menu_dialog"), nullptr);
 			ASSERT_TRUE(press("leave"));
 			ASSERT_TRUE(left);
 			EXPECT_EQ(left->state.phase, rules::Phase::Over);
+		}
+
+		TEST_F(Battle, TheMenuKeyOpensTheMenuOverTheFightAndKeepFightingGoesBackToIt) {
+			open(1);
+			EXPECT_EQ(find("top_bar_scrap"), nullptr) << "no run is out, so there's no cargo to show";
+			const rules::BattleState before = scene().current().state;
+			ASSERT_TRUE(enabled("menu"));
+			ASSERT_TRUE(press("menu"));
+			ASSERT_NE(find("menu_dialog"), nullptr);
+			EXPECT_TRUE(find("menu_resume")->isFocused()) << "Keep fighting has the focus, so a stray Enter stays in the fight";
+			EXPECT_NE(find("menu_main_menu"), nullptr);
+			ASSERT_TRUE(press("menu_resume"));
+			EXPECT_EQ(find("menu_dialog"), nullptr);
+			EXPECT_EQ(top(), "battle");
+			EXPECT_EQ(scene().current().state, before);
+		}
+
+		TEST_F(Battle, MainMenuLeavesTheFightUnfinished) {
+			open(1);
+			ASSERT_TRUE(press("menu"));
+			ASSERT_TRUE(press("menu_main_menu"));
+			frame();
+			EXPECT_EQ(top(), scenes::kMainMenu);
+			EXPECT_FALSE(left) << "an unfinished fight isn't handed to the run to write back";
+		}
+
+		TEST_F(Battle, EscapePutsAWaitingCardBackBeforeItOpensTheMenu) {
+			open(1, {"strafe", "strafe"});
+			const auto strafe = std::ranges::find_if(scene().actions(), [](const rules::Action& action) {
+				const auto* play = std::get_if<PlayCard>(&action);
+				return play != nullptr && play->driver.value == 0 && play->handIndex == 0 && play->destination && play->target;
+			});
+			ASSERT_NE(strafe, scene().actions().end());
+			ASSERT_TRUE(drag("hand_0_0", slotId(*std::get<PlayCard>(*strafe).destination)));
+			ASSERT_TRUE(scene().aiming());
+			key(foundation::Key::Escape);
+			EXPECT_FALSE(scene().aiming());
+			EXPECT_EQ(find("menu_dialog"), nullptr);
+			find("hand_0_0")->focus();
+			frame();
+			key(foundation::Key::Escape);
+			EXPECT_NE(find("menu_dialog"), nullptr) << "with nothing waiting, Escape opens the menu";
+			key(foundation::Key::Escape);
+			EXPECT_EQ(find("menu_dialog"), nullptr) << "and closes it";
+			EXPECT_EQ(top(), "battle");
+		}
+
+		TEST_F(Battle, ScrapAndFuelAreTheRunsCargo) {
+			context->session = Session{
+				.campaign = rules::campaigns::foundOnTestMap(),
+				.map = std::make_unique<SessionMap>(rules::campaigns::testLayers()),
+			};
+			rules::campaign::startRun(
+				played(), testRules().content, {.seats = {played().drivers[0].id, played().drivers[1].id}, .stage = 0}
+			);
+			played().run->cargo.scrap = 37;
+			played().run->cargo.fuel = 4;
+			played().stores.scrap = 150;
+			open(1);
+			EXPECT_EQ(textOf("top_bar_scrap_value"), "37");
+			EXPECT_EQ(textOf("top_bar_fuel_value"), "4");
+			EXPECT_EQ(lintAt(1280, 800) + lintAt(1440, 900) + lintAt(1920, 1080), "") << "with the cargo up";
 		}
 
 		TEST_F(Battle, TheSceneLintsZeroAtThreeSizes) {
@@ -304,6 +382,9 @@ namespace game::testing {
 			key(foundation::Key::L);
 			EXPECT_EQ(three(), "") << "with the log open";
 			key(foundation::Key::L);
+			ASSERT_TRUE(press("menu"));
+			EXPECT_EQ(three(), "") << "with the menu open";
+			ASSERT_TRUE(press("menu_resume"));
 			ASSERT_TRUE(press("end_turn"));
 			EXPECT_EQ(three(), "") << "the raiders' turn";
 			settle();

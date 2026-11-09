@@ -34,6 +34,8 @@ Options considered: laying parts out from the token's size (what the old plate d
 
 2026-11-06. `apps/wasteland-wheels/road/VehicleToken` draws this layout from a `TokenData` the battle scene fills, at a scale it takes from the road (`fitScale`, between 1 and the road's cap). Status chips are short labels until the game has status icons; the chips' and intents' tooltips, and filling it from the fight, come with the battle scene ([cards-and-kit-on-salal.md](./cards-and-kit-on-salal.md)).
 
+The sprite is a rear view per vehicle class, `art/vehicle-<class>.svg` at 60x40 ([procedural-paper.md](./procedural-paper.md), Everything else), drawn tinted by side. A tint recolours every shape, so a piece's tones are alpha: tyres at half, glass, tail lights and panel seams cut through to the road. The class is content, `vehicleClass` on a driver's or an opponent's vehicle and on an escort; the base pack has bike, buggy, car, truck, rig, and tanker, and a class with no drawing, or none, draws `vehicle-generic`. The TypeScript guessed a car, truck, or bike from the name and the structure; a pack names its class instead, so a mod's vehicle gets a shape without a name to match.
+
 ## Consequences
 
 - Hit numbers pop from the plate, not the whole token.

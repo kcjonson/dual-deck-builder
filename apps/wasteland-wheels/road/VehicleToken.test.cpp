@@ -1,11 +1,16 @@
 // The vehicle token (Battle Screen Design 3, vehicle-token.md): its height with and without a passenger, how it scales into
-// a slot, its chips and intents past what fits, and every kind of token laid out and linted 0 on a sheet.
+// a slot, its chips and intents past what fits, the rear view its vehicle class draws, and every kind of token laid out
+// and linted 0 on a sheet.
 
 #include "road/VehicleToken.h"
 #include "GameTesting.h"
+#include "atlas/Art.h"
 #include "atlas/Sheet.h"
 
+#include <nlohmann/json.hpp>
+
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -19,6 +24,7 @@ namespace {
 	TokenData player() {
 		return {
 			.name = "War Rig",
+			.vehicleClass = "rig",
 			.side = TokenSide::Player,
 			.seat = 0,
 			.structure = {.value = 34, .max = 40},
@@ -32,6 +38,7 @@ namespace {
 	TokenData raider() {
 		return {
 			.name = "Spiked Interceptor of the Long Road",
+			.vehicleClass = "buggy",
 			.side = TokenSide::Raider,
 			.structure = {.value = 12, .max = 20},
 			.armor = 2,
@@ -48,6 +55,7 @@ namespace {
 	TokenData escort() {
 		return {
 			.name = "Fuel Hauler",
+			.vehicleClass = "tanker",
 			.side = TokenSide::Escort,
 			.structure = {.value = 18, .max = 20},
 			.passenger = road::Meter{.value = 14, .max = 25},
@@ -85,6 +93,25 @@ namespace {
 		EXPECT_EQ(rig.shownChips(), (std::vector<std::string>{"SH4", "VUL"}));
 		const VehicleToken interceptor({.data = raider()});
 		EXPECT_EQ(interceptor.shownIntents(), (std::vector<std::string>{"6", "4x2", "+1"}));
+	}
+
+	TEST(VehicleToken, EachVehicleClassHasItsOwnRearViewAndAnyOtherClassTheGenericOne) {
+		const std::vector<std::pair<std::string, std::string>> drawn{
+			{"bike", "vehicle-bike"},
+			{"buggy", "vehicle-buggy"},
+			{"car", "vehicle-car"},
+			{"truck", "vehicle-truck"},
+			{"rig", "vehicle-rig"},
+			{"tanker", "vehicle-tanker"},
+		};
+		for (const auto& [vehicleClass, art] : drawn) {
+			EXPECT_EQ(VehicleToken::artFor(vehicleClass), art) << vehicleClass;
+			EXPECT_FALSE(game::art::art(art).empty()) << art << " isn't in art/";
+		}
+		EXPECT_EQ(VehicleToken::artFor("hovercraft"), "vehicle-generic");
+		EXPECT_EQ(VehicleToken::artFor("Rig"), "vehicle-generic") << "classes are matched exactly";
+		EXPECT_EQ(VehicleToken::artFor(""), "vehicle-generic");
+		EXPECT_FALSE(game::art::art("vehicle-generic").empty());
 	}
 
 	class Tokens : public GameTest {};
@@ -130,6 +157,15 @@ namespace {
 		);
 		EXPECT_EQ(lintAt(1440, 900), "");
 		EXPECT_EQ(lintAt(1920, 1080), "");
+		const auto artOf = [this](const char* id) {
+			nlohmann::json described;
+			find(id)->describe(described);
+			return described["art"].get<std::string>();
+		};
+		EXPECT_EQ(artOf("rig"), "vehicle-rig");
+		EXPECT_EQ(artOf("raider"), "vehicle-buggy");
+		EXPECT_EQ(artOf("hauler"), "vehicle-tanker");
+		EXPECT_EQ(artOf("wreck"), "vehicle-buggy") << "a wreck keeps its shape, greyed";
 	}
 
 } // namespace
