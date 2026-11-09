@@ -69,7 +69,8 @@ namespace game::battle {
 		[[nodiscard]] const rules::BattleCard*		 inHand(HandCard card) const;
 		[[nodiscard]] const std::vector<size_t>&	 playsOf(HandCard card) const;
 		[[nodiscard]] const rules::action::PlayCard& playAt(size_t index) const;
-		[[nodiscard]] Walk							 walk(HandCard card, std::span<const AimPick> picked) const;
+		// Quiet, a pick no play allows isn't logged: what's under the pointer needn't be a pick on offer.
+		[[nodiscard]] Walk walk(HandCard card, std::span<const AimPick> picked, bool loud = true) const;
 		// What one legal play does, off apply on a copy, worked out once.
 		[[nodiscard]] const AimPreview& playPreview(size_t index) const;
 		// The range to a raider at `at` for a card the escorts carry out: from the order's carrier for the play aimed there,

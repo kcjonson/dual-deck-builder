@@ -176,7 +176,7 @@ namespace game::battle {
 		return order;
 	}
 
-	Targeting::Walk Targeting::walk(HandCard card, std::span<const AimPick> picked) const {
+	Targeting::Walk Targeting::walk(HandCard card, std::span<const AimPick> picked, bool loud) const {
 		Walk   at{.plays = playsOf(card)};
 		size_t next = 0;
 		for (const AimStep step : steps(card)) {
@@ -189,18 +189,26 @@ namespace game::battle {
 			}
 			const AimPick& pick = picked[next++];
 			if (!answers(pick, step)) {
-				LOG_ERROR(Game, "A pick for card %d of driver %d doesn't answer its step", card.handIndex, card.driver.value);
+				if (loud) {
+					LOG_ERROR(Game, "A pick for card %d of driver %d doesn't answer its step", card.handIndex, card.driver.value);
+				}
 				at.plays.clear();
 				return at;
 			}
 			std::erase_if(at.plays, [&](size_t index) { return pickOf(playAt(index), step) != pick; });
 			if (at.plays.empty()) {
-				LOG_ERROR(Game, "A pick for card %d of driver %d isn't one its plays offer", card.handIndex, card.driver.value);
+				if (loud) {
+					LOG_ERROR(Game, "A pick for card %d of driver %d isn't one its plays offer", card.handIndex, card.driver.value);
+				}
 				return at;
 			}
 		}
 		if (next < picked.size()) {
-			LOG_ERROR(Game, "Card %d of driver %d got %zu picks past its steps", card.handIndex, card.driver.value, picked.size() - next);
+			if (loud) {
+				LOG_ERROR(
+					Game, "Card %d of driver %d got %zu picks past its steps", card.handIndex, card.driver.value, picked.size() - next
+				);
+			}
 			at.plays.clear();
 		}
 		return at;
@@ -361,7 +369,14 @@ namespace game::battle {
 	}
 
 	std::vector<RangeChip> Targeting::ranges(HandCard card, std::span<const AimPick> picked) const {
-		const Walk				 at = walk(card, picked);
+		// The last pick may be what's under the pointer and not one the card takes (a raider out of reach): the chips then
+		// read as they do without it.
+		std::span<const AimPick> taken = picked;
+		Walk					 at = walk(card, taken, false);
+		if (at.plays.empty() && !taken.empty()) {
+			taken = taken.first(taken.size() - 1);
+			at = walk(card, taken);
+		}
 		const rules::BattleCard* held = inHand(card);
 		// A slot step shows readouts only for the slot under the pointer: they preview a destination.
 		if (held == nullptr || at.plays.empty() || at.open == AimStep::Slot) {
@@ -376,7 +391,7 @@ namespace game::battle {
 
 		std::optional<rules::RoadSlot>	   slot;
 		std::optional<rules::VehicleIndex> vehicle;
-		for (const AimPick& pick : picked) {
+		for (const AimPick& pick : taken) {
 			slot = pick.slot ? pick.slot : slot;
 			vehicle = pick.vehicle ? pick.vehicle : vehicle;
 		}

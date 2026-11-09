@@ -304,6 +304,8 @@ namespace game::battle {
 				RangeChip{.vehicle = rustBuggy, .range = 2, .inReach = false, .lands = false},
 			})
 		);
+		EXPECT_EQ(aim.targeting.ranges(aim.card(kFirst, "point_blank"), std::vector{AimPick{.vehicle = rustBuggy}}), shot)
+			<< "pointing at a raider out of reach changes nothing";
 		EXPECT_TRUE(aim.targeting.ranges(aim.card(kFirst, "armor_plating"), {}).empty()) << "it lands on nobody on the road";
 
 		const HandCard strafe = aim.card(kFirst, "strafe");
