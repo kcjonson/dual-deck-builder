@@ -3,7 +3,7 @@
 // when there's a campaign to continue, a highway shield with the day in it and the save's summary under the label;
 // otherwise New campaign leads, and Continue keeps its place in faded print with why there's nothing to continue.
 // Campaign history follows, then the appendices in two columns: settings, the card showcase, credits, developer tools
-// in a development build, and Exit. New campaign over a campaign in progress asks first.
+// in a development build, and Exit. New campaign over any save, a campaign in progress, a damaged one or an old one, asks first.
 
 #include "atlas/AtlasButton.h"
 #include "atlas/AtlasTheme.h"
@@ -283,24 +283,59 @@ namespace game {
 				app().scenes().switchTo(scenes::kLoading);
 			}
 
+			// What New campaign asks before it replaces the save, by the save's state; none for no save.
+			struct Replacement {
+				const char* title;
+				std::string body;
+				const char* keep;
+				const char* confirm;
+			};
+
+			[[nodiscard]] std::optional<Replacement> replacement() const {
+				switch (status.state) {
+					case SaveState::Saved:
+						return Replacement{
+							.title = "Abandon this campaign?",
+							.body = status.line + ". A new campaign replaces it, and it goes into Campaign history as abandoned.",
+							.keep = "Keep it",
+							.confirm = "Abandon and start new",
+						};
+					case SaveState::Damaged:
+						return Replacement{
+							.title = "Replace the damaged save?",
+							.body =
+								"The saved campaign can't be loaded. A new campaign replaces it, and a copy of the damaged save is kept.",
+							.keep = "Cancel",
+							.confirm = "Start new campaign",
+						};
+					case SaveState::OtherFormat:
+						return Replacement{
+							.title = "Replace the old save?",
+							.body = "The saved campaign is from another version of the game and can't be continued. A new campaign "
+									"replaces it.",
+							.keep = "Cancel",
+							.confirm = "Start new campaign",
+						};
+					case SaveState::None:
+						break;
+				}
+				return std::nullopt;
+			}
+
 			void newCampaign() {
-				if (!saved()) {
+				const std::optional<Replacement> ask = replacement();
+				if (!ask) {
 					app().scenes().reset<FoundingScene>();
 					return;
 				}
 				confirming = true;
-				ui::Ref<ui::Dialog> dialog =
-					ui::Dialog::open(*sheet.get(), {.id = "confirm", .title = "Abandon this campaign?", .footer = true, .onClose = [this] {
-														confirming = false;
-													}});
-				dialog.get()->content().addChild<ui::Text>({
-					.style = styles::body,
-					.text = status.line + ". A new campaign replaces it, and it goes into Campaign history as abandoned.",
-					.wrap = true,
-				});
+				ui::Ref<ui::Dialog> dialog = ui::Dialog::open(
+					*sheet.get(), {.id = "confirm", .title = ask->title, .footer = true, .onClose = [this] { confirming = false; }}
+				);
+				dialog.get()->content().addChild<ui::Text>({.id = "confirm_body", .style = styles::body, .text = ask->body, .wrap = true});
 				dialog.get()->footer().addChild<atlas::AtlasButton>({
 					.id = "keep",
-					.label = "Keep it",
+					.label = ask->keep,
 					.onPress = [this, dialog] {
 						confirming = false;
 						ui().closeOverlay(dialog);
@@ -308,7 +343,7 @@ namespace game {
 				});
 				dialog.get()->footer().addChild<atlas::AtlasButton>({
 					.id = "confirm_new",
-					.label = "Abandon and start new",
+					.label = ask->confirm,
 					.onPress = [this] { app().scenes().reset<FoundingScene>(); },
 				});
 			}
