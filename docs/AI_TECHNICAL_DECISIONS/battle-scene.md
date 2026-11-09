@@ -50,7 +50,7 @@ The picture keeps "one place interprets effects": the events already say what ch
 
 ## Consequences
 
-- A click on a card doesn't pick it up: a pointer drags it, and the keys pick it up with activate. Click-then-target waits on salal starting a drag from code (SAL-155).
+- A click on a card doesn't pick it up: a pointer drags it, and the keys pick it up with activate. Click-then-target waits on salal starting a drag from code.
 - The end-turn preview draws each intent's line but not the incoming total on the player's plates, since `rules::Intent` doesn't split an area hit by vehicle.
 - A card's id is its place in the hand and salal has no way to rename a component, so a card whose place shifts after a play is built again, and a detail view pinned on it closes.
 - The picture moves only what the screen shows: bars, slots and flanks, who's aboard, statuses, spent, and who's on the road. Hands, piles and adrenaline come with the settle. Two of the rules' changes have no event: a Formation Shift moving a flanker's reserved slot, and statuses counting down as a turn opens. Both happen before the settle, so nothing on screen is wrong, but a picture between beats can't show them.
