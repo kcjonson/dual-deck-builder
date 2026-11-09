@@ -5,7 +5,7 @@
 
 ## Context
 
-Port plan step 6 starts with the part of the presentation that doesn't wait on the UI art decision: the game's executable, its scenes in the order Game Flow and UI Specification has them, saves and settings, and the dev server, all over the rules and the AI through their real API. The look is a placeholder until the art decision lands. salal was pinned at v0.30.1 when this was written and is at v0.37.0 since 2026-11-02; its `app` (the frame, scenes, saves, settings, the dev server) and `ui` (the component tree, layout, focus, the overlay stack, the controls) are both in, and worldsim runs on them.
+Port plan step 6 starts with the part of the presentation that doesn't wait on the UI art decision: the game's executable, its scenes in the order Game Flow and UI Specification has them, saves and settings, and the dev server, all over the rules and the AI through their real API. The look is a placeholder until the art decision lands. salal was pinned at v0.30.1 when this was written and is at v0.39.0 since 2026-11-09, which adds a log file per run, a crash handler, and drag and drop; its `app` (the frame, scenes, saves, settings, the dev server) and `ui` (the component tree, layout, focus, the overlay stack, the controls) are both in, and worldsim runs on them.
 
 The rules already found a campaign on a map made off the frame, read and write its save, play its runs stop by stop, fight through the combat bridge, and end its days and the campaign itself ([campaign.md](./campaign.md)). Writing the save to a slot, the history, and holding the map beside the campaign were left to the game ([campaign-save-and-load.md](./campaign-save-and-load.md), In the C++ alpha).
 
@@ -116,7 +116,7 @@ No gameplay calls: the flow is Game Flow's, and the one rule load out adds, a ru
 
 - **A theme for every scene.** Each scene's ui context starts on ui's default theme, so a game's tokens and its font families (the roles display, body, and mono) have to be set on each scene's context by the scene, as `GameScene` sets the families. An App-level theme every scene's ui starts with is the generic shape, and the game will need it the day it has tokens.
 - **Pushing a scene by name.** `SceneStack` pushes by type only; by name it can only reset (`switchTo`). The game resets everywhere a scene has no arguments (the settings over the menu, the area map over the compound), which rebuilds the scene underneath when it comes back.
-- **The drag tier.** ui-plan.md leaves the drag service out of its sequence. The battle screen's cards are dragged onto targets (Game Flow 2.3), so the real battle screen needs it.
+- **The drag tier.** Closed by salal v0.39.0 (`ui/Drag.h`): a component declares itself a drag source or a drop target, the ghost lifts into the drag tier, and activate on a focused source picks it up for the keys.
 - **A cancellable background job.** `MapJob` (run on a thread, progress and the result polled from update, cancel through a stop token) is nothing the game owns; if worldsim's world creator wants the same, it belongs in app.
 
 ## Consequences
