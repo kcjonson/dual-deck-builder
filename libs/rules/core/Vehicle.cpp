@@ -17,6 +17,7 @@ namespace rules {
 	VehicleStats readVehicleStats(JsonReader reader) {
 		VehicleStats stats{
 			.name = reader.requireString("name"),
+			.vehicleClass = reader.optionalString("vehicleClass").value_or(""),
 			.image = reader.optionalString("image").value_or(""),
 			.maxStructure = readStat(reader, "maxStructure"),
 			.weight = readStat(reader, "weight"),

@@ -9,6 +9,8 @@ namespace rules {
 	// A driven vehicle as it comes off the line: a driver's or an opponent's.
 	struct VehicleStats {
 		std::string name;
+		// What it's built as (bike, buggy, rig...), which picks the art the road draws it with; empty for none.
+		std::string vehicleClass;
 		// Relative to the pack's root; empty for none.
 		std::string image;
 		int			maxStructure{0};

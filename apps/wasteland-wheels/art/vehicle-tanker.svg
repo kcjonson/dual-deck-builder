@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 40" width="60" height="40">
+<!-- A tanker from behind, facing up the road (Battle Screen Design 3), the token's 60 by 40 sprite: the tank's round end
+     with its seam ring and hazard diamond cut through, the frame under it with its tail lights, a bumper, and doubled
+     tyres each side. Drawn tinted by side, so its tones are alpha: the tyres at half, the cut-outs holes the road shows
+     through. -->
+	<rect x="6" y="29" width="7.5" height="10" rx="1.5" fill="#77736A" fill-opacity="0.5"/>
+	<rect x="14" y="29" width="7.5" height="10" rx="1.5" fill="#77736A" fill-opacity="0.5"/>
+	<rect x="38.5" y="29" width="7.5" height="10" rx="1.5" fill="#77736A" fill-opacity="0.5"/>
+	<rect x="46.5" y="29" width="7.5" height="10" rx="1.5" fill="#77736A" fill-opacity="0.5"/>
+	<path d="M5 16.5 A25 13.5 0 1 1 55 16.5 A25 13.5 0 1 1 5 16.5 Z M9.5 16.5 A20.5 10 0 1 0 50.5 16.5 A20.5 10 0 1 0 9.5 16.5 Z M10.7 16.5 A19.3 8.8 0 1 1 49.3 16.5 A19.3 8.8 0 1 1 10.7 16.5 Z M30 11 L26 16.5 L30 22 L34 16.5 Z" fill="#77736A"/>
+	<path d="M8 27 H52 V31 H8 Z M10 28 V30 H14 V28 Z M46 28 V30 H50 V28 Z" fill="#77736A"/>
+	<rect x="6" y="32.5" width="48" height="2.5" fill="#77736A"/>
+</svg>
