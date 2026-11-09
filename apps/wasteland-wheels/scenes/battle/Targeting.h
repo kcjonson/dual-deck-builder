@@ -58,7 +58,28 @@ namespace game::battle {
 		const rules::Content&		   content;
 		std::span<const rules::Action> legal;
 		// Everything below is the implementer's to change.
-		mutable std::map<std::pair<int, int>, AimPreview> previews;
+
+		// How far a card's picks take its legal plays: the plays they still allow, by index into legal, and the step
+		// waiting on its pick, none once they're complete. A pick no play allows leaves no plays.
+		struct Walk {
+			std::vector<size_t>	   plays;
+			std::optional<AimStep> open;
+		};
+
+		[[nodiscard]] const rules::BattleCard*		 inHand(HandCard card) const;
+		[[nodiscard]] const std::vector<size_t>&	 playsOf(HandCard card) const;
+		[[nodiscard]] const rules::action::PlayCard& playAt(size_t index) const;
+		[[nodiscard]] Walk							 walk(HandCard card, std::span<const AimPick> picked) const;
+		// What one legal play does, off apply on a copy, worked out once.
+		[[nodiscard]] const AimPreview& playPreview(size_t index) const;
+		// The range to a raider at `at` for a card the escorts carry out: from the order's carrier for the play aimed there,
+		// or else the nearest ready escort that could carry it.
+		[[nodiscard]] int escortRange(HandCard card, std::optional<size_t> aimedAt, rules::RoadSlot at) const;
+
+		// Each card's legal plays, by driver and place in hand.
+		std::map<std::pair<int, int>, std::vector<size_t>> plays;
+		mutable std::map<size_t, AimPreview>			   previews;
+		mutable std::map<std::pair<int, int>, bool>		   certainty;
 	};
 
 } // namespace game::battle

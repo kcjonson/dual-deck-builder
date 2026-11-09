@@ -36,6 +36,8 @@ add_library(ddb_game STATIC
     scenes/AtlasPage.cpp
     scenes/Scenes.cpp
     scenes/battle/BattleScene.cpp
+    scenes/battle/Dock.cpp
+    scenes/battle/Targeting.cpp
     scenes/compound/CompoundPlate.cpp
     scenes/compound/CompoundScene.cpp
     scenes/credits/CreditsScene.cpp
