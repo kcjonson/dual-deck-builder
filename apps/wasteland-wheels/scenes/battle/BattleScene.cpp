@@ -2,6 +2,7 @@
 
 #include "Words.h"
 #include "atlas/AtlasTheme.h"
+#include "atlas/Icons.h"
 #include "road/RoadLayout.h"
 #include "road/RoadPicture.h"
 #include "road/RoadView.h"
@@ -80,6 +81,9 @@ namespace game {
 		if (game().session) {
 			seats = seatNames(game().session->campaign, game().rules.content);
 		}
+		if (!ui().icons().has("fuel")) {
+			ui().icons().add(icons::iconAtlas());
+		}
 		build();
 		const BattleState before = fight.state;
 		afterAction(before, {});
@@ -104,13 +108,19 @@ namespace game {
 	}
 
 	void BattleScene::build() {
-		// Escape puts a waiting card back and L opens the log, wherever focus is.
+		// Escape puts a waiting card back, or with none opens the menu, and L opens the log, wherever focus is. The menu's
+		// keys are its own.
 		ui::Ref<ui::Component> root = this->root().addChild<ui::Component>({
 			.id = "battle",
 			.size = {ui::percent(100.0F), ui::percent(100.0F)},
 			.onKeyDown = [this](ui::KeyEvent& event) {
+				if (top.get()->menuOpen()) {
+					return;
+				}
 				if (event.type == ui::KeyEvent::Type::Cancel && pending) {
 					cancelAim();
+					event.consume();
+				} else if (event.type == ui::KeyEvent::Type::Cancel && top.get()->openMenu()) {
 					event.consume();
 				} else if (event.type == ui::KeyEvent::Type::Down && event.key == foundation::Key::L && !event.repeat) {
 					toggleLog();
@@ -144,7 +154,11 @@ namespace game {
 			},
 			.onPick = [this](const battle::AimPick& chosen) { pick(chosen); },
 		});
-		top = root.addChild<battle::TopBar>({.id = "top_bar", .onToggleLog = [this] { toggleLog(); }});
+		top = root.addChild<battle::TopBar>({
+			.id = "top_bar",
+			.onToggleLog = [this] { toggleLog(); },
+			.onMainMenu = [this] { app().scenes().switchTo(scenes::kMainMenu); },
+		});
 		dock = root.addChild<battle::Dock>({
 			.id = "dock",
 			.onEndTurn = [this] { endTurn(); },
@@ -314,7 +328,13 @@ namespace game {
 	}
 
 	void BattleScene::showTopBar() {
-		const BattleState& shownState = playback.shown();
+		const BattleState&			   shownState = playback.shown();
+		std::optional<battle::Carried> cargo;
+		const std::optional<Session>&  session = game().session;
+		if (session && session->campaign.run) {
+			const rules::campaign::Resources& carried = session->campaign.run->cargo;
+			cargo = battle::Carried{.scrap = carried.scrap, .fuel = carried.fuel};
+		}
 		top.get()->show({
 			.wave = rules::waveOnRoad(shownState),
 			.waves = shownState.reinforcements.total,
@@ -323,6 +343,8 @@ namespace game {
 			.raidersActing = playback.playing(),
 			.ticker = ticker,
 			.logOpen = logOpen,
+			.menu = !playback.playing() && !fight.state.outcome,
+			.cargo = cargo,
 		});
 	}
 
