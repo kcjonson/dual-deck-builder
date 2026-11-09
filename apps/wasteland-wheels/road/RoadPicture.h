@@ -19,10 +19,11 @@
 namespace game::road {
 
 	struct RoadVehicle {
-		rules::VehicleIndex			   index;
-		TokenData					   token;
-		rules::RoadSlot				   slot;
-		std::optional<rules::RoadSlot> reserved; // a flanker's held formation slot, which no one else takes
+		rules::VehicleIndex				index;
+		TokenData						token;
+		rules::RoadSlot					slot;
+		std::optional<rules::RoadSlot>	reserved; // a flanker's held formation slot, which no one else takes
+		std::vector<rules::DriverIndex> aboard;	  // the driver, then the passenger: who an occupant pick on it names
 
 		bool operator==(const RoadVehicle&) const = default;
 	};

@@ -29,6 +29,9 @@ add_library(ddb_game STATIC
     DevRoutes.cpp
     Fonts.cpp
     GameRules.cpp
+    road/RoadLayout.cpp
+    road/RoadPicture.cpp
+    road/RoadView.cpp
     road/VehicleToken.cpp
     Session.cpp
     Words.cpp
