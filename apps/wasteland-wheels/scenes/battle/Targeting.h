@@ -10,7 +10,7 @@
 
 #include <rules/battle/BattleAction.h>
 #include <rules/battle/BattleState.h>
-#include <rules/core/Content.h>
+#include <rules/packs/Pack.h>
 
 #include <cstddef>
 #include <map>
