@@ -97,7 +97,7 @@ int main(int argc, char* argv[]) {
 		return 1;
 	}
 	std::unique_ptr<app::App> app = app::App::create(
-		{.organization = "Bear Cave Interactive",
+		{.organization = "Bear Cavalry Interactive",
 		 .applicationName = kTitle,
 		 .baseShader = base_shader::source(),
 		 .fontAtlases = game::fonts::atlases(),
