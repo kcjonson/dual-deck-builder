@@ -1,0 +1,336 @@
+name: Playtest build
+
+# docs/specs/playtest-distribution.md. Every push to main builds the game for
+# each platform and publishes the archives as a GitHub prerelease, tagged
+# playtest-<build>, then mirrors the landing page (playtest/index.html) and its
+# builds.json to the playtest URL. A pull request labelled playtest gets the same
+# builds as workflow artifacts and a comment, and publishes nothing. Waits on no
+# other check.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # vcpkg's tool scripts, salal's CI's commit; the ports come from vcpkg.json's baseline.
+  VCPKG_COMMIT: '617ef1c0c422737d117eda00a471ea1be5bad088'
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+    # A label other than playtest landing on a playtest PR doesn't rebuild it.
+    if: >-
+      github.event_name != 'pull_request' ||
+      (contains(github.event.pull_request.labels.*.name, 'playtest') &&
+       (github.event.action != 'labeled' || github.event.label.name == 'playtest'))
+    # A new push to a PR replaces its running builds; every push to main builds.
+    concurrency:
+      group: playtest-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}-${{ matrix.name }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: win-x64
+            os: windows-latest
+            platform: win
+            arch: x64
+            configure-preset: windows
+            build-preset: windows-release
+          - name: mac-arm64
+            os: macos-26
+            platform: mac
+            arch: arm64
+            configure-preset: release
+            build-preset: release
+          # A native Intel runner. Cross-compiling on arm64 would run salal's
+          # build-time tools (shader assembler, tokens, icons, art) as x86_64
+          # under Rosetta. The flags are redundant here, and keep the leg as it
+          # would be on arm64 once the Intel images go.
+          - name: mac-x64
+            os: macos-26-intel
+            platform: mac
+            arch: x64
+            configure-preset: release
+            build-preset: release
+            configure-args: -DCMAKE_OSX_ARCHITECTURES=x86_64 -DVCPKG_TARGET_TRIPLET=x64-osx
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      BUILD_NUMBER: ${{ github.run_number }}
+      # The branch commit on a PR, not the merge ref it checks out
+      BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      # The oldest macOS the builds run on; CMake and the vcpkg ports read it
+      # from the environment. Without it the binary needs the runner's macOS.
+      # Ignored on Windows.
+      MACOSX_DEPLOYMENT_TARGET: '14.0'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+
+    - name: Make sure Ninja is on PATH
+      if: runner.os == 'macOS'
+      run: command -v ninja >/dev/null || brew install ninja
+
+    # The presets name ccache as the compiler launcher, so it has to be on PATH.
+    - name: Set up ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: playtest-${{ matrix.name }}
+
+    # Ninja needs cl.exe on PATH; the preset's CC/CXX=cl picks it over the
+    # other compilers on the runner's PATH.
+    - name: Set up MSVC environment
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+
+    # vcpkg's x-gha binary cache provider is gone, so the binary cache is a
+    # plain directory saved and restored with actions/cache. Keyed per leg, and
+    # apart from any Debug CI's, since the deployment target isn't in vcpkg's
+    # ABI hash.
+    - name: Point vcpkg at a binary cache directory
+      run: |
+        mkdir -p "$RUNNER_TEMP/vcpkg-binary-cache"
+        echo "VCPKG_BINARY_SOURCES=clear;files,$RUNNER_TEMP/vcpkg-binary-cache,readwrite" >> "$GITHUB_ENV"
+
+    - name: Restore vcpkg binary cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ runner.temp }}/vcpkg-binary-cache
+        key: vcpkg-playtest-${{ matrix.name }}-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
+        restore-keys: |
+          vcpkg-playtest-${{ matrix.name }}-${{ hashFiles('vcpkg.json') }}-
+          vcpkg-playtest-${{ matrix.name }}-
+
+    - name: Set up vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+
+    - name: Configure
+      run: >-
+        cmake --preset ${{ matrix.configure-preset }}
+        -DDDB_BUILD_NUMBER="$BUILD_NUMBER" -DDDB_BUILD_SHA="$BUILD_SHA"
+        ${{ matrix.configure-args }}
+
+    # Saved straight after configure, where vcpkg install runs, so a later
+    # failure doesn't throw away the port builds. The run id makes every key
+    # unique; restore takes the newest with the prefix.
+    - name: Save vcpkg binary cache
+      if: always()
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ runner.temp }}/vcpkg-binary-cache
+        key: vcpkg-playtest-${{ matrix.name }}-${{ hashFiles('vcpkg.json') }}-${{ github.run_id }}
+
+    - name: Build
+      run: cmake --build --preset ${{ matrix.build-preset }}
+
+    # The preset's binaryDir, followed through inherits; build when none says.
+    - name: Find the build directory
+      id: dir
+      env:
+        PRESET: ${{ matrix.configure-preset }}
+      run: |
+        dir=$(node - "$PRESET" <<'EOF'
+        const presets = JSON.parse(require('fs').readFileSync('CMakePresets.json', 'utf8')).configurePresets;
+        const name = process.argv[2];
+        const find = (n) => {
+          const preset = presets.find((p) => p.name === n);
+          if (!preset) return undefined;
+          if (preset.binaryDir) return preset.binaryDir;
+          for (const parent of [].concat(preset.inherits ?? [])) {
+            const found = find(parent);
+            if (found) return found;
+          }
+        };
+        const dir = find(name) ?? '${sourceDir}/build';
+        console.log(dir.replaceAll('${sourceDir}', '.').replaceAll('${presetName}', name));
+        EOF
+        )
+        echo "Build directory: $dir"
+        echo "path=$dir" >> "$GITHUB_OUTPUT"
+
+    - name: Package
+      id: package
+      run: |
+        archive=$(node scripts/package.mjs --build-dir "${{ steps.dir.outputs.path }}" --config Release \
+          --platform ${{ matrix.platform }} --arch ${{ matrix.arch }} \
+          --build "$BUILD_NUMBER" --sha "$BUILD_SHA" --out dist | tail -n 1)
+        if [ ! -f "$archive" ]; then
+          echo "::error::package.mjs didn't print an archive that exists (got: $archive)"
+          exit 1
+        fi
+        echo "archive=$archive" >> "$GITHUB_OUTPUT"
+
+    - name: Upload archive
+      uses: actions/upload-artifact@v4
+      with:
+        name: playtest-${{ matrix.name }}
+        path: ${{ steps.package.outputs.archive }}
+        if-no-files-found: error
+        retention-days: 7
+        # Already a zip
+        compression-level: 0
+
+  # Push to main only. Runs with whatever legs succeeded.
+  publish:
+    name: Publish
+    needs: build
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    # One publish at a time, so retention and builds.json never race.
+    concurrency:
+      group: playtest-publish
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      BUILD: ${{ github.run_number }}
+      SHA: ${{ github.sha }}
+      KEEP: 10
+      PAGE_URL: https://bearcavinteractive.com/playtest/dual-deckbuilder/
+      # Under the SFTP account's home, where the web game used to be mirrored
+      REMOTE: bearcavinteractive.com/playtest/dual-deckbuilder
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download archives
+      uses: actions/download-artifact@v4
+      with:
+        pattern: playtest-*
+        path: dist
+        merge-multiple: true
+
+    - name: Release
+      run: |
+        shopt -s nullglob
+        archives=(dist/*.zip)
+        if [ ${#archives[@]} -eq 0 ]; then
+          echo "::error::No leg uploaded an archive; nothing to publish."
+          exit 1
+        fi
+        printf 'Publishing %s\n' "${archives[@]}"
+
+        tag="playtest-$BUILD"
+        if gh release view "$tag" >/dev/null 2>&1; then
+          # A re-run of this job: the first attempt made the release.
+          gh release upload "$tag" "${archives[@]}" --clobber
+        else
+          gh release create "$tag" "${archives[@]}" --prerelease --target "$SHA" \
+            --title "Playtest build $BUILD (${SHA:0:7})" \
+            --notes "Wasteland Wheels playtest build $BUILD, from $SHA on main. Unsigned. Downloads and how to run them: $PAGE_URL"
+        fi
+
+    # builds.json is rebuilt from the releases each run, so nothing carries over
+    # between runs but the releases themselves.
+    - name: Prune old builds and write builds.json
+      run: |
+        gh api --paginate "repos/$GH_REPO/releases?per_page=100" \
+          --jq '.[] | select(.prerelease and (.tag_name | test("^playtest-[0-9]+$")))
+                | {tag: .tag_name, sha: .target_commitish, date: .published_at,
+                   assets: [.assets[] | {name, size, url: .browser_download_url}]}' \
+          | jq -s 'map(. + {number: (.tag | ltrimstr("playtest-") | tonumber)}) | sort_by(-.number)' \
+          > releases.json
+
+        if ! jq -e --argjson n "$BUILD" 'any(.[]; .number == $n)' releases.json >/dev/null; then
+          echo "::error::The releases list doesn't show playtest-$BUILD"
+          exit 1
+        fi
+
+        jq -r --argjson keep "$KEEP" '.[$keep:][] | .tag' releases.json | while read -r tag; do
+          echo "Deleting $tag and its tag"
+          gh release delete "$tag" --yes --cleanup-tag
+        done
+
+        mkdir -p site
+        jq --argjson keep "$KEEP" '.[:$keep] | {
+            latest: (.[0].number // null),
+            builds: map({number, sha, date, downloads: (reduce (.assets[]
+              | (.name | capture("^WastelandWheels-[0-9]+-(?<key>[a-z]+-[a-z0-9]+)[.]zip$").key) as $key
+              | {($key): {url, size}}) as $entry ({}; . + $entry))})
+          }' releases.json > site/builds.json
+        cp playtest/index.html site/
+        cat site/builds.json
+
+    # The page replaces the web game at the URL's root. The web bundle was
+    # mirrored there with --delete, so every plain file at the root is the
+    # bundle's: mirror --delete replaces them with the page's two. Folders
+    # (anything a PR or another deploy put there) and dot files are excluded,
+    # and excluded files aren't deleted. The bundle's own folder, assets/, goes
+    # by name.
+    - name: Mirror the page
+      env:
+        SFTP_SERVER: ${{ secrets.SFTP_SERVER }}
+        SFTP_USERNAME: ${{ secrets.SFTP_USERNAME }}
+        LFTP_PASSWORD: ${{ secrets.SFTP_PASSWORD }}
+        SSH_HOST_KEYS: ${{ secrets.SSH_HOST_KEYS }}
+      run: |
+        sudo apt-get update && sudo apt-get install -y lftp
+
+        # Pin the server's host keys; an imposter host fails instead of connecting
+        mkdir -p ~/.ssh && chmod 700 ~/.ssh
+        while read -r type key; do
+          [ -n "$type" ] && echo "$SFTP_SERVER $type $key"
+        done <<< "$SSH_HOST_KEYS" >> ~/.ssh/known_hosts
+
+        # Credentials via env and stdin only; nothing secret in argv. glob only
+        # expands a pattern with a wildcard in it, hence asset[s].
+        timeout 300 lftp <<EOF
+        set net:timeout 20
+        set net:max-retries 2
+        open -u "$SFTP_USERNAME" --env-password "sftp://$SFTP_SERVER"
+        mirror -R --delete --verbose --exclude-glob '*/' --exclude-glob '.*' site/ "$REMOTE/" || exit 1
+        glob -d --not-exist "$REMOTE/asset[s]" || rm -r "$REMOTE/assets" || exit 1
+        quit
+        EOF
+
+    # A leg that failed is a broken channel too, even when the rest published.
+    - name: Report
+      if: ${{ !cancelled() }}
+      uses: ./.github/actions/report-main
+      with:
+        check: playtest build
+        result: ${{ (needs.build.result == 'failure' || job.status == 'failure') && 'failure' || job.status }}
+        token: ${{ github.token }}
+
+  comment:
+    name: Comment
+    needs: build
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && (needs.build.result == 'success' || needs.build.result == 'failure') }}
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+    - name: Comment the run on the PR
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+        PR: ${{ github.event.pull_request.number }}
+        BUILD: ${{ github.run_number }}
+        SHA: ${{ github.event.pull_request.head.sha }}
+        RESULT: ${{ needs.build.result }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        if [ "$RESULT" = success ]; then
+          body="Playtest build $BUILD of ${SHA:0:7} is ready. The archives are on the run for 7 days: $RUN_URL"
+        else
+          body="Playtest build $BUILD of ${SHA:0:7} failed on at least one platform. Whatever built is on the run for 7 days: $RUN_URL"
+        fi
+        gh pr comment "$PR" --body "$body"
