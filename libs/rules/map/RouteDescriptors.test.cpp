@@ -1,4 +1,5 @@
 #include <rules/core/ContentError.h>
+#include <rules/core/ScratchTesting.h>
 #include <rules/map/RouteDescriptors.h>
 #include <rules/map/RouteTesting.h>
 
@@ -57,7 +58,7 @@ namespace {
 	}
 
 	TEST(RouteDescriptors, ReadTheRoutesFileStrictlyNamingTheFile) {
-		const fs::path folder = fs::temp_directory_path() / "ddb-routes";
+		const fs::path folder = rules::fixtures::scratchPath("routes");
 		fs::remove_all(folder);
 		fs::create_directories(folder);
 		const auto errorFrom = [&](std::string_view names) {

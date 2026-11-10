@@ -1,4 +1,5 @@
 #include <rules/core/ContentError.h>
+#include <rules/core/ScratchTesting.h>
 #include <rules/map/MapPresets.h>
 #include <rules/map/ParamValidator.h>
 
@@ -80,7 +81,7 @@ namespace {
 	}
 
 	TEST(MapPresets, RefusesANumberTooBigForADoubleNamingTheFile) {
-		const fs::path folder = fs::temp_directory_path() / "ddb-map-presets-infinite";
+		const fs::path folder = rules::fixtures::scratchPath("map-presets-infinite");
 		fs::remove_all(folder);
 		fs::create_directories(folder);
 		std::ofstream(folder / "huge.json", std::ios::binary) << R"({"seed": 1, "environment": "mixed", "aridity": 1e999})";
@@ -95,7 +96,7 @@ namespace {
 	}
 
 	TEST(MapPresets, RefusesAFileInTheFolderThatIsntJson) {
-		const fs::path folder = fs::temp_directory_path() / "ddb-map-presets-stray";
+		const fs::path folder = rules::fixtures::scratchPath("map-presets-stray");
 		fs::remove_all(folder);
 		fs::create_directories(folder);
 		std::ofstream(folder / "notes.txt", std::ios::binary) << "tuning notes";

@@ -1,4 +1,5 @@
 #include <rules/core/ContentError.h>
+#include <rules/core/ScratchTesting.h>
 #include <rules/map/Ground.h>
 #include <rules/map/MapTesting.h>
 #include <rules/map/Places.h>
@@ -206,7 +207,7 @@ namespace {
 	}
 
 	TEST(PlaceNames, ReadsThePoolStrictlyNamingTheFile) {
-		const fs::path folder = fs::temp_directory_path() / "ddb-place-names";
+		const fs::path folder = rules::fixtures::scratchPath("place-names");
 		fs::remove_all(folder);
 		fs::create_directories(folder);
 		const auto errorFrom = [&](std::string_view text) {

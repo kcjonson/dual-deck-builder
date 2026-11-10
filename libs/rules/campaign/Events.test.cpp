@@ -1,5 +1,6 @@
 #include <rules/campaign/CampaignTesting.h>
 #include <rules/core/ContentError.h>
+#include <rules/core/ScratchTesting.h>
 
 #include <gtest/gtest.h>
 
@@ -39,7 +40,7 @@ namespace {
 
 		void SetUp() override {
 			scratch =
-				fs::temp_directory_path() / (std::string("ddb-events-") + ::testing::UnitTest::GetInstance()->current_test_info()->name());
+				rules::fixtures::scratchPath(std::string("events-") + ::testing::UnitTest::GetInstance()->current_test_info()->name());
 			fs::remove_all(scratch);
 		}
 
