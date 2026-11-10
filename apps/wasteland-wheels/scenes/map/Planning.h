@@ -53,6 +53,8 @@ namespace game {
 
 	// "6 meds and 4 food", or "nothing".
 	[[nodiscard]] std::string yieldsText(const std::array<int, 5>& yields);
+	// A stop's kind as a tag on a route's stop list: "FIGHT", "WRECK", "DISTRESS", "FIND".
+	[[nodiscard]] std::string stopTag(rules::map::StopType type);
 	// "4.2 h".
 	[[nodiscard]] std::string hoursText(double hours);
 	// An hour of the day: "17:30", or "06:10 the next morning" past midnight.

@@ -86,6 +86,7 @@ namespace game::atlas {
 	LegendRow::LegendRow(const Args& args)
 		: symbol(args.symbol),
 		  text(args.text),
+		  tag(args.tag),
 		  textStyle(args.textStyle) {}
 
 	void LegendRow::describe(nlohmann::json& node) const {
@@ -106,6 +107,14 @@ namespace game::atlas {
 			.text = text,
 			.wrap = true,
 		});
+		if (!tag.empty()) {
+			addChild<ui::Text>({
+				.id = getId().empty() ? std::string() : getId() + "_tag",
+				.layout = {.flexShrink = 0.0F},
+				.style = styles::print::caption,
+				.text = tag,
+			});
+		}
 	}
 
 	void LegendRow::render() {

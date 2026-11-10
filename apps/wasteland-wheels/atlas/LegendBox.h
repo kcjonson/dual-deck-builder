@@ -45,6 +45,7 @@ namespace game::atlas {
 			UI_COMMON_ARGS
 			MapSymbol	symbol = MapSymbol::Ring;
 			std::string text;
+			std::string tag;	   // a mono capitals tag at the right; none when empty
 			ui::Style	textStyle; // the atlas's body by default
 		};
 
@@ -60,6 +61,7 @@ namespace game::atlas {
 	  private:
 		MapSymbol	symbol;
 		std::string text;
+		std::string tag;
 		ui::Style	textStyle;
 	};
 

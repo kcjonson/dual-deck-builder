@@ -186,6 +186,34 @@ namespace {
 		EXPECT_EQ(top(), "load_out");
 	}
 
+	TEST_F(AreaMap, EachStopOnTheRunRouteCarriesItsTypeAsATag) {
+		foundAndOpen();
+		const int poi = plannable();
+		chooseRow(poi);
+		ASSERT_TRUE(press("plan_here"));
+		ASSERT_EQ(top(), "run_route");
+		const Planning	   planned = planning(*context->session);
+		const Destination* destination = planned.find(poi);
+		ASSERT_NE(destination, nullptr);
+		const rules::map::RouteOutlook& outlook = destination->routes.front().outlook;
+		ASSERT_FALSE(outlook.stops.empty());
+		for (size_t index = 0; index < outlook.stops.size(); ++index) {
+			const std::string id = "stop_" + std::to_string(index) + "_tag";
+			if (outlook.stops[index].type) {
+				EXPECT_EQ(textOf(id), stopTag(*outlook.stops[index].type)) << id;
+				EXPECT_FALSE(textOf(id).empty()) << id;
+			} else {
+				EXPECT_EQ(find(id), nullptr) << "an unknown stop has no type to tag";
+			}
+		}
+		EXPECT_EQ(lintAt(1280, 800), "");
+		EXPECT_EQ(lintAt(1440, 900), "");
+		EXPECT_EQ(lintAt(1920, 1080), "");
+		EXPECT_EQ(stopTag(rules::map::StopType::Ambush), "FIGHT");
+		EXPECT_EQ(stopTag(rules::map::StopType::Wreck), "WRECK");
+		EXPECT_EQ(stopTag(rules::map::StopType::Distress), "DISTRESS");
+	}
+
 	TEST_F(AreaMap, LoadOutIsOffWithTheReasonWhileTheStoresCantFuelTheRoute) {
 		foundAndOpen();
 		const int poi = plannable();
