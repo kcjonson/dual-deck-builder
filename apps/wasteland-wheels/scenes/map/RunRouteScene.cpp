@@ -291,6 +291,7 @@ namespace game {
 				.id = "stop_" + std::to_string(index++),
 				.symbol = fight ? atlas::MapSymbol::Diamond : (stop.cleared ? atlas::MapSymbol::Dash : atlas::MapSymbol::Ring),
 				.text = words,
+				.tag = stop.type ? stopTag(*stop.type) : std::string(),
 				.textStyle = stop.cleared ? styles::quiet : styles::body,
 			});
 		}

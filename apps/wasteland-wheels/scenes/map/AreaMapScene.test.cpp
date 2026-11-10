@@ -4,6 +4,9 @@
 // out on it, or is off with the reason while the stores can't fuel it.
 
 #include "GameTesting.h"
+#include "atlas/AtlasTheme.h"
+#include "atlas/Paper.h"
+#include "atlas/Tokens.h"
 #include "scenes/map/MapView.h"
 #include "scenes/map/Planning.h"
 
@@ -92,6 +95,26 @@ namespace {
 		EXPECT_EQ(lintAt(1280, 800, 1.5F), "");
 	}
 
+	TEST_F(AreaMap, ItShowsTheCampaignsFuelBesideTheDay) {
+		foundAndOpen();
+		EXPECT_EQ(textOf("fuel_value"), "100");
+		EXPECT_EQ(textOf("fuel_name"), "Fuel");
+	}
+
+	TEST_F(AreaMap, TheDisabledPlanButtonsLabelHoldsFourAndAHalfToOneOnItsFill) {
+		foundAndOpen();
+		ASSERT_FALSE(enabled("plan_here")) << "nothing chosen yet";
+		const auto* label = dynamic_cast<const ui::Text*>(find("plan_here_label"));
+		ASSERT_NE(label, nullptr);
+		ASSERT_TRUE(label->getStyle().color.has_value());
+		const ui::Theme& theme = atlas::theme();
+		EXPECT_GE(atlas::contrastRatio(*label->getStyle().color, theme.get(atlas::tokens::palette::index)), 4.5F);
+		chooseRow(plannable());
+		ASSERT_TRUE(enabled("plan_here"));
+		EXPECT_GE(atlas::contrastRatio(*label->getStyle().color, theme.get(atlas::tokens::palette::highway)), 3.0F)
+			<< "enabled label restored";
+	}
+
 	TEST_F(AreaMap, ADestinationChosenByItsRowFillsItsBoxAndPlansItsRunRoute) {
 		foundAndOpen();
 		EXPECT_FALSE(enabled("plan_here")) << "nothing chosen yet";
@@ -161,6 +184,34 @@ namespace {
 		ASSERT_TRUE(state()["loadOut"].get<bool>());
 		ASSERT_TRUE(press("load_out_crew"));
 		EXPECT_EQ(top(), "load_out");
+	}
+
+	TEST_F(AreaMap, EachStopOnTheRunRouteCarriesItsTypeAsATag) {
+		foundAndOpen();
+		const int poi = plannable();
+		chooseRow(poi);
+		ASSERT_TRUE(press("plan_here"));
+		ASSERT_EQ(top(), "run_route");
+		const Planning	   planned = planning(*context->session);
+		const Destination* destination = planned.find(poi);
+		ASSERT_NE(destination, nullptr);
+		const rules::map::RouteOutlook& outlook = destination->routes.front().outlook;
+		ASSERT_FALSE(outlook.stops.empty());
+		for (size_t index = 0; index < outlook.stops.size(); ++index) {
+			const std::string id = "stop_" + std::to_string(index) + "_tag";
+			if (outlook.stops[index].type) {
+				EXPECT_EQ(textOf(id), stopTag(*outlook.stops[index].type)) << id;
+				EXPECT_FALSE(textOf(id).empty()) << id;
+			} else {
+				EXPECT_EQ(find(id), nullptr) << "an unknown stop has no type to tag";
+			}
+		}
+		EXPECT_EQ(lintAt(1280, 800), "");
+		EXPECT_EQ(lintAt(1440, 900), "");
+		EXPECT_EQ(lintAt(1920, 1080), "");
+		EXPECT_EQ(stopTag(rules::map::StopType::Ambush), "FIGHT");
+		EXPECT_EQ(stopTag(rules::map::StopType::Wreck), "WRECK");
+		EXPECT_EQ(stopTag(rules::map::StopType::Distress), "DISTRESS");
 	}
 
 	TEST_F(AreaMap, LoadOutIsOffWithTheReasonWhileTheStoresCantFuelTheRoute) {

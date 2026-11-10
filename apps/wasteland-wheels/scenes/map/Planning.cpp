@@ -173,6 +173,32 @@ namespace game {
 		return text.empty() ? "nothing" : text;
 	}
 
+	std::string stopTag(rules::map::StopType type) {
+		using rules::map::StopType;
+		switch (type) {
+			case StopType::Ambush:
+			case StopType::Warband:
+				return "FIGHT";
+			case StopType::Checkpoint:
+				return "CHECKPOINT";
+			case StopType::Wreck:
+				return "WRECK";
+			case StopType::Distress:
+				return "DISTRESS";
+			case StopType::Garage:
+				return "GARAGE";
+			case StopType::Hazard:
+				return "HAZARD";
+			case StopType::FindDriver:
+			case StopType::FindSettlers:
+			case StopType::FindVehicle:
+			case StopType::FindCards:
+			case StopType::FindSupplies:
+				return "FIND";
+		}
+		return "STOP";
+	}
+
 	std::string hoursText(double hours) {
 		std::array<char, 32> written{};
 		std::snprintf(written.data(), written.size(), "%.1f h", std::round(hours * 10.0) / 10.0);

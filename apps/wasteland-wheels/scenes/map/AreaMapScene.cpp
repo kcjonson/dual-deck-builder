@@ -9,6 +9,7 @@
 #include "atlas/Glyphs.h"
 #include "atlas/Icons.h"
 #include "atlas/LegendBox.h"
+#include "atlas/ResourceStrip.h"
 #include "atlas/Tokens.h"
 #include "scenes/GameScene.h"
 #include "scenes/map/MapPage.h"
@@ -88,10 +89,15 @@ namespace game {
 						  }},
 					 }
 				 );
+				// The fuel wraps under the title on a narrow plate rather than squeezing to nothing.
+				ui::Layout heading = page.heading.get()->getLayout();
+				heading.flexWrap = ui::FlexWrap::Wrap;
+				page.heading.get()->setLayout(heading);
 				page.heading.addChild<ui::Text>({.id = "title", .style = styles::screenTitle, .text = "The area map"});
 				page.heading.addChild<ui::Text>(
 					{.id = "dawn", .style = styles::subtitle, .text = "day " + std::to_string(session.campaign.day) + ", dawn"}
 				);
+				atlas::resourceStrip(page.heading, {{.id = "fuel", .name = "Fuel", .value = std::to_string(session.campaign.stores.fuel)}});
 				map = page.plate.addChild<MapView>({
 					.id = "map",
 					.minSize = {0.0F, 160.0F},
