@@ -16,14 +16,18 @@
 #include <rules/battle/Battle.h>
 #include <rules/battle/EnemyTurn.h>
 #include <rules/battle/Waves.h>
+#include <rules/campaign/Recruits.h>
+#include <rules/campaign/RunDecks.h>
 
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <iterator>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -161,7 +165,8 @@ namespace game {
 		top = root.addChild<battle::TopBar>({
 			.id = "top_bar",
 			.onToggleLog = [this] { toggleLog(); },
-			.onMainMenu = [this] { app().scenes().switchTo(scenes::kMainMenu); },
+			.onAbandon = [this] { abandon(); },
+			.abandonWarning = [this] { return abandonWarning(); },
 		});
 		dock = root.addChild<battle::Dock>({
 			.id = "dock",
@@ -291,6 +296,17 @@ namespace game {
 		}
 		leaving = true;
 		land(playback.finish());
+		finish(std::move(fight));
+	}
+
+	void BattleScene::abandon() {
+		if (fight.state.phase == Phase::Over || playback.playing() || leaving) {
+			LOG_ERROR(Game, "BattleScene: abandoning a fight that's over, playing back, or left");
+			return;
+		}
+		leaving = true;
+		cancelAim();
+		fight.abandoned = true;
 		finish(std::move(fight));
 	}
 
@@ -474,6 +490,66 @@ namespace game {
 				   (where.empty() ? "" : " " + where);
 		}
 		return "End the turn";
+	}
+
+	// What giving the fight up costs, read off the fight written back abandoned on a copy of the campaign, so the warning
+	// and the write-back can't disagree: "Road Warrior 1 and Interceptor 1 flee and go missing. The cargo (30 scrap) and
+	// the Fuel Hauler are lost with the run. The day ends."
+	std::string BattleScene::abandonWarning() const {
+		constexpr const char*		  kAnyRun = "The crew flees and goes missing, and the run's cargo and escorts are lost.";
+		const std::optional<Session>& session = game().session;
+		if (!session || !session->campaign.run) {
+			return kAnyRun;
+		}
+		const rules::Content&		   content = game().rules.content;
+		rules::campaign::Campaign	   after = session->campaign;
+		rules::campaign::CampaignFight given = fight;
+		given.abandoned = true;
+		rules::campaign::FightWriteBack back;
+		try {
+			back = rules::campaign::writeBackFight(after, content, game().rules.campaign, given);
+		} catch (const std::invalid_argument& error) {
+			LOG_ERROR(Game, "BattleScene: the fight can't be written back abandoned: %s", error.what());
+			return kAnyRun;
+		}
+		const auto named = [&](const std::vector<rules::campaign::CrewId>& drivers) {
+			std::vector<std::string> names;
+			for (const rules::campaign::CrewId& driver : drivers) {
+				names.push_back(rules::campaign::driverName(after, content, driver));
+			}
+			return rules::campaign::listed(names);
+		};
+		std::vector<rules::campaign::CrewId> fled;
+		std::vector<rules::campaign::CrewId> dead;
+		for (const rules::campaign::SeatWriteBack& seat : back.seats) {
+			(seat.fate == rules::campaign::SeatFate::Dead ? dead : fled).push_back(seat.driver);
+		}
+		std::string words;
+		if (!fled.empty()) {
+			words = named(fled) + (fled.size() == 1 ? " flees and goes missing" : " flee and go missing");
+		}
+		if (!dead.empty()) {
+			words += (words.empty() ? "" : ", and ") + named(dead) + (dead.size() == 1 ? ", who is down, dies" : ", who are down, die");
+		}
+		words += ".";
+		std::vector<std::string>		lost;
+		const rules::campaign::RunLost& run = *back.lost;
+		if (const std::string cargo = rules::campaign::cargoText(content, run.cargo, run.cargoCards); !cargo.empty()) {
+			lost.push_back("the cargo (" + cargo + ")");
+		}
+		for (const rules::campaign::ConvoyEscort& escort : run.escorts) {
+			lost.push_back("the " + content.escorts.at(escort.type).name);
+		}
+		if (!lost.empty()) {
+			std::string line = rules::campaign::listed(lost);
+			line.front() = static_cast<char>(std::toupper(static_cast<unsigned char>(line.front())));
+			words += " " + line + (lost.size() == 1 ? " is" : " are") + " lost with the run.";
+		}
+		if (!run.found.empty()) {
+			words += " " + named(run.found) + (run.found.size() == 1 ? " stays" : " stay") + " missing.";
+		}
+		words += after.end ? " Nobody is left to drive, so the campaign ends." : " The day ends.";
+		return words;
 	}
 
 	std::string BattleScene::exportState() const {

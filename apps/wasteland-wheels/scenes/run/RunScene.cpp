@@ -3,7 +3,8 @@
 // the one it's at in highlighter, then the destination and home; and the step's highway pinned at the column's foot.
 // What the run meets next is ahead()'s, and each step is the rules' own call (a fight through the battle scene, a find,
 // an event through the event scene, a reward picked from its cards as cards, the objective, the road home), saved as it
-// ends; a run home or failed goes to its debrief.
+// ends; a run home or failed goes to its debrief. A fight is saved as in progress when it opens, and a run entered with
+// one in progress, after a quit mid-fight, abandons it and goes to the debrief.
 
 #include "Words.h"
 #include "atlas/ArtView.h"
@@ -136,6 +137,9 @@ namespace game {
 				if (!onTheRoad()) {
 					LOG_ERROR(Game, "RunScene: no run is on the road; to the compound");
 					app().scenes().switchTo(scenes::kCompound);
+					return;
+				}
+				if (campaign().run->fighting && abandonFightInProgress()) {
 					return;
 				}
 				build();
@@ -648,13 +652,31 @@ namespace game {
 				}
 			}
 
+			// Into the run's fight, saved as in progress first, so a quit from the battle abandons it on Continue.
 			void fight() {
-				const Session&						session = *game().session;
+				Session&							session = *game().session;
 				rules::campaign::CampaignFightStart start =
-					rules::campaign::startRunFight(session.campaign, game().rules.content, session.layers());
+					rules::campaign::beginRunFight(session.campaign, game().rules.content, session.layers());
+				saved();
 				app().scenes().push<BattleScene>(BattleArgs{.start = std::move(start)}, [this](rules::campaign::CampaignFight fought) {
 					foughtThrough(std::move(fought));
 				});
+			}
+
+			// A fight a quit left in progress, given up as Abandon the run gives one up, then the debrief. False, logged, when
+			// the rules refuse it (the save says a fight is in progress where the run isn't at one), and the run shows as it is.
+			bool abandonFightInProgress() {
+				Session&						session = *game().session;
+				const GameRules&				loaded = game().rules;
+				rules::campaign::FightWriteBack back;
+				try {
+					back = rules::campaign::abandonFightInProgress(session.campaign, loaded.content, loaded.campaign, session.layers());
+				} catch (const std::invalid_argument& error) {
+					LOG_ERROR(Game, "RunScene: the fight in progress can't be abandoned: %s", error.what());
+					return false;
+				}
+				failed(back);
+				return true;
 			}
 
 			// Back from the event: into the fight it turned into at once, or the road as the choice left it.
@@ -704,21 +726,27 @@ namespace game {
 				const rules::campaign::FightWriteBack back =
 					rules::campaign::endRunFight(session.campaign, loaded.content, loaded.campaign, session.layers(), fought);
 				if (back.outcome == rules::Outcome::Lost) {
-					// A failed run ends the day (call 64), unless it ended the campaign.
-					std::optional<rules::campaign::DayEnd> night;
-					if (!session.campaign.end) {
-						night = rules::campaign::endDay(session.campaign, loaded.content, loaded.campaign);
-					}
-					saved();
-					app().scenes().replace<DebriefScene>(
-						DebriefArgs{.home = std::nullopt, .lost = back.lost, .seats = back.seats, .night = night}
-					);
+					failed(back);
 					return;
 				}
 				notice.clear();
 				saved();
 				build();
 				app().scenes().push<BattleResultScene>(BattleResultArgs{.fight = std::move(fought), .back = back});
+			}
+
+			// A run lost or abandoned at a fight ends the day (call 64), unless it ended the campaign, and goes to its debrief.
+			void failed(const rules::campaign::FightWriteBack& back) {
+				Session&							   session = *game().session;
+				const GameRules&					   loaded = game().rules;
+				std::optional<rules::campaign::DayEnd> night;
+				if (!session.campaign.end) {
+					night = rules::campaign::endDay(session.campaign, loaded.content, loaded.campaign);
+				}
+				saved();
+				app().scenes().replace<DebriefScene>(
+					DebriefArgs{.home = std::nullopt, .lost = back.lost, .seats = back.seats, .night = night}
+				);
 			}
 
 			void driveHome() {

@@ -81,12 +81,15 @@ namespace game {
 		result::Heading heading{.kicker = "Supply run \xC2\xB7 day " + std::to_string(day)};
 		if (debrief.lost) {
 			const rules::campaign::RunLost& lost = *debrief.lost;
-			heading.title = lost.poi ? "Lost on the road to " + poiName(*session, *lost.poi) : "The run was lost";
+			const std::string				how = lost.abandoned ? "Abandoned" : "Lost";
+			heading.title = lost.poi ? how + " on the road to " + poiName(*session, *lost.poi)
+									 : (lost.abandoned ? "The run was abandoned" : "The run was lost");
 			std::vector<std::string> fates;
 			for (const rules::campaign::SeatWriteBack& seat : debrief.seats) {
 				fates.push_back(named(seat.driver) + (seat.fate == rules::campaign::SeatFate::Dead ? " is dead" : " is missing"));
 			}
-			heading.story = rules::campaign::listed(fates) + ".";
+			// Call 88's line for a fight given up.
+			heading.story = (lost.abandoned ? "The crew abandoned the fight. " : "") + rules::campaign::listed(fates) + ".";
 			heading.hostile = true;
 			heading.stamp = "stamp-lost";
 		} else if (debrief.home) {
@@ -208,8 +211,12 @@ namespace game {
 
 	std::string DebriefScene::exportState() const {
 		return nlohmann::json{
-			{"home", debrief.home.has_value()}, {"lost", debrief.lost.has_value()}, {"night", debrief.night.has_value()}
-		}.dump();
+			{"home", debrief.home.has_value()},
+			{"lost", debrief.lost.has_value()},
+			{"abandoned", debrief.lost && debrief.lost->abandoned},
+			{"night", debrief.night.has_value()},
+		}
+			.dump();
 	}
 
 } // namespace game

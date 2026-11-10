@@ -1,8 +1,8 @@
 // The battle scene driven the way a player drives it, through the App's own input: a card dragged onto a raider, a card
 // picked up and dropped with the keys, a slot pick and a two-step play, the turn ended and the raiders' turn played
 // back beat by beat until it settles on the fight, the log opening on the matchup and stamping the raiders' moves with
-// their own turn, the top bar's menu opened by its key and by Escape once no card waits and the log is shut, and left
-// for the main menu, L and Escape with nothing focused, the run's scrap and fuel on the bar, and the scene linted at
+// their own turn, the top bar's menu opened by its key and by Escape once no card waits and the log is shut, and the
+// fight given up from it, L and Escape with nothing focused, the run's scrap and fuel on the bar, and the scene linted at
 // three sizes.
 
 #include "scenes/battle/BattleScene.h"
@@ -421,20 +421,23 @@ namespace game::testing {
 			ASSERT_TRUE(press("menu"));
 			ASSERT_NE(find("menu_dialog"), nullptr);
 			EXPECT_TRUE(find("menu_resume")->isFocused()) << "Keep fighting has the focus, so a stray Enter stays in the fight";
-			EXPECT_NE(find("menu_main_menu"), nullptr);
+			EXPECT_NE(find("menu_abandon"), nullptr);
 			ASSERT_TRUE(press("menu_resume"));
 			EXPECT_EQ(find("menu_dialog"), nullptr);
 			EXPECT_EQ(top(), "battle");
 			EXPECT_EQ(scene().current().state, before);
 		}
 
-		TEST_F(Battle, MainMenuLeavesTheFightUnfinished) {
+		TEST_F(Battle, AbandonTheRunHandsTheFightBackGivenUp) {
 			open(1);
 			ASSERT_TRUE(press("menu"));
-			ASSERT_TRUE(press("menu_main_menu"));
+			EXPECT_EQ(textOf("menu_body"), "The crew flees and goes missing, and the run's cargo and escorts are lost.")
+				<< "with no run out, what abandoning costs any run";
+			ASSERT_TRUE(press("menu_abandon"));
 			frame();
-			EXPECT_EQ(top(), scenes::kMainMenu);
-			EXPECT_FALSE(left) << "an unfinished fight isn't handed to the run to write back";
+			ASSERT_TRUE(left) << "the fight goes to the run to write back";
+			EXPECT_TRUE(left->abandoned);
+			EXPECT_NE(left->state.phase, rules::Phase::Over);
 		}
 
 		TEST_F(Battle, EscapePutsAWaitingCardBackBeforeItOpensTheMenu) {
