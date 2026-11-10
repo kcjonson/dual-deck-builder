@@ -239,6 +239,10 @@ namespace rules {
 	// On the road, with structure left, and an escort or someone at the wheel.
 	[[nodiscard]] bool vehicleInFight(const BattleState& state, VehicleIndex vehicle);
 
+	// A raider still in the fight when a rout won it, which fled. The state leaves it where it was, since nothing plays
+	// after the end, so whatever shows the road leaves it off.
+	[[nodiscard]] bool fled(const BattleState& state, VehicleIndex vehicle);
+
 	// Alive and riding in a vehicle that's in the fight. The down and the crashed out aren't.
 	[[nodiscard]] bool driverInFight(const BattleState& state, DriverIndex driver);
 

@@ -1,4 +1,5 @@
 #include <rules/battle/BattleTesting.h>
+#include <rules/battle/Turns.h>
 
 #include <gtest/gtest.h>
 
@@ -45,6 +46,29 @@ namespace {
 		EXPECT_EQ(state.outcome, Outcome::Won);
 		EXPECT_EQ(state.rout, RoutCause::ThreatThinned);
 		EXPECT_EQ(state.reinforcements.queue.size(), 1U) << "the queue never arrives";
+	}
+
+	TEST(FightEnds, ALoneRaiderAtTheWheelWithNoWaveToComeFightsOnUnlessItsThreatRoutsIt) {
+		// A Rust Buggy (2) and a Scav Bike (1): the buggy's 2 alone is over a quarter of 3.
+		BattleStart	 holding = fight({seat("road_warrior")}, {raider("rust_buggy"), raider("scav_bike")});
+		BattleState& state = holding.state;
+		EXPECT_TRUE(endings(takeOut(state, 2)).empty());
+		EXPECT_TRUE(state.reinforcements.queue.empty());
+		EXPECT_TRUE(canAct(state, DriverIndex{1})) << "the buggy can still act";
+		EXPECT_EQ(state.phase, Phase::PlayerTurn);
+		EXPECT_FALSE(state.outcome);
+		EXPECT_FALSE(fled(state, VehicleIndex{1}));
+
+		// A Spike Buggy (4) and a Scav Bike (1): the bike's 1 alone is a quarter of 5, so it flees, and the fight says why.
+		BattleStart	 routing = fight({seat("road_warrior")}, {raider("spike_buggy"), raider("scav_bike")});
+		BattleState& routed = routing.state;
+		EXPECT_TRUE(
+			(endings(takeOut(routed, 1)) == std::vector{event::FightEnded{.outcome = Outcome::Won, .rout = RoutCause::ThreatThinned}})
+		);
+		EXPECT_TRUE(canAct(routed, DriverIndex{2})) << "the bike was still at the wheel";
+		EXPECT_TRUE(fled(routed, VehicleIndex{2}));
+		EXPECT_FALSE(fled(routed, VehicleIndex{1})) << "taken out, not fled";
+		EXPECT_FALSE(fled(routed, VehicleIndex{0}));
 	}
 
 	TEST(FightEnds, ALeaderOutOfTheFightRoutsTheRest) {

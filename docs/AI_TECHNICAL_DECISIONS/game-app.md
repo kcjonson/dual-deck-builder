@@ -94,7 +94,7 @@ splash -> main_menu -> founding -> compound -> area_map -> run_route -> load_out
 - `/api/state?what=game`: the top scene, the save's status, and the campaign being played as its save JSON.
 - `/api/dev/found?seed=N`: a new campaign founded on a seed, through the founding scene.
 - `/api/dev/continue`: the save continued, through the loading scene.
-- While a fight is up, `/api/state?what=battle` with the actions on offer in order, `/api/dev/battle-act?index=N` to take one, and `/api/dev/battle-play-out`, which plays the rest of the fight with the player's seats on the first playable card, for a session that needs a fight over rather than played well.
+- While a fight is up, `/api/state?what=battle` with the actions on offer in order and the outcome with a rout's cause, `/api/dev/battle-act?index=N` to take one, and `/api/dev/battle-play-out`, which plays the rest of the fight with the player's seats on the first playable card, for a session that needs a fight over rather than played well.
 
 **The placeholder look**, every scene's not yet in the atlas, is salal's default tokens and its controls: a page with a title, a row of panels, rows (`ListRow`) and buttons, and a notice line, with no game art, theme, or icons.
 
