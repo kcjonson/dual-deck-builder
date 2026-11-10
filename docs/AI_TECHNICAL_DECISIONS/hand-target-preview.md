@@ -1,7 +1,7 @@
 # Hand target preview and blocked cards
 
 ## Date
-2026-10-24, DDB-554 (DDB-272). Design source: [Battle Screen Design](../specs/Battle%20Screen%20Design.md) section 6, Planning, and the mock's `.cant` and `.pblock`. Code: `_legacy/src/renderer/game/screens/combat/cardTargets.ts` (the targeting rules). Builds on [targeting-preview.md](./targeting-preview.md), [slot-targeting.md](./slot-targeting.md), and [intent-pills-and-enemy-turn-presentation.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/intent-pills-and-enemy-turn-presentation.md).
+2026-10-24, DDB-554 (DDB-272). Design source: [Battle Screen Design](../specs/Battle%20Screen%20Design.md) section 6, Planning, and the mock's `.cant` and `.pblock`. Code: [`_legacy/src/renderer/game/screens/combat/cardTargets.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/screens/combat/cardTargets.ts) (the targeting rules). Builds on [targeting-preview.md](./targeting-preview.md), [slot-targeting.md](./slot-targeting.md), and [intent-pills-and-enemy-turn-presentation.md](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/docs/AI_TECHNICAL_DECISIONS/intent-pills-and-enemy-turn-presentation.md).
 
 ## Context
 
@@ -18,7 +18,7 @@ Nothing showed what a card would hit, or where a movement card would put anyone,
 - `cardHasTargets`: whether a card the rules allow has anything to land on, by the aim's steps (`aimStepsOf`, skipping a slot step the battle says isn't needed). It stops at the first target it finds. A card with no pick that lands only on raiders needs one it would land on (call 370).
 - `cardTargets`: everything the card would offer. `vehicleIds` or `slots` for its first step, `picks`, `links` (who acts on whom, one arrow each), and `moves` (where each vehicle it moves would go).
 
-A link runs from the playing driver's vehicle, or for an attack order the escort `orderCarrier` picks, to each target, never from a vehicle to itself. Rally the Convoy is the exception the shape exists for: it acts through every ready escort, each on its nearest raider within the card's range (`Battle.rallyConvoy`), so its links run from each escort to its pick. The battle picks again after each shot, leaving out a raider an earlier escort took out; hits don't roll, so the preview does the same, working each shot out on the bars the shots before it left (`previewShot` in `_legacy/src/renderer/game/mechanics/AimPreview.ts`). A card that only stuns (EMP Blast) leaves Steady raiders out, as the battle skips them.
+A link runs from the playing driver's vehicle, or for an attack order the escort `orderCarrier` picks, to each target, never from a vehicle to itself. Rally the Convoy is the exception the shape exists for: it acts through every ready escort, each on its nearest raider within the card's range (`Battle.rallyConvoy`), so its links run from each escort to its pick. The battle picks again after each shot, leaving out a raider an earlier escort took out; hits don't roll, so the preview does the same, working each shot out on the bars the shots before it left (`previewShot` in [`_legacy/src/renderer/game/mechanics/AimPreview.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/mechanics/AimPreview.ts)). A card that only stuns (EMP Blast) leaves Steady raiders out, as the battle skips them.
 
 ### The deal asks yes or no; the preview asks the rest
 

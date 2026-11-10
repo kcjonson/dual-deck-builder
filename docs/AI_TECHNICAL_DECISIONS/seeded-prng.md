@@ -1,6 +1,6 @@
 # Seeded PRNG and named streams (DDB-281)
 
-Date: 2026-10-06, hardened the same day in DDB-401; combat moved onto it 2026-10-07 in DDB-399, and the opening deal's shuffle joined it 2026-10-08 in DDB-411. Code: salal's `foundation/random/Rng.h` (and `FreshSeed.h` for root seeds) is the C++ implementation; the TypeScript was `_legacy/src/renderer/game/core/Rng.ts`, and `_legacy/src/renderer/game/mechanics/Battle.ts` for a fight's streams. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Seeds and determinism.
+Date: 2026-10-06, hardened the same day in DDB-401; combat moved onto it 2026-10-07 in DDB-399, and the opening deal's shuffle joined it 2026-10-08 in DDB-411. Code: salal's `foundation/random/Rng.h` (and `FreshSeed.h` for root seeds) is the C++ implementation; the TypeScript was [`_legacy/src/renderer/game/core/Rng.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/core/Rng.ts), and [`_legacy/src/renderer/game/mechanics/Battle.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/mechanics/Battle.ts) for a fight's streams. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Seeds and determinism.
 
 ## Context
 
@@ -31,7 +31,7 @@ How a child gets its seed:
 - A hash to a full 128-bit child state, with roots still built from a uint32. It rules out collisions between streams (see Consequences), but a child stream could no longer be written down as one number: logs and saves would carry four words per stream, and `seed` would stop describing it. Rejected, because a collision is rare and invisible.
 - A hash to a uint32 seed. Chosen.
 
-For the hash, FNV-1a was already in the repo (`_legacy/src/renderer/engine/ui/Avatar.ts`), but without a finalizer it mixes poorly on short inputs that differ in their last character, and `stop:1`, `stop:2` is exactly that. MurmurHash3_x86_32 is a standard function with a strong finalizer and published test vectors, so a stream seed can be recomputed with any MurmurHash3 library. Code units rather than UTF-8 bytes because the generator started in TypeScript, whose strings are UTF-16 code units and can hold lone surrogates, which UTF-8 can't encode.
+For the hash, FNV-1a was already in the repo ([`_legacy/src/renderer/engine/ui/Avatar.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/engine/ui/Avatar.ts)), but without a finalizer it mixes poorly on short inputs that differ in their last character, and `stop:1`, `stop:2` is exactly that. MurmurHash3_x86_32 is a standard function with a strong finalizer and published test vectors, so a stream seed can be recomputed with any MurmurHash3 library. Code units rather than UTF-8 bytes because the generator started in TypeScript, whose strings are UTF-16 code units and can hold lone surrogates, which UTF-8 can't encode.
 
 What falls out:
 

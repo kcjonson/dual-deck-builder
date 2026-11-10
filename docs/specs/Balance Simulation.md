@@ -1,6 +1,6 @@
 # Balance Simulation
 
-Status: designed 2026-10-17. The tools that say whether runs and fights hit their targets ([Runs and Encounters](./Runs%20and%20Encounters.md), Just hard enough): one deterministic simulation core, a command line tool over it for sweeps and CI, and a Balance Lab for trying a change and seeing what it does. It grows out of raider-sim, the fight simulator in [raider-tuning.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/raider-tuning.md).
+Status: designed 2026-10-17. The tools that say whether runs and fights hit their targets ([Runs and Encounters](./Runs%20and%20Encounters.md), Just hard enough): one deterministic simulation core, a command line tool over it for sweeps and CI, and a Balance Lab for trying a change and seeing what it does. It grows out of raider-sim, the fight simulator in [raider-tuning.md](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/docs/AI_TECHNICAL_DECISIONS/raider-tuning.md).
 
 ## What it answers
 

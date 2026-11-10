@@ -1,6 +1,6 @@
 # Campaign state model and its save format (DDB-282)
 
-Date: 2026-10-06, revised 2026-10-08 for escort ids (DDB-403). Code: `_legacy/src/renderer/game/campaign/`, with the strict readers in `_legacy/src/renderer/game/core/JsonReader.ts`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Terms, Resources, The driver pool, Decks and the locker), [Area Map Generation](../specs/Area%20Map%20Generation.md) (Saving). Follows [compound-and-area-map.md](./compound-and-area-map.md), decisions 1, 3, and 7, and uses [seeded-prng.md](./seeded-prng.md).
+Date: 2026-10-06, revised 2026-10-08 for escort ids (DDB-403). Code: [`_legacy/src/renderer/game/campaign/`](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/campaign), with the strict readers in [`_legacy/src/renderer/game/core/JsonReader.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/core/JsonReader.ts). Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Terms, Resources, The driver pool, Decks and the locker), [Area Map Generation](../specs/Area%20Map%20Generation.md) (Saving). Follows [compound-and-area-map.md](./compound-and-area-map.md), decisions 1, 3, and 7, and uses [seeded-prng.md](./seeded-prng.md).
 
 ## Context
 

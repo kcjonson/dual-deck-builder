@@ -1,6 +1,6 @@
 # Port plan
 
-How Wasteland Wheels goes from the TypeScript proof of concept in `_legacy/` to the C++ early alpha on salal. Written 2026-10-30, against salal `v0.19.0`.
+How Wasteland Wheels went from the TypeScript proof of concept to the C++ early alpha on salal. Written 2026-10-30, against salal `v0.19.0`. The cutover happened on 2026-11-09: testers get C++ builds, and `_legacy/` is gone (its last state is [`_legacy/`](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy)).
 
 ## What the port is
 
@@ -13,7 +13,7 @@ A rebuild, not a translation. The concept proved the game was worth making; nobo
 
 ## What there is to port
 
-TypeScript source and test lines under `_legacy/src/renderer/game/`:
+TypeScript source and test lines under `_legacy/src/renderer/game/` (at the permalink above):
 
 | area | source | tests | depends on |
 |---|---|---|---|
@@ -47,7 +47,7 @@ Everything but the last row is the game's rules and runs headless on `salal::fou
 4. **Balance sim** (`apps/balance-sim`): the command line tool over the rules, loading packs as the game does, for tuning. Balance Simulation is the spec.
 5. **Scripting** (`libs/scripting`): the Lua host, sol2 on Lua 5.4, sandboxed, behind the interfaces the rules define. Lands when the first card or opponent needs logic data can't express, or before mod support, whichever comes first; it doesn't wait on steps 3 and 4.
 6. **Presentation** (`apps/<game>`): the screens as salal scenes, the game ui on salal's `ui`, the area map view and the battle screen, animated from the events `apply` returns. Starts when salal's phase 3 has its controls and popups in (ui-plan PRs 13 and 14). The paper is a salal fill hook, in since v0.35.0 ([procedural-paper.md](../AI_TECHNICAL_DECISIONS/procedural-paper.md)).
-7. **Cutover**: playtest builds from the C++ game, then `_legacy/` is deleted whole.
+7. **Cutover**: done 2026-11-09. Testers get playtest builds from the C++ game, and `_legacy/` was deleted whole.
 
 Each step is PRs of a size someone can review in a sitting, each building, passing `ctest`, and formatted. Tests come with the code they test: port a TypeScript test when what it pins is still what the alpha wants, and write a new one when the alpha changes the rule.
 
@@ -55,4 +55,4 @@ Each step is PRs of a size someone can review in a sitting, each building, passi
 
 - **UI art.** Decided 2026-10-31: the raster atlas gives, salal's rules hold. The paper is computed in the base shader as a fill hook, the rest of the art is flat-fill vector, and the icons are filled SVG ([procedural-paper.md](../AI_TECHNICAL_DECISIONS/procedural-paper.md)).
 - **The game's executable and folder name.** Decided 2026-11-09: `apps/wasteland-wheels`, building `wasteland-wheels.exe`, for the alpha and the cutover.
-- **Playtest distribution.** Decided 2026-11-09: straight to C++ builds at cutover. The playtest-distribution spec's Electron leg is dropped; testers keep the TypeScript web build until the C++ alpha replaces it in step 7.
+- **Playtest distribution.** Decided 2026-11-09: straight to C++ builds at cutover. The playtest-distribution spec's Electron leg is dropped; testers kept the TypeScript web build until the C++ alpha replaced it in step 7.

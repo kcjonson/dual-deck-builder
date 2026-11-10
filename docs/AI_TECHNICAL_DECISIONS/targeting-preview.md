@@ -1,6 +1,6 @@
 # Targeting preview: ranges, outlines, damage ghost, hit check
 
-Status: decided 2026-10-02, DDB-138 (DDB-127). Design source: [Battle Screen Design](../specs/Battle%20Screen%20Design.md) section 6 (Targeting) and the mock's targeting state (`docs/design/battle-screen/index.html`, `.slotchip`, `.valid`, `.targeted`, `i.ghost`, `.hitchip`). Builds on DDB-88's drag-to-target ([combat-hand-and-targeting.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/combat-hand-and-targeting.md)).
+Status: decided 2026-10-02, DDB-138 (DDB-127). Design source: [Battle Screen Design](../specs/Battle%20Screen%20Design.md) section 6 (Targeting) and the mock's targeting state (`docs/design/battle-screen/index.html`, `.slotchip`, `.valid`, `.targeted`, `i.ghost`, `.hitchip`). Builds on DDB-88's drag-to-target ([combat-hand-and-targeting.md](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/docs/AI_TECHNICAL_DECISIONS/combat-hand-and-targeting.md)).
 
 ## Context
 
@@ -10,13 +10,13 @@ DDB-88 left drag-to-target, click-then-target, and keyboard targeting working on
 
 ### One preview rule beside the play rule
 
-`previewAim({ battle, driver, card, target })` (`_legacy/src/renderer/game/mechanics/AimPreview.ts`) answers everything the screen shows for one target: who acts (the caster's vehicle, or for an attack order the escort `orderCarrier` picks, else the nearest ready one), the range from that slot, the card's reach, the hit check, and what a landed hit takes off structure, driver HP, and passenger HP. It reads the battle's own pieces rather than restating them: `Battle.hitCheck` is `checkHit`'s numbers (and `checkHit` now returns `hitCheck(...)?.hits`), damage goes through `calculateFormulaDamage` (now public) and `calculateDamage`, and the split past shield and armor is `Vehicle.takeDamage`'s, run on scratch numbers. A test plays the card after previewing it and checks the bars moved by what the preview said. The check has no dice (gunnery against evade plus the modifier is a comparison), so a failing check previews no damage and says MISS.
+`previewAim({ battle, driver, card, target })` ([`_legacy/src/renderer/game/mechanics/AimPreview.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/mechanics/AimPreview.ts)) answers everything the screen shows for one target: who acts (the caster's vehicle, or for an attack order the escort `orderCarrier` picks, else the nearest ready one), the range from that slot, the card's reach, the hit check, and what a landed hit takes off structure, driver HP, and passenger HP. It reads the battle's own pieces rather than restating them: `Battle.hitCheck` is `checkHit`'s numbers (and `checkHit` now returns `hitCheck(...)?.hits`), damage goes through `calculateFormulaDamage` (now public) and `calculateDamage`, and the split past shield and armor is `Vehicle.takeDamage`'s, run on scratch numbers. A test plays the card after previewing it and checks the bars moved by what the preview said. The check has no dice (gunnery against evade plus the modifier is a comparison), so a failing check previews no damage and says MISS.
 
 The screen works out a preview per raider once, when the card is picked, and reads the hovered one from that map; nothing is computed per frame or per pointer move.
 
 ### Only legal targets
 
-The screen offers the card's side of the road by target type, then keeps only the vehicles `Battle.getTargetBlocker` passes, the same rule `playCard` checks (`targetableVehicleIds`, `_legacy/src/renderer/game/screens/combat/cardTargets.ts`). Drag, click, and keyboard all read that one list, so none can offer a target play would refuse. DDB-114's engine half was fixed earlier (74b81a3, the target is checked before the card is spent); this closes the screen half.
+The screen offers the card's side of the road by target type, then keeps only the vehicles `Battle.getTargetBlocker` passes, the same rule `playCard` checks (`targetableVehicleIds`, [`_legacy/src/renderer/game/screens/combat/cardTargets.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/screens/combat/cardTargets.ts)). Drag, click, and keyboard all read that one list, so none can offer a target play would refuse. DDB-114's engine half was fixed earlier (74b81a3, the target is checked before the card is spent); this closes the screen half.
 
 ### Range chips live in the token
 
@@ -43,5 +43,5 @@ The cancel action (Escape) and a right-click mid-drag cancel (DDB-88). A click t
 - Range chips sit on raiders only, as the mock puts them; empty enemy slots show nothing. Section 6 now says so, and says the ghost goes on each bar the hit takes from.
 - The hit check is clamped inside the stage, so the hand's leftmost card keeps its verdict on screen.
 - END TURN puts an aimed card back first, so no chip, outline, or hit check rides into the paced enemy turn.
-- `splitDamage` in `_legacy/src/renderer/game/mechanics/Vehicle.ts` is the one vehicle-hit split, used by `takeDamage` and the preview; `Battle.getVehicleForDriver` is public for the preview's actor.
+- `splitDamage` in [`_legacy/src/renderer/game/mechanics/Vehicle.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/mechanics/Vehicle.ts) is the one vehicle-hit split, used by `takeDamage` and the preview; `Battle.getVehicleForDriver` is public for the preview's actor.
 - Not yet matched to the mock: the source vehicle lighting up in its driver's colour (`owner-lit`) while a card is aimed, and the desaturation on dimmed tokens (`saturate(0.4)`; the dim here is opacity only). Filed as a follow-up.

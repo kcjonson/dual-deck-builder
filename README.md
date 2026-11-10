@@ -2,7 +2,7 @@
 
 A roguelike deckbuilder with vehicular combat in a post-apocalyptic setting. You drive two vehicles at once, each with its own driver and deck.
 
-This is the C++ early alpha, built on [salal](https://github.com/kcjonson/salal). The TypeScript proof of concept it grew from is frozen in [`_legacy/`](_legacy/).
+This is the C++ early alpha, built on [salal](https://github.com/kcjonson/salal). The TypeScript proof of concept it grew from was removed at the cutover; its last state is [`_legacy/`](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy).
 
 ## Building
 

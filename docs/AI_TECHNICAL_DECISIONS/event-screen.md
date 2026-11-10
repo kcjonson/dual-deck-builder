@@ -1,6 +1,6 @@
 # Event stops: events as data, and the event screen (DDB-45)
 
-Date: 2026-10-18. Code: `_legacy/src/renderer/game/campaign/Events.ts` (the model), `_legacy/src/renderer/game/data/events.json` (the content), and `_legacy/src/renderer/game/screens/event/` (the screen and its parts). Specs: [Game Flow and UI](../specs/Game%20Flow%20and%20UI%20Specification.md) 5 and 7.0, [UI Art Direction](../specs/UI%20Art%20Direction.md), [Runs and Encounters](../specs/Runs%20and%20Encounters.md) (What a stop can be).
+Date: 2026-10-18. Code: [`_legacy/src/renderer/game/campaign/Events.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/campaign/Events.ts) (the model), [`_legacy/src/renderer/game/data/events.json`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/data/events.json) (the content), and [`_legacy/src/renderer/game/screens/event/`](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/screens/event) (the screen and its parts). Specs: [Game Flow and UI](../specs/Game%20Flow%20and%20UI%20Specification.md) 5 and 7.0, [UI Art Direction](../specs/UI%20Art%20Direction.md), [Runs and Encounters](../specs/Runs%20and%20Encounters.md) (What a stop can be).
 
 ## Context
 
