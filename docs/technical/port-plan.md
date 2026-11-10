@@ -54,5 +54,5 @@ Each step is PRs of a size someone can review in a sitting, each building, passi
 ## Decisions for Kevin
 
 - **UI art.** Decided 2026-10-31: the raster atlas gives, salal's rules hold. The paper is computed in the base shader as a fill hook, the rest of the art is flat-fill vector, and the icons are filled SVG ([procedural-paper.md](../AI_TECHNICAL_DECISIONS/procedural-paper.md)).
-- **The game's executable and folder name**, for step 6: `apps/wasteland-wheels` or something else.
-- **Playtest distribution.** The playtest-distribution spec moves playtesting to downloadable builds before the port lands, by way of the Electron build. With the TypeScript frozen and CI off, it may be simpler to go straight to C++ builds at cutover.
+- **The game's executable and folder name.** Decided 2026-11-09: `apps/wasteland-wheels`, building `wasteland-wheels.exe`, for the alpha and the cutover.
+- **Playtest distribution.** Decided 2026-11-09: straight to C++ builds at cutover. The playtest-distribution spec's Electron leg is dropped; testers keep the TypeScript web build until the C++ alpha replaces it in step 7.
