@@ -45,7 +45,7 @@ Inside to inside on the same row is 1, a flanker to their inside lane is 2 (the 
 
 ## 2. Screen bands
 
-Everything is laid out in the game's px, which are Figma px at 100%, on a canvas between 1600x900 and 3440x1440 ([Interface Scaling](./Interface%20Scaling.md)). The sizes in this section were set on the old 1280x720 canvas; they're set again in px, for the 1600x900 canvas first, with the rest of the game's sizes (Interface Scaling, Sizes).
+Everything is laid out in the game's px, pixels on a 1920x1080 screen, on a canvas at least 1920x1080 at the default interface size and capped at 2600x1440 ([Interface Scaling](./Interface%20Scaling.md)). The sizes in this section were set on the old 1280x720 canvas; they're set again in 1080p px with the rest of the game's sizes (Interface Scaling, Sizes).
 
 | Band | Height (1280x720 canvas) | Contents |
 |---|---|---|
@@ -55,8 +55,8 @@ Everything is laid out in the game's px, which are Figma px at 100%, on a canvas
 
 - The stage caps in width and centres. On 21:9 the road art runs to the screen edges, the UI does not.
 - At 1280x720 each slot is 205x141. Spare height goes to the rows, spare width to the slots, and vehicle tokens scale up to x1.25 to fill them. Tokens never scale below x1; a layout that would force that is a failure.
-- A phone-sized compact layout isn't covered; the window can't be smaller than 1200x675.
-- Rules text on the card face is 18 px, the Xbox accessibility guideline's PC minimum, which is 13.5 px at the interface's 0.75 floor.
+- A phone-sized compact layout isn't covered; the window can't be smaller than 1280x720.
+- Rules text on the card face is 18 px, the Xbox accessibility guideline's PC minimum at 1080p, which is 36 device pixels at 4K and 12 on the Steam Deck.
 - One layout function computes all of this, on mount and on resize alike.
 
 ## 3. Vehicle token
