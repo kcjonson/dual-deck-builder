@@ -1,13 +1,13 @@
 #pragma once
 
-// The game's faces (UI Art Direction, Type), msdf-atlas-gen atlases in fonts/ that CMakeLists.txt stages beside the exe,
-// each a family of its own, with body the default.
+// The game's faces (UI Art Direction, Type), msdf-atlas-gen atlases in fonts/ under the game's files (GameFiles.h),
+// where CMakeLists.txt stages them, each a family of its own, with body the default.
 
 #include <font/FontRenderer.h>
 #include <primitives/FontFamily.h>
 #include <ui/theme/Theme.h>
 
-#include <array>
+#include <span>
 
 namespace game::fonts {
 
@@ -16,12 +16,8 @@ namespace game::fonts {
 	inline constexpr Renderer::FontFamily kBody{2};
 	inline constexpr Renderer::FontFamily kMono{3};
 
-	inline const std::array<Renderer::FontAtlasSource, 4> kAtlases{{
-		{.family = kDisplayBold, .pngPath = "fonts/barlow-condensed-bold.png", .jsonPath = "fonts/barlow-condensed-bold.json"},
-		{.family = kDisplaySemibold, .pngPath = "fonts/barlow-condensed-semibold.png", .jsonPath = "fonts/barlow-condensed-semibold.json"},
-		{.family = kBody, .pngPath = "fonts/open-sans-regular.png", .jsonPath = "fonts/open-sans-regular.json"},
-		{.family = kMono, .pngPath = "fonts/jetbrains-mono-regular.png", .jsonPath = "fonts/jetbrains-mono-regular.json"},
-	}};
+	// Every face, by its full path, so none is looked for in the working directory. Throws as filesDirectory() does.
+	[[nodiscard]] std::span<const Renderer::FontAtlasSource> atlases();
 
 	// The names a tokens file's fontFamily calls the faces by, ui's roles, each face with its weight.
 	[[nodiscard]] std::span<const ui::FontFamilyName> familyNames();

@@ -4,12 +4,12 @@
 // menu; a press or a key goes on at once. Everything has loaded before it opens, so the loader runs on the fade and the
 // hold.
 
+#include "Build.h"
 #include "atlas/AtlasTheme.h"
 #include "atlas/Gauges.h"
 #include "atlas/Ink.h"
 #include "atlas/Tokens.h"
 #include "cards/DeckStack.h"
-#include "scenes/AtlasPage.h"
 #include "scenes/GameScene.h"
 #include "scenes/splash/ClosedAtlas.h"
 
@@ -215,7 +215,7 @@ namespace game {
 						.fontSize = 10.0F,
 						.textAlign = Foundation::HorizontalAlign::Center,
 						.letterSpacing = 1.8F,
-						.textTransform = Foundation::TextTransform::Uppercase,
+						.textTransform = Foundation::TextTransform::None,
 					}),
 					.text = buildLine(),
 				});

@@ -62,7 +62,4 @@ namespace game {
 	[[nodiscard]] ui::Ref<ui::Component>
 	failureBox(ui::Ref<ui::Component> body, const std::string& title, const std::string& kicker, const std::string& reason);
 
-	// The build's line, under the splash's loader and at the foot of the menu: a development build says so.
-	[[nodiscard]] const char* buildLine();
-
 } // namespace game
