@@ -133,11 +133,13 @@ Also, overflow of less than a pixel shows no scrollbar.
 
 The game keeps the numbers, which scenes use the frame, every size in 1080p px, how each piece of art keeps its shape (contain or cover, its ratio box), the scroll rule and its list, every scene's layout, and the sizes its tests check.
 
-## Open decisions
+## Decisions
 
-1. The reference, `1920 x 1080`: the most common screen on Steam and the size the Figma frames are drawn at.
-2. The frame's cap, `2600 x 1440`: how far a screen may spread before it pillarboxes. Proposed so 3440 x 1440 ultrawides and 4:3 fill.
-3. The smallest window, `1280 x 720` device pixels, and with it the 2/3 floor, 14 px minimum type, and 18 px rules text.
-4. The interface sizes, 80 to 120% in steps of 10.
-5. A text size setting separate from interface size, which Xbox's guideline (up to 200%) and Valve both recommend. Proposed: later, as its own item.
-6. Window size presets in Settings. Proposed: none; the window is resized by dragging and comes back at its size.
+Kevin settled these on 2026-11-10:
+
+1. The reference is `1920 x 1080`: the most common screen on Steam and the size the Figma frames are drawn at.
+2. The frame's cap is `2600 x 1440`, so 3440 x 1440 ultrawides and 4:3 fill.
+3. The smallest window is `1280 x 720` device pixels, and with it the 2/3 floor, 14 px minimum type, and 18 px rules text.
+4. The interface sizes are 80 to 120% in steps of 10.
+5. A text size setting separate from interface size, which Xbox's guideline (up to 200%) and Valve both recommend, comes later, as its own item.
+6. There are no window size presets in Settings; the window is resized by dragging and comes back at its size.
