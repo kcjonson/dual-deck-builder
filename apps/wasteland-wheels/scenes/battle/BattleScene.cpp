@@ -111,19 +111,12 @@ namespace game {
 	}
 
 	void BattleScene::build() {
-		// Escape puts a waiting card back, or with none opens the menu, from wherever focus is in the fight. The menu's keys
-		// are its own.
+		// A cancel from wherever focus is in the fight; with nothing focused, Escape reaches handleEvent instead.
 		ui::Ref<ui::Component> root = this->root().addChild<ui::Component>({
 			.id = "battle",
 			.size = {ui::percent(100.0F), ui::percent(100.0F)},
 			.onKeyDown = [this](ui::KeyEvent& event) {
-				if (event.type != ui::KeyEvent::Type::Cancel || top.get()->menuOpen()) {
-					return;
-				}
-				if (pending) {
-					cancelAim();
-					event.consume();
-				} else if (top.get()->openMenu()) {
+				if (event.type == ui::KeyEvent::Type::Cancel && cancel()) {
 					event.consume();
 				}
 			},
@@ -187,15 +180,37 @@ namespace game {
 		layOut();
 	}
 
-	// The keys the ui didn't take come here, focused somewhere or not (ui-design.md, a HUD's hotkeys), so L opens the log
+	// The keys the ui didn't take come here, focused somewhere or not (ui-design.md, a HUD's hotkeys), so L and Escape work
 	// from the fight's first frame.
 	bool BattleScene::handleEvent(const foundation::InputEvent& event) {
-		if (event.type != foundation::InputEvent::Type::KeyDown || event.key != foundation::Key::L || event.repeat ||
-			top.get() == nullptr || top.get()->menuOpen()) {
+		if (event.type != foundation::InputEvent::Type::KeyDown || event.repeat || top.get() == nullptr) {
+			return false;
+		}
+		if (event.key == foundation::Key::Escape) {
+			return cancel();
+		}
+		if (event.key != foundation::Key::L || top.get()->menuOpen()) {
 			return false;
 		}
 		toggleLog();
 		return true;
+	}
+
+	// Escape's order once a drag in flight, which ui's drag service takes first, has had it: a waiting card goes back, an
+	// open log closes, then the menu opens. An open menu takes its own Escape.
+	bool BattleScene::cancel() {
+		if (top.get()->menuOpen()) {
+			return false;
+		}
+		if (pending) {
+			cancelAim();
+			return true;
+		}
+		if (logOpen) {
+			toggleLog();
+			return true;
+		}
+		return top.get()->openMenu();
 	}
 
 	void BattleScene::onResize(const Renderer::Viewport& /*viewport*/) {

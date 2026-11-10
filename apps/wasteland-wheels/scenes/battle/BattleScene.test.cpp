@@ -1,8 +1,9 @@
 // The battle scene driven the way a player drives it, through the App's own input: a card dragged onto a raider, a card
 // picked up and dropped with the keys, a slot pick and a two-step play, the turn ended and the raiders' turn played
 // back beat by beat until it settles on the fight, the log opening on the matchup and stamping the raiders' moves with
-// their own turn, the top bar's menu opened by its key and by Escape once no card waits, and left for the main menu, L
-// opening the log with nothing focused, the run's scrap and fuel on the bar, and the scene linted at three sizes.
+// their own turn, the top bar's menu opened by its key and by Escape once no card waits and the log is shut, and left
+// for the main menu, L and Escape with nothing focused, the run's scrap and fuel on the bar, and the scene linted at
+// three sizes.
 
 #include "scenes/battle/BattleScene.h"
 #include "GameTesting.h"
@@ -418,6 +419,24 @@ namespace game::testing {
 			ASSERT_TRUE(press("menu"));
 			key(foundation::Key::L);
 			EXPECT_NE(find("log"), nullptr) << "the menu's keys are its own";
+		}
+
+		TEST_F(Battle, EscapeWithNothingFocusedOpensTheMenuOnceTheLogIsShut) {
+			open(1);
+			ASSERT_EQ(scene().ui().focused().get(), nullptr) << "a fight opens with nothing focused";
+			key(foundation::Key::Escape);
+			ASSERT_NE(find("menu_dialog"), nullptr) << "Escape opens the menu from the fight's first frame";
+			key(foundation::Key::Escape);
+			ASSERT_EQ(find("menu_dialog"), nullptr);
+			scene().ui().clearFocus();
+			frame();
+			key(foundation::Key::L);
+			ASSERT_NE(find("log"), nullptr);
+			key(foundation::Key::Escape);
+			EXPECT_EQ(find("log"), nullptr) << "an open log closes first";
+			EXPECT_EQ(find("menu_dialog"), nullptr);
+			key(foundation::Key::Escape);
+			EXPECT_NE(find("menu_dialog"), nullptr);
 		}
 
 		TEST_F(Battle, ScrapAndFuelAreTheRunsCargo) {

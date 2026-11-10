@@ -98,6 +98,7 @@ namespace game {
 		void								pick(const battle::AimPick& pick);
 		void								choose(const battle::HandCard& card, const std::vector<battle::AimPick>& picks);
 		void								cancelAim();
+		bool								cancel();
 		void								endTurn();
 		[[nodiscard]] std::optional<size_t> endTurnIndex() const;
 		void								toggleLog();
