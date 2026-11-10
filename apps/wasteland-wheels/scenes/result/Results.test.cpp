@@ -83,6 +83,47 @@ namespace {
 		EXPECT_EQ(top(), scenes::kCompound);
 	}
 
+	TEST_F(Results, AWonFightSaysWhatDamageTheConvoyTookAndWhoWasHurt) {
+		leave();
+		rules::campaign::CampaignFight fight = foughtTo(rules::Outcome::Won);
+		fight.state.driver(rules::DriverIndex{0}).hitpoints = fight.state.driver(rules::DriverIndex{0}).maxHitpoints;
+		rules::BattleDriver& hurt = fight.state.driver(rules::DriverIndex{1});
+		hurt.hitpoints = hurt.maxHitpoints - 3;
+		rules::BattleVehicle* dented = nullptr;
+		for (rules::BattleVehicle& vehicle : fight.state.vehicles) {
+			if (vehicle.side == rules::Side::Player && vehicle.owner && vehicle.owner->value == 0) {
+				dented = &vehicle;
+			}
+		}
+		ASSERT_NE(dented, nullptr);
+		dented->structure = dented->maxStructure - 2;
+		const std::string vehicleRow = rules::campaign::driverName(played(), testRules().content, played().drivers[0].id) +
+									   "'s vehicle took damage, " + std::to_string(dented->maxStructure - 2) + " of " +
+									   std::to_string(dented->maxStructure) + " structure left.";
+		const std::string hurtRow = rules::campaign::driverName(played(), testRules().content, played().drivers[1].id) + " is hurt, " +
+									std::to_string(hurt.maxHitpoints - 3) + " of " + std::to_string(hurt.maxHitpoints) + " HP.";
+		const rules::campaign::FightWriteBack back =
+			rules::campaign::writeBackFight(played(), testRules().content, testRules().campaign, fight);
+		app->scenes().push<BattleResultScene>(BattleResultArgs{.fight = std::move(fight), .back = back});
+		frame();
+		ASSERT_EQ(top(), "battle_result");
+		EXPECT_EQ(textOf("after_0_text"), vehicleRow);
+		EXPECT_EQ(textOf("after_1_text"), hurtRow);
+		EXPECT_EQ(find("after_2_text"), nullptr);
+	}
+
+	TEST_F(Results, AWonFightWithNobodyDownSaysSo) {
+		leave();
+		rules::campaign::CampaignFight fight = foughtTo(rules::Outcome::Won);
+		fight.state.driver(rules::DriverIndex{0}).hitpoints = fight.state.driver(rules::DriverIndex{0}).maxHitpoints;
+		const rules::campaign::FightWriteBack back =
+			rules::campaign::writeBackFight(played(), testRules().content, testRules().campaign, fight);
+		app->scenes().push<BattleResultScene>(BattleResultArgs{.fight = std::move(fight), .back = back});
+		frame();
+		ASSERT_EQ(top(), "battle_result");
+		EXPECT_EQ(textOf("after_0_text"), "Nobody was hurt and every vehicle is whole.");
+	}
+
 	TEST_F(Results, ADebriefHomeIsStampedNamesTheCargoOnceAndTheInfirmaryAsTheCompoundDoes) {
 		leave();
 		const rules::campaign::CrewId  hurt = played().drivers[1].id;
