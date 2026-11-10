@@ -232,22 +232,27 @@ namespace game::battle {
 
 	TopBar::TopBar(const Args& args)
 		: onToggleLog(args.onToggleLog),
-		  onMainMenu(args.onMainMenu) {}
+		  onAbandon(args.onAbandon),
+		  abandonWarning(args.abandonWarning) {}
 
 	bool TopBar::openMenu() {
 		if (!shown.menu || menuOpen() || menuButton.get() == nullptr) {
 			return false;
 		}
 		menuDialog = ui::Dialog::open(
-			*this, {.id = "menu_dialog", .title = "Menu", .panelSize = {kMenuWidth, ui::kAuto}, .footer = true, .onClose = [this] {
-						menuDialog = {};
-					}}
+			*this,
+			{.id = "menu_dialog",
+			 .title = "Abandon the run?",
+			 .kicker = "Menu",
+			 .panelSize = {kMenuWidth, ui::kAuto},
+			 .footer = true,
+			 .onClose = [this] { menuDialog = {}; }}
 		);
 		ui::Dialog* dialog = menuDialog.get();
 		dialog->content().addChild<ui::Text>({
 			.id = "menu_body",
 			.style = {.color = ink::kMuted, .fontFamily = fonts::kBody, .fontSize = 14.0F},
-			.text = "The fight isn't saved. Leave for the main menu and Continue starts it again from its first turn.",
+			.text = abandonWarning ? abandonWarning() : "",
 			.wrap = true,
 		});
 		// Keep fighting first, so it has the focus as the menu opens and a stray Enter stays in the fight.
@@ -258,12 +263,13 @@ namespace game::battle {
 			.onPress = [this] { closeMenu(); },
 		});
 		dialog->footer().addChild<ui::Button>({
-			.id = "menu_main_menu",
-			.label = "Main menu",
+			.id = "menu_abandon",
+			.label = "Abandon the run",
+			.variant = ui::ButtonVariant::Danger,
 			// The scene goes, and the menu with it.
 			.onPress = [this] {
-				if (onMainMenu) {
-					onMainMenu();
+				if (onAbandon) {
+					onAbandon();
 				}
 			},
 		});

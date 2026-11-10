@@ -209,6 +209,9 @@ namespace rules::campaign {
 		std::vector<DriverId> recruits;
 		// Fights written back so far, which names the next one's seed.
 		int fights{0};
+		// A fight begun and not written back yet (beginRunFight), saved as it opens, so a quit mid-fight leaves it in the
+		// save and Continue gives the fight up (abandonFightInProgress) rather than starting it again.
+		bool fighting{false};
 		// Set at departure; a load out still at the compound has none.
 		std::optional<RunRoute> route;
 

@@ -14,7 +14,7 @@ namespace game {
 	struct DebriefArgs {
 		// A run home: what it brought back.
 		std::optional<rules::campaign::Unloaded> home;
-		// A run failed at a fight: what went with it, and what became of each seat there.
+		// A run lost or abandoned at a fight: what went with it, and what became of each seat there.
 		std::optional<rules::campaign::RunLost>		lost;
 		std::vector<rules::campaign::SeatWriteBack> seats;
 		// The night after it; none when the run's end ended the campaign.

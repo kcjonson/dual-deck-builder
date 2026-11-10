@@ -5,9 +5,8 @@
 // ellipsis; the full text is in the log), the scrap and fuel the run carries, and the LOG toggle, which opens and closes
 // the drawer.
 //
-// The menu is a dialog over the fight: Keep fighting, or Main menu, which leaves the fight unfinished. A fight in progress
-// isn't saved, so Continue starts it again from its first turn (call 65). The key is off while the raiders act and once
-// the fight is over, when the dock's Leave is the way on, so a fight that's ended is always written back.
+// The menu is a dialog over the fight: Keep fighting, or Abandon the run, under a warning of what giving the fight up
+// costs. The key is off while the raiders act and once the fight is over, when the dock's Leave is the way on.
 
 #include <ui/Component.h>
 #include <ui/components/Dialog.h>
@@ -45,8 +44,9 @@ namespace game::battle {
 	  public:
 		struct Args {
 			UI_COMMON_ARGS
-			std::function<void()> onToggleLog; // the LOG button, id "log_toggle", and the L key
-			std::function<void()> onMainMenu;  // the menu's Main menu, id "menu_main_menu"
+			std::function<void()>		 onToggleLog;	 // the LOG button, id "log_toggle", and the L key
+			std::function<void()>		 onAbandon;		 // the menu's Abandon the run, id "menu_abandon"
+			std::function<std::string()> abandonWarning; // what abandoning costs, asked for as the menu opens
 		};
 
 		explicit TopBar(const Args& args);
@@ -72,21 +72,22 @@ namespace game::battle {
 		void refresh();
 		void closeMenu();
 
-		std::function<void()>  onToggleLog;
-		std::function<void()>  onMainMenu;
-		TopBarPicture		   shown;
-		ui::Ref<ui::Component> menuButton;
-		ui::Ref<ui::Dialog>	   menuDialog;
-		ui::Ref<ui::Text>	   wave;
-		ui::Ref<ui::Text>	   arriving;
-		ui::Ref<ui::Text>	   turn;
-		ui::Ref<ui::Text>	   whose;
-		ui::Ref<ui::Component> ticker;
-		ui::Ref<ui::Component> scrapGroup;
-		ui::Ref<ui::Text>	   scrap;
-		ui::Ref<ui::Component> fuelGroup;
-		ui::Ref<ui::Text>	   fuel;
-		ui::Ref<ui::Component> logButton;
+		std::function<void()>		 onToggleLog;
+		std::function<void()>		 onAbandon;
+		std::function<std::string()> abandonWarning;
+		TopBarPicture				 shown;
+		ui::Ref<ui::Component>		 menuButton;
+		ui::Ref<ui::Dialog>			 menuDialog;
+		ui::Ref<ui::Text>			 wave;
+		ui::Ref<ui::Text>			 arriving;
+		ui::Ref<ui::Text>			 turn;
+		ui::Ref<ui::Text>			 whose;
+		ui::Ref<ui::Component>		 ticker;
+		ui::Ref<ui::Component>		 scrapGroup;
+		ui::Ref<ui::Text>			 scrap;
+		ui::Ref<ui::Component>		 fuelGroup;
+		ui::Ref<ui::Text>			 fuel;
+		ui::Ref<ui::Component>		 logButton;
 	};
 
 } // namespace game::battle

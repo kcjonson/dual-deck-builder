@@ -93,6 +93,7 @@ It refuses a fight that's still on, a tie, a fight it has already written back, 
 - There's no run party. The run is part of the campaign, so the bridge reads the seats, escorts, and cargo off `Campaign::run`, and none of the refusals for a party out of step with it exist.
 - A fight names its run and how many fights the run had written back, which is all a write-back needs to refuse a fight twice or from another run, so there's no registry of open fights or of write-backs in progress.
 - A lost fight ends the run in its write-back, unwinding the run decks and losing the cargo and escorts, which `loseRun` did after it.
+- There's no `Battle.forfeit`. A fight given up comes back unfinished with `CampaignFight::abandoned` set, and the write-back takes it as lost, whoever's alive fleeing and missing, the down dead, and logs the run as abandoned ([abandoning-a-run.md](./abandoning-a-run.md)).
 - A driven vehicle's armor is written back at most its base (call 393).
 - The fight seeds from the campaign by the run and its fight count, `nextFightSeed`, which the encounter pick takes too.
 - A lost run's `RunLost` names who it found on the road too, the missing who stay missing and the recruits who never join.

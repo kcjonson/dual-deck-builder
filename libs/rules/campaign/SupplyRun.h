@@ -76,12 +76,22 @@ namespace rules::campaign {
 	// bridge. Throws std::invalid_argument when the run isn't at a fight.
 	[[nodiscard]] CampaignFightStart startRunFight(const Campaign& campaign, const Content& content, const MapLayers& map);
 
+	// startRunFight for a fight the player plays: once it's built, the run is marked fighting (Run::fighting), so the save
+	// made as the battle opens holds a fight in progress. Throws as startRunFight does, marking nothing.
+	[[nodiscard]] CampaignFightStart beginRunFight(Campaign& campaign, const Content& content, const MapLayers& map);
+
 	// The fight written back through the combat bridge. Won, the reward opens, rewardCards different cards on the run's
 	// stream for the stop or the road home (call 405 for a warband's), an event's fight giving what winning it gives
-	// first (call 255). Broken off, the run drives on past the stop, or home, with none (call 412). Lost, the run has
-	// failed, and the bridge's write-back says how.
+	// first (call 255). Broken off, the run drives on past the stop, or home, with none (call 412). Lost or abandoned, the
+	// run has failed, and the bridge's write-back says how.
 	FightWriteBack
 	endRunFight(Campaign& campaign, const Content& content, const CampaignRules& rules, const MapLayers& map, const CampaignFight& fight);
+
+	// A fight a quit left in progress (Run::fighting), given up as the battle menu's Abandon the run gives one up: the save
+	// doesn't hold the fight, so it's started again, the same fight on the same seed, and written back abandoned at its
+	// opening, every seat fleeing with what they went into it with (Compound and Supply Runs, A failed run). Throws
+	// std::invalid_argument with no fight in progress.
+	FightWriteBack abandonFightInProgress(Campaign& campaign, const Content& content, const CampaignRules& rules, const MapLayers& map);
 
 	// What taking a find at the stop the run is at brought.
 	struct TakenFind {

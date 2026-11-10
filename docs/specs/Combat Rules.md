@@ -196,7 +196,8 @@ Decided 2026-10-17 ([Runs and Encounters](./Runs%20and%20Encounters.md)).
 - Won: no raider left on the road or in the queue, or a rout.
 - Rout: when a warband's leader is out of the fight, or when the nominal threat still in it (on the road and queued) is at or under a quarter of the encounter's starting threat, the remaining raiders flee and the fight is won. Nominal threat is each raider profile's own number, not what it's taken.
 - Break-off: if the fight goes nowhere for three player turns running, the raiders break off (what counts as going nowhere is open in Runs and Encounters). The fight ends neither won nor lost: the run goes on, the damage carries as usual, and it pays no reward.
-- Lost: as in Losing vehicles and drivers. Abandoning a fight is unchanged.
+- Lost: as in Losing vehicles and drivers.
+- Abandoned: the player gives the fight up from the battle menu, or quits the game mid-fight, and it counts as lost, with whoever's still in it fleeing (Compound and Supply Runs, A failed run).
 
 Victory and a rout are checked after every card and every enemy action; a break-off at the end of the player's turn.
 

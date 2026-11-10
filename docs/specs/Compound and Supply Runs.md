@@ -6,7 +6,7 @@ This replaces the single long run up a map to a region boss. The player runs a c
 
 ## Terms
 
-- Campaign: one save, from founding the compound to its fall or victory. This is the roguelike "run" for meta-progression. It's saved after every step that changes it (each stop, arriving home, each compound action), so quitting loses at most the step in progress. Each deployed build keeps its own save; a save from a version of the game with another save format, or whose map generator makes the save's map differently, can't be continued, and a new campaign replaces it.
+- Campaign: one save, from founding the compound to its fall or victory. This is the roguelike "run" for meta-progression. It's saved after every step that changes it (each stop, arriving home, each compound action), so quitting loses at most the step in progress, except a fight, which quitting forfeits (A failed run). Each deployed build keeps its own save; a save from a version of the game with another save format, or whose map generator makes the save's map differently, can't be continued, and a new campaign replaces it.
 - Compound: the player's settlement. It persists for the whole campaign and holds the resources, the driver pool, the vehicles, and the convoy.
 - Supply run (a run): one trip out from the compound to a point of interest. Runs are one way out; the trip home is down the road just cleared.
 - Area map: the whole known region around the compound. Open at any time outside a fight or an event.
@@ -213,6 +213,8 @@ Until night rules exist, a run that slips past dark rolls the return ambush at f
 ### A failed run
 
 - A run fails when a fight has no driver left in it (Combat Rules, Losing vehicles and drivers). A driver at 0 HP in that fight is dead, gone for good. A driver who crashed out alive is missing: there's nobody left to pick them up. A missing driver can turn up later as a Find: driver stop.
+- Leaving a fight forfeits it (Kevin, 2026-11-09). The battle menu's only way out is Abandon the run, behind a confirm that starts on Keep fighting and says what it costs, and abandoning fails the run the way losing does: a driver still in the fight flees and is missing, and one already down is dead. When they're the compound's last drivers, the warning says the campaign ends with them. The log says the run was abandoned, and the debrief that follows says the crew abandoned the fight.
+- Quitting the game mid-fight is abandoning it. The save marks a fight as in progress when it opens, and Continue gives that fight up instead of starting it again. The save doesn't hold the fight itself, so the crew flee as they went into it: nobody is down, and the fight's damage isn't carried.
 - The cargo and the run's escorts are lost.
 - The campaign goes on while the pool has drivers.
 

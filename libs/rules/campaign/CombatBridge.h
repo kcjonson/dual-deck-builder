@@ -21,7 +21,8 @@ namespace rules::campaign {
 	inline constexpr int kLimpStructure = 1;
 
 	// The seed the run's next fight plays on, forked from the campaign's seed by the run and the fights it has written
-	// back, so a fight started again after a reload is the same fight (call 65). pickEncounter takes it too.
+	// back, so a fight started again from the same campaign is the same fight, which is how Continue rebuilds a fight a
+	// quit left in progress to abandon it. pickEncounter takes it too.
 	[[nodiscard]] uint32_t nextFightSeed(const Campaign& campaign);
 
 	// A fight built from the run out, which its write-back reads.
@@ -31,6 +32,9 @@ namespace rules::campaign {
 		int			number{0};
 		EncounterId encounter;
 		BattleState state;
+		// The crew gave it up partway, from the battle menu's Abandon the run or by quitting mid-fight, and it's written
+		// back as a lost fight whatever its state says.
+		bool abandoned{false};
 	};
 
 	struct CampaignFightStart {
@@ -50,8 +54,8 @@ namespace rules::campaign {
 	//   Fought    still in the fight at its end
 	//   PickedUp  crashed out alive, and the partner went back for them
 	//   Revived   down at 0 HP, and back up at kReviveHitpoints
-	//   Dead      down at 0 HP in a lost fight, gone for good
-	//   Missing   alive in a lost fight, with nobody left to pick them up
+	//   Dead      down at 0 HP in a lost or abandoned fight, gone for good
+	//   Missing   alive in a lost fight, with nobody left to pick them up, or fled from an abandoned one
 	enum class SeatFate { Fought, PickedUp, Revived, Dead, Missing };
 
 	struct SeatWriteBack {
@@ -66,6 +70,8 @@ namespace rules::campaign {
 	// A lost fight ends the run, and this is what went with it.
 	struct RunLost {
 		RunId run;
+		// The crew gave the fight up (CampaignFight::abandoned) rather than losing it.
+		bool abandoned{false};
 		// The POI it was out to, none for a run that never left on a route.
 		std::optional<int> poi;
 		// What the dead took with them: their own run deck and what they borrowed.
@@ -88,15 +94,18 @@ namespace rules::campaign {
 		std::optional<RunLost> lost;
 	};
 
-	// Writes an ended fight back (combat-bridge.md, Writing a fight back). Won or broken off, the run carries on: each
+	// Writes an ended fight back (combat-bridge.md, Writing a fight back), so the run is no longer fighting
+	// (Run::fighting). Won or broken off, the run carries on: each
 	// seat keeps the HP and the vehicle damage the fight left (a wreck limping on, its armor gone, and armor at most its
 	// base, call 393), a driver who went down is revived and one who crashed out picked up (call 198), wrecked escorts
 	// leave the convoy and take their cards out of the run decks, the rest keep their structure, and after a win each
 	// surviving hauler pays its dividend: fuel and scrap into the cargo, HP to every seat still above 0. Lost, the run
 	// ends there: the down are dead and the rest missing, the dead lose their run decks and the missing get theirs back
 	// (call 138), the cargo, everyone it found, and every escort that came along are lost, with a log line for who was lost
-	// and one for the cargo (call 23), and the campaign ends if nobody is left at the compound (call 37). A won fight counts in the tally.
-	// Throws std::invalid_argument for a fight still on, one already written back or from another run, and one that
+	// and one for the cargo (call 23), and the campaign ends if nobody is left at the compound (call 37). Abandoned, partway,
+	// it's lost the same way: whoever's still alive flees and is missing with the HP and damage the fight left them, the
+	// down are dead, and the log says the run was abandoned. A won fight counts in the tally. Throws std::invalid_argument
+	// for a fight still on, an abandoned one that's over, one already written back or from another run, and one that
 	// doesn't seat the run's drivers and escorts.
 	FightWriteBack writeBackFight(Campaign& campaign, const Content& content, const CampaignRules& rules, const CampaignFight& fight);
 

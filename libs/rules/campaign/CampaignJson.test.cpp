@@ -142,6 +142,9 @@ namespace {
 			broken([](nlohmann::json& json) { json["run"]["recruits"][0] = "war_boy"; }),
 			"names driver war_boy, which no loaded pack defines"
 		));
+		EXPECT_TRUE(mentions(
+			broken([](nlohmann::json& json) { json["run"]["fighting"] = true; }), "campaign.run.fighting is set on a run that hasn't left"
+		));
 	}
 
 	TEST(CampaignJson, ASaveFailsLoudOnAMapOriginNoMapWasMadeFromOrAMapStateOutOfOrder) {

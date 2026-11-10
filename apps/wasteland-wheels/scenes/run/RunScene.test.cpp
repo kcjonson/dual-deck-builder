@@ -1,7 +1,8 @@
 // The run and the event scene in the atlas: every step a run meets lints 0 at the sizes the game opens at, the event's
 // choices and its outcome too; a reward's cards are cards; an event's locked choice says why in the kit's words, with
-// drivers named as the rest of the game names them; a choice is taken by its number key; and Back to the road leaves
-// the event untaken.
+// drivers named as the rest of the game names them; a choice is taken by its number key; Back to the road leaves the
+// event untaken; and a fight abandoned from the battle menu, or left in progress by a quit and continued, fails the run
+// into its debrief.
 
 #include "GameTesting.h"
 #include "Words.h"
@@ -166,6 +167,76 @@ namespace {
 		for (const char* kind : {"fight", "find", "reward", "objective", "home", "event", "event_choices", "event_outcome"}) {
 			EXPECT_TRUE(linted.contains(kind)) << "no route on the fixture map reached " << kind;
 		}
+	}
+
+	class Abandon : public Run {
+	  protected:
+		// Out on a route whose stops before its first fight are finds, at that fight on the battle scene, saved as in
+		// progress: false when none is.
+		bool intoAFight() {
+			for (const rules::campaign::RouteChoice& route : routes()) {
+				leaveOn(route);
+				while (ahead() == rules::campaign::Ahead::Find) {
+					rules::campaign::driveOn(played(), context->session->layers());
+				}
+				if (ahead() == rules::campaign::Ahead::Fight) {
+					go(scenes::kRun);
+					EXPECT_TRUE(press("fight"));
+					return top() == "battle";
+				}
+			}
+			return false;
+		}
+
+		// The run gone, failed and saved, and its debrief up, saying it was abandoned.
+		void expectAbandoned(const std::vector<rules::campaign::CrewId>& seats) {
+			ASSERT_TRUE(frameUntil([this] { return top() == "debrief"; }));
+			EXPECT_TRUE(state()["abandoned"]);
+			EXPECT_FALSE(played().run.has_value());
+			EXPECT_EQ(played().tally.runsFailed, 1);
+			for (const rules::campaign::CrewId& seat : seats) {
+				EXPECT_EQ(played().driver(seat).status, rules::campaign::DriverStatus::Missing) << seat.value;
+			}
+			const auto abandoned = std::ranges::find_if(played().log, [](const rules::campaign::LogEntry& entry) {
+				return entry.text.starts_with("A run was abandoned: ");
+			});
+			EXPECT_NE(abandoned, played().log.end());
+			EXPECT_EQ(*context->store.status().campaign, played()) << "saved";
+			EXPECT_EQ(textOf("heading_title").find("Abandoned on the road to "), 0U) << textOf("heading_title");
+		}
+
+		[[nodiscard]] std::vector<rules::campaign::CrewId> seated() {
+			std::vector<rules::campaign::CrewId> seats;
+			for (const rules::campaign::RunDeck& seat : played().run->seats) {
+				seats.push_back(seat.driver);
+			}
+			return seats;
+		}
+	};
+
+	TEST_F(Abandon, AbandonTheRunFromTheMenuReachesTheDebriefWithTheRunWrittenBack) {
+		ASSERT_TRUE(intoAFight()) << "no route on the fixture map meets a fight before an event";
+		const std::vector<rules::campaign::CrewId> seats = seated();
+		ASSERT_TRUE(press("menu"));
+		const std::string warning = textOf("menu_body");
+		EXPECT_NE(warning.find("flee and go missing."), std::string::npos) << warning;
+		EXPECT_NE(warning.find("The day ends."), std::string::npos) << warning;
+		EXPECT_EQ(lintThree(), "") << "the battle with the menu open";
+		ASSERT_TRUE(press("menu_abandon"));
+		expectAbandoned(seats);
+		EXPECT_EQ(lintThree(), "") << "the abandoned run's debrief";
+	}
+
+	TEST_F(Abandon, ASaveWithAFightInProgressContinuesIntoItsAbandonment) {
+		ASSERT_TRUE(intoAFight()) << "no route on the fixture map meets a fight before an event";
+		const std::vector<rules::campaign::CrewId> seats = seated();
+		ASSERT_TRUE(context->store.status().campaign->run->fighting) << "the fight is saved as in progress when it opens";
+
+		// The game quit mid-fight, then Continue.
+		context->session.reset();
+		go(scenes::kMainMenu);
+		ASSERT_TRUE(press("continue"));
+		expectAbandoned(seats);
 	}
 
 	class Event : public Run {
