@@ -89,8 +89,26 @@ namespace game {
 				add(atlas::MapSymbol::Diamond, content.escorts.at(*vehicle.escort).name + " was wrecked and left the convoy.", true);
 			}
 		}
+		for (size_t seat = 0; seat < back.seats.size(); ++seat) {
+			const rules::campaign::DriverRecord& record = campaign.driver(back.seats[seat].driver);
+			const std::string					 name = rules::campaign::driverName(campaign, content, back.seats[seat].driver);
+			for (const rules::BattleVehicle& vehicle : state.vehicles) {
+				if (vehicle.side == rules::Side::Player && vehicle.owner && vehicle.owner->value == static_cast<int>(seat) &&
+					vehicle.structure < vehicle.maxStructure) {
+					add(atlas::MapSymbol::Ring,
+						name + "'s vehicle took damage, " + std::to_string(vehicle.structure) + " of " +
+							std::to_string(vehicle.maxStructure) + " structure left.");
+				}
+			}
+			const int  most = rules::campaign::maxHitpointsOf(content, record);
+			const bool told = back.seats[seat].fate == SeatFate::Revived || back.seats[seat].fate == SeatFate::PickedUp;
+			if (!told && record.hitpoints < most) {
+				add(atlas::MapSymbol::Ring,
+					name + " is hurt, " + std::to_string(record.hitpoints) + " of " + std::to_string(most) + " HP.");
+			}
+		}
 		if (rows == 0) {
-			add(atlas::MapSymbol::Dash, "Everyone drove on as they were.");
+			add(atlas::MapSymbol::Dash, "Nobody was hurt and every vehicle is whole.");
 		}
 
 		ui::Ref<atlas::AtlasButton> onward = result::highway(sheet, "continue", "Back on the road", [this] { app().scenes().pop(); });

@@ -251,9 +251,18 @@ namespace game::event {
 				won.push_back((copies > 1 ? std::to_string(copies) + " " : std::string()) + content.cards.at(card).name);
 			}
 			const std::string head = "Raiders, " + counted(outcome.fight->skulls, "skull", "skulls") + ".";
+			std::string		  prizeText;
+			if (!won.empty()) {
+				const std::string& first = won.front();
+				const bool		   sentence = !prize.empty() && !first.empty() && first.front() >= 'A' && first.front() <= 'Z';
+				if (sentence) {
+					won.front().front() = static_cast<char>(first.front() - 'A' + 'a');
+				}
+				prizeText = std::string(sentence ? " Win, and " : " Win, and take ") + joined(won, "; ") + ".";
+			}
 			lines.push_back({
 				.icon = Icon::Swords,
-				.text = won.empty() ? head : head + " Win, and: " + joined(won, "; ") + ".",
+				.text = head + prizeText,
 				.tone = Tone::Cost,
 			});
 		}

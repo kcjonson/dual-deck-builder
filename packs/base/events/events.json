@@ -217,7 +217,7 @@
 				{
 					"id": "drive_on",
 					"title": "Drive on",
-					"preview": "Not on this run.",
+					"preview": "Switch the radio off.",
 					"danger": 0,
 					"outcomes": [
 						{ "text": "You switch the radio off and take the next turn." }
