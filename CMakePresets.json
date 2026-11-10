@@ -21,6 +21,13 @@
       "condition": { "type": "notEquals", "lhs": "${hostSystemName}", "rhs": "Windows" }
     },
     {
+      "name": "release",
+      "displayName": "Release (macOS / Linux), the playtest build, in build-release",
+      "inherits": "default",
+      "binaryDir": "${sourceDir}/build-release",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
       "name": "windows",
       "displayName": "Windows (Ninja Multi-Config, MSVC + ccache)",
       "inherits": "base",
@@ -35,7 +42,9 @@
   "buildPresets": [
     { "name": "default", "configurePreset": "default" },
     { "name": "windows", "configurePreset": "windows", "configuration": "Debug" },
-    { "name": "windows-relwithdebinfo", "configurePreset": "windows", "configuration": "RelWithDebInfo" }
+    { "name": "windows-relwithdebinfo", "configurePreset": "windows", "configuration": "RelWithDebInfo" },
+    { "name": "release", "configurePreset": "release", "targets": ["wasteland-wheels"] },
+    { "name": "windows-release", "configurePreset": "windows", "configuration": "Release", "targets": ["wasteland-wheels"] }
   ],
   "testPresets": [
     {

@@ -17,6 +17,7 @@ add_library(ddb_game STATIC
     atlas/ResourceStrip.cpp
     atlas/SectionTabs.cpp
     atlas/Sheet.cpp
+    Build.cpp
     CampaignStore.cpp
     cards/Card.cpp
     cards/CardBack.cpp
@@ -28,6 +29,7 @@ add_library(ddb_game STATIC
     cards/EscortCard.cpp
     DevRoutes.cpp
     Fonts.cpp
+    GameFiles.cpp
     GameRules.cpp
     road/RoadLayout.cpp
     road/RoadPicture.cpp
@@ -102,13 +104,75 @@ salal_icons(ddb_game ${CMAKE_CURRENT_SOURCE_DIR}/icons NAMESPACE game::icons HEA
 # The game's flat-fill vector art (procedural-paper.md, Everything else), checked against what loadSVG reads and embedded.
 salal_art(ddb_game ${CMAKE_CURRENT_SOURCE_DIR}/art NAMESPACE game::art HEADER atlas/Art.h)
 
-# The base pack is read from the source tree, as the balance sim reads it, until playtest builds ship their packs.
+# The playtest build's stamp (playtest-distribution.md), from -DDDB_BUILD_NUMBER=<n> and -DDDB_BUILD_SHA=<sha> at
+# configure time, both or neither: "BUILD <n> - <short sha>" on the splash and the menu (Build.h). The header is
+# rewritten only when the stamp changes, and only Build.cpp includes it.
+set(DDB_BUILD_NUMBER "" CACHE STRING "The playtest build's number, which its stamp shows; empty for a developer build")
+set(DDB_BUILD_SHA "" CACHE STRING "The commit a playtest build is of, which its stamp shows; empty for a developer build")
+set(game_stamp "")
+if(NOT DDB_BUILD_NUMBER STREQUAL "" OR NOT DDB_BUILD_SHA STREQUAL "")
+    string(LENGTH "${DDB_BUILD_SHA}" sha_length)
+    if(NOT DDB_BUILD_NUMBER MATCHES "^[0-9]+$" OR NOT DDB_BUILD_SHA MATCHES "^[0-9a-fA-F]+$" OR sha_length LESS 7)
+        message(FATAL_ERROR
+            "DDB_BUILD_NUMBER and DDB_BUILD_SHA go together, a number and a commit hash of 7 or more digits; "
+            "got \"${DDB_BUILD_NUMBER}\" and \"${DDB_BUILD_SHA}\". Set both empty for a developer build.")
+    endif()
+    string(SUBSTRING "${DDB_BUILD_SHA}" 0 7 short_sha)
+    string(TOLOWER "${short_sha}" short_sha)
+    set(game_stamp "BUILD ${DDB_BUILD_NUMBER} - ${short_sha}")
+endif()
+file(CONFIGURE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/BuildStamp.h @ONLY CONTENT [[
+#pragma once
+
+// Written by apps/wasteland-wheels/CMakeLists.txt from DDB_BUILD_NUMBER and DDB_BUILD_SHA; empty in a developer build.
+
+namespace game::build {
+
+	inline constexpr const char* kStamp = "@game_stamp@";
+
+} // namespace game::build
+]])
+target_include_directories(ddb_game PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated)
+
+# The game reads its packs and faces from its own folder (GameFiles.h): Contents/Resources in Wasteland Wheels.app on
+# macOS, beside wasteland-wheels.exe elsewhere. Every build stages them there, so the build's folder runs from anywhere,
+# as a playtest download does, and a pack edited under packs/ reaches the game at the next build.
 add_executable(wasteland-wheels Main.cpp)
 target_link_libraries(wasteland-wheels PRIVATE ddb::game)
-target_compile_definitions(wasteland-wheels PRIVATE DDB_PACKS_DIR="${PROJECT_SOURCE_DIR}/packs")
 set_target_properties(wasteland-wheels PROPERTIES FOLDER apps)
+if(APPLE)
+    if(DDB_BUILD_NUMBER STREQUAL "")
+        set(bundle_version 0)
+    else()
+        set(bundle_version ${DDB_BUILD_NUMBER})
+    endif()
+    set_target_properties(wasteland-wheels PROPERTIES
+        OUTPUT_NAME "Wasteland Wheels"
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/Info.plist.in
+        MACOSX_BUNDLE_BUNDLE_NAME "Wasteland Wheels"
+        MACOSX_BUNDLE_GUI_IDENTIFIER com.bearcavinteractive.wastelandwheels
+        MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
+        MACOSX_BUNDLE_BUNDLE_VERSION ${bundle_version}
+    )
+    set(game_files_dir "$<TARGET_BUNDLE_CONTENT_DIR:wasteland-wheels>/Resources")
+else()
+    set(game_files_dir "$<TARGET_FILE_DIR:wasteland-wheels>")
+endif()
 
-# The game's faces (Fonts.h) and their licences, beside the exe on every build, where AppConfig::fontAtlases' paths resolve.
+set(game_runtime "")
+if(MSVC)
+    # A windowed app in Release, with no console behind it, entered at main all the same.
+    set_target_properties(wasteland-wheels PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release>)
+    target_link_options(wasteland-wheels PRIVATE $<$<CONFIG:Release>:/ENTRY:mainCRTStartup>)
+    # The release Visual C++ runtime beside the game, for a machine without the redistributable; scripts/package.mjs
+    # ships the DLLs the exe loads.
+    set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP TRUE)
+    include(InstallRequiredSystemLibraries)
+    set(game_runtime ${CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS})
+endif()
+
+# The game's faces (Fonts.h) and their licences.
 set(game_fonts
     ${CMAKE_CURRENT_SOURCE_DIR}/fonts/barlow-condensed-bold.png
     ${CMAKE_CURRENT_SOURCE_DIR}/fonts/barlow-condensed-bold.json
@@ -122,17 +186,37 @@ set(game_fonts
     ${CMAKE_CURRENT_SOURCE_DIR}/fonts/jetbrains-mono-regular.json
     ${CMAKE_CURRENT_SOURCE_DIR}/fonts/jetbrains-mono-OFL.txt
 )
-add_custom_target(wasteland-wheels-fonts
-    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:wasteland-wheels>/fonts
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${game_fonts} $<TARGET_FILE_DIR:wasteland-wheels>/fonts
-    COMMENT "Staging the game's fonts"
-    VERBATIM
-)
-set_target_properties(wasteland-wheels-fonts PROPERTIES FOLDER apps)
-add_dependencies(wasteland-wheels wasteland-wheels-fonts)
+
+# A target that stages the faces into <dir>/fonts and the packs into <dir>/packs on every build, and with RUNTIME the
+# Visual C++ runtime into <dir>. The packs go afresh, so a file removed from packs/ leaves the copy too.
+function(game_stage_files name dir)
+    cmake_parse_arguments(PARSE_ARGV 2 arg "RUNTIME" "" "")
+    set(runtime_command "")
+    if(arg_RUNTIME AND game_runtime)
+        set(runtime_command COMMAND ${CMAKE_COMMAND} -E copy_if_different ${game_runtime} ${dir})
+    endif()
+    add_custom_target(${name}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${dir}/fonts
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${game_fonts} ${dir}/fonts
+        COMMAND ${CMAKE_COMMAND} -E rm -rf ${dir}/packs
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${PROJECT_SOURCE_DIR}/packs ${dir}/packs
+        ${runtime_command}
+        COMMENT "Staging the game's faces and packs"
+        VERBATIM
+    )
+    set_target_properties(${name} PROPERTIES FOLDER apps)
+endfunction()
+game_stage_files(wasteland-wheels-files "${game_files_dir}" RUNTIME)
+add_dependencies(wasteland-wheels wasteland-wheels-files)
 
 ddb_add_tests(game DEFINITIONS DDB_PACKS_DIR="${PROJECT_SOURCE_DIR}/packs")
-# The fast lane loads the faces from beside its exe, which is the game's folder, as the game does.
+# The fast lane loads the faces from its own folder (GameFiles.h), which is the game's on Windows and Linux. On macOS
+# the game's files are inside its bundle, so the tests get a copy of their own.
 if(TARGET ddb_game_tests)
-    add_dependencies(ddb_game_tests wasteland-wheels-fonts)
+    if(APPLE)
+        game_stage_files(ddb-game-tests-files "$<TARGET_FILE_DIR:ddb_game_tests>")
+        add_dependencies(ddb_game_tests ddb-game-tests-files)
+    else()
+        add_dependencies(ddb_game_tests wasteland-wheels-files)
+    endif()
 endif()

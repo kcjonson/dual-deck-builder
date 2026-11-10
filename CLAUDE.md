@@ -174,11 +174,12 @@ the behaviour it pins is still what the alpha wants.
 
 `apps/wasteland-wheels` builds `build/apps/wasteland-wheels/Debug/wasteland-wheels.exe`
 (`--scene=<name>` starts in a scene, `--http-port <port>` moves the dev server
-off 127.0.0.1:8070). It reads the base pack from the source tree, as the balance
-sim does. Its tests (`ddb_game_tests`, `ddb_game_slow_tests`) run the scenes
-headless through the App's own frame and input, on salal's `HeadlessPlatform`
-and null renderer, and press components by id the way a dev-server session
-does with `/api/ui/tree` and `/api/input`; `game-app.md` lists the game's own
+off 127.0.0.1:8070, `--check` loads its files and exits). It reads its packs and
+faces from its own folder, where every build stages them; `game-app.md` has the
+playtest build and `scripts/package.mjs`. Its tests (`ddb_game_tests`,
+`ddb_game_slow_tests`) run the scenes headless through the App's own frame and
+input, on salal's `HeadlessPlatform` and null renderer, and press components by
+id the way a dev-server session does with `/api/ui/tree` and `/api/input`; `game-app.md` lists the game's own
 routes. The fast lane plays on the map tests' fixture map; only the slow lane
 makes real ones.
 
