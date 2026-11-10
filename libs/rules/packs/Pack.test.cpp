@@ -1,4 +1,5 @@
 #include <rules/core/ContentError.h>
+#include <rules/core/ScratchTesting.h>
 #include <rules/packs/Pack.h>
 
 #include <gtest/gtest.h>
@@ -26,7 +27,7 @@ namespace {
 
 		void SetUp() override {
 			const auto* test = ::testing::UnitTest::GetInstance()->current_test_info();
-			scratch = fs::temp_directory_path() / (std::string("ddb-packs-") + test->name());
+			scratch = rules::fixtures::scratchPath(std::string("packs-") + test->name());
 			fs::remove_all(scratch);
 		}
 

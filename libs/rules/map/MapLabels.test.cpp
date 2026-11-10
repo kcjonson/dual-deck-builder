@@ -1,4 +1,5 @@
 #include <rules/core/ContentError.h>
+#include <rules/core/ScratchTesting.h>
 #include <rules/map/FeatureNames.h>
 #include <rules/map/LabelLayout.h>
 #include <rules/map/MapLabels.h>
@@ -23,7 +24,7 @@ namespace {
 		const FeatureNamePool& pool = fixtures::content().featureNames;
 		EXPECT_EQ(pool.roots.size(), 40U);
 		EXPECT_EQ(pool.patterns[static_cast<size_t>(FeatureKind::Lake)], "Lake {root}");
-		const fs::path folder = fs::temp_directory_path() / "ddb-feature-names";
+		const fs::path folder = rules::fixtures::scratchPath("feature-names");
 		fs::remove_all(folder);
 		fs::create_directories(folder);
 		const auto errorFrom = [&](std::string_view patterns, std::string_view roots = R"(["Mercer"])") {

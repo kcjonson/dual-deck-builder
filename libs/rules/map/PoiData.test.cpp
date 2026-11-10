@@ -1,4 +1,5 @@
 #include <rules/core/ContentError.h>
+#include <rules/core/ScratchTesting.h>
 #include <rules/map/AreaMapPipeline.h>
 #include <rules/map/PoiData.h>
 #include <rules/map/StopData.h>
@@ -26,7 +27,7 @@ namespace {
 	// The error reading `text` as a file of its own, or empty when it reads.
 	template <typename Read>
 	std::string errorFrom(std::string_view name, std::string_view text, Read read) {
-		const fs::path folder = fs::temp_directory_path() / "ddb-map-content";
+		const fs::path folder = rules::fixtures::scratchPath("map-content");
 		fs::create_directories(folder);
 		const fs::path file = folder / name;
 		std::ofstream(file, std::ios::binary) << text;
@@ -104,7 +105,7 @@ namespace {
 			stopsWith("\"extras\": [2, 4]", "\"extras\": [4, 2]").find("extras must be game stages from 1, rising"), std::string::npos
 		);
 		EXPECT_NE(stopsWith("\"dawn\": 6", "\"dusk\": 20").find("dawn is required"), std::string::npos);
-		fs::remove_all(fs::temp_directory_path() / "ddb-map-content");
+		fs::remove_all(rules::fixtures::scratchPath("map-content"));
 	}
 
 	TEST(StopTables, DrawByTheirWeightsOnlyTypesTheRunResolves) {
@@ -161,7 +162,7 @@ namespace {
 				.find("highway in scrub at tier 5 in territory none weighs no calm stop"),
 			std::string::npos
 		);
-		fs::remove_all(fs::temp_directory_path() / "ddb-map-content");
+		fs::remove_all(rules::fixtures::scratchPath("map-content"));
 	}
 
 	TEST(StopRoom, PicksTheNearestPointClearOfEveryJunctionTheLowerOfTwo) {

@@ -1,3 +1,4 @@
+#include <rules/core/ScratchTesting.h>
 #include <rules/map/MapKnowledge.h>
 #include <rules/map/PoiTesting.h>
 #include <rules/map/RouteTesting.h>
@@ -188,7 +189,7 @@ namespace {
 		EXPECT_GT(tuning.sight, 0);
 		EXPECT_GE(tuning.poiSight, tuning.sight);
 		EXPECT_GE(tuning.startingRumors, 1);
-		const std::filesystem::path file = std::filesystem::temp_directory_path() / "ddb-knowledge.test.json";
+		const std::filesystem::path file = rules::fixtures::scratchPath("knowledge.test.json");
 		const auto					refused = [&](const std::string& json, const std::string& field) {
 			 std::ofstream(file, std::ios::binary) << json;
 			 try {
