@@ -24,9 +24,11 @@ namespace game::battle {
 	inline constexpr double kEnemyLeadIn = 0.9;
 	inline constexpr double kEnemyBeat = 0.7;
 
-	// What lands together, for the scene to show: the events, whose they are, and a turn that opens with them.
+	// What lands together, for the scene to show: the events, the turn they happen in, whose they are, and a turn that opens
+	// with them.
 	struct Beat {
 		std::vector<rules::Event>		  events;
+		int								  turn = 1;		   // the picture's turn as the first event lands; a TurnStarted in them moves it on
 		std::optional<rules::DriverIndex> acting;		   // the raider whose step it is: its token glows
 		std::optional<rules::Side>		  opens;		   // a turn that opens on this beat: its banner
 		bool							  settles = false; // the last: the picture is the fight itself from here
