@@ -25,7 +25,7 @@ namespace {
 		EXPECT_EQ(night.shortfall, Resources{});
 		EXPECT_EQ(campaign.stores.food, 18);
 		EXPECT_EQ(campaign.day, 2);
-		EXPECT_EQ(campaign.log.size(), 1U) << "a fed night writes nothing";
+		EXPECT_EQ(campaign.log.size(), 2U) << "a fed night writes only the quiet line";
 
 		campaign.stores.food = 1;
 		campaign.stores.water = 0;
@@ -44,6 +44,32 @@ namespace {
 		EXPECT_EQ(fed.water.days, 3);
 		EXPECT_TRUE(forecastNeeds(Resources{.food = 2, .water = 9, .people = 12}, testRules().compound).food.shortTonight);
 		EXPECT_FALSE(forecastNeeds(Resources{.food = 2}, testRules().compound).food.days.has_value()) << "nobody to eat";
+	}
+
+	TEST(DayClock, AQuietNightLogsOneLineAndANightWithSomethingElseInItDoesNot) {
+		Campaign campaign = foundTestCampaign();
+		(void)rest(campaign);
+		EXPECT_EQ(campaign.log.back(), (LogEntry{.day = 1, .text = "A quiet night."}));
+		(void)rest(campaign);
+		EXPECT_EQ(campaign.log.size(), 3U);
+		EXPECT_EQ(campaign.log.back(), (LogEntry{.day = 2, .text = "A quiet night."}));
+
+		(void)scavenge(campaign, testContent(), testRules());
+		EXPECT_EQ(campaign.log.size(), 4U) << "a haul is the night's line";
+		EXPECT_NE(campaign.log.back().text, "A quiet night.");
+
+		campaign.stores.food = 0;
+		(void)rest(campaign);
+		EXPECT_EQ(campaign.log.size(), 5U) << "a shortfall is the night's line";
+		EXPECT_NE(campaign.log.back().text, "A quiet night.");
+
+		DriverRecord& hurt = campaign.driver(crewOf(campaign, "road_warrior"));
+		hurt.status = DriverStatus::Injured;
+		hurt.injuredDays = 1;
+		campaign.stores.food = 30;
+		const size_t before = campaign.log.size();
+		(void)rest(campaign);
+		EXPECT_EQ(campaign.log.size(), before) << "a recovery is not a quiet night";
 	}
 
 	TEST(DayClock, ANightTakesADayOffEveryInjuryAndTheFitAreReadyAtFullHitpoints) {

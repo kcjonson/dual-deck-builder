@@ -63,6 +63,14 @@ namespace rules::campaign {
 				const std::vector<std::string> lost = resourceAmounts(Resources{.people = night.peopleLost});
 				addLog(campaign, shortOf + (lost.empty() ? "." : "; " + lost.front() + " lost."));
 			}
+			// The founding line (the log's first) is the compound's, not the night's.
+			const bool loggedToday =
+				std::any_of(campaign.log.begin() + (campaign.log.empty() ? 0 : 1), campaign.log.end(), [&](const LogEntry& entry) {
+					return entry.day == campaign.day;
+				});
+			if (!loggedToday && night.healed.empty() && stores.people > 0) {
+				addLog(campaign, "A quiet night.");
+			}
 			if (stores.people == 0 && !campaign.run) {
 				endCampaign(campaign, compound, EndCause::NoPeople);
 			} else {

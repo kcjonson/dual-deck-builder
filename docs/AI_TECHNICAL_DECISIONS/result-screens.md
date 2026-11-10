@@ -39,7 +39,7 @@ The log: a run home writes "A run came home with 6 food, 4 water, 5 fuel, and He
 
 - The run scene's fight hook is one push after the write-back; whoever rewrites the run keeps it.
 - The log names no destination: `unloadRun` and the write-back don't take the map, and the POI's name is the map's (`poiNames`). The debrief names it from the session.
-- A quiet night still writes nothing to the log (call 113), so a run of rests leaves the log as it was. That's Kevin's call, unchanged here.
+- A quiet night writes "A quiet night." to the log, decided (call 113), only when the day logged nothing else (no haul, shortfall, run home, recruit or loss) and no driver healed.
 - The stamps and the burn are the art's first pass: the intent, not the mock's pixels.
 
 Provisional UI calls, each a line to change:
