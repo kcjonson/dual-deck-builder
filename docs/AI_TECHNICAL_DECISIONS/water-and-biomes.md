@@ -1,6 +1,6 @@
 # Water, biomes, hazards, and the cost of a move (DDB-289)
 
-Date: 2026-10-09. Code: `_legacy/src/renderer/game/map/` (`Water.ts`, `Rivers.ts`, `Lakes.ts`, and `Terrain.ts` laying them over the land; `AreaMapPipeline.ts` runs the stage). Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Pipeline, 2. Water and 3. Biomes, hazards, and cost. Builds Map 5 of [realistic-map.md](./realistic-map.md) on the land of [terrain-erosion.md](./terrain-erosion.md), and replaces its canyon, badlands, and lowland stand-ins and terrain-fields.md's moisture layer, rough-country lattice, and biome costs.
+Date: 2026-10-09. Code: [`_legacy/src/renderer/game/map/`](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/map) (`Water.ts`, `Rivers.ts`, `Lakes.ts`, and `Terrain.ts` laying them over the land; `AreaMapPipeline.ts` runs the stage). Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Pipeline, 2. Water and 3. Biomes, hazards, and cost. Builds Map 5 of [realistic-map.md](./realistic-map.md) on the land of [terrain-erosion.md](./terrain-erosion.md), and replaces its canyon, badlands, and lowland stand-ins and terrain-fields.md's moisture layer, rough-country lattice, and biome costs.
 
 ## Context
 
@@ -144,7 +144,7 @@ There's no biome term. The spec's cost has none, and `BIOME_COSTS`, the per-poin
 
 ## Drawing it
 
-The area map's look for the land, water, and cliffs is [area-map-atlas-style.md](./area-map-atlas-style.md)'s; how the TypeScript bake and view drew them (provisional calls 18 to 20) is in [area-map-view.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/area-map-view.md). Dam marks, river names, and the atlas palette are Map 19's.
+The area map's look for the land, water, and cliffs is [area-map-atlas-style.md](./area-map-atlas-style.md)'s; how the TypeScript bake and view drew them (provisional calls 18 to 20) is in [area-map-view.md](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/docs/AI_TECHNICAL_DECISIONS/area-map-view.md). Dam marks, river names, and the atlas palette are Map 19's.
 
 ## Determinism
 

@@ -1,12 +1,12 @@
 # Layered UI rendering specification
 
-Status: draft 4, 2026-09-07. All five reviews resolved (see [chapter 17](../../_legacy/docs/ui-rendering-spec/17-review-log.md)).
+Status: draft 4, 2026-09-07. All five reviews resolved (see [chapter 17](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/docs/ui-rendering-spec/17-review-log.md)).
 
 A backend-agnostic specification for a 2D game UI renderer: an immediate-mode draw API with a batching, sorting painter's renderer underneath, a retained component tree on top, and the layout, input, focus, theming, component catalog, and developer tooling that go with it. It was abstracted from worldsim (C++, OpenGL) after a year of development and written so that a second implementation (TypeScript, WebGL2, browser and Electron) could be built to it and so that both projects could be scored against it.
 
-That TypeScript implementation is the legacy one, frozen with the rest of the TypeScript game in `_legacy/`. The live one is salal's `ui` (C++), decided against this spec rule by rule: salal's `docs/ui-design.md` records each rule where salal departs and why.
+That TypeScript implementation was the legacy one, deleted with the rest of the TypeScript game at the cutover (its last state is [`_legacy/`](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy)). The live one is salal's `ui` (C++), decided against this spec rule by rule: salal's `docs/ui-design.md` records each rule where salal departs and why.
 
-It references the projects for provenance only. The parts that were about the TypeScript engine alone (chapter 15, the chapter 17 review log, the reviews, and research reports 04 and 05) moved to `_legacy/docs/ui-rendering-spec/`; everything else is in this directory.
+It references the projects for provenance only. The parts that were about the TypeScript engine alone (chapter 15, the chapter 17 review log, the reviews, and research reports 04 and 05) stayed with the TypeScript, at [`_legacy/docs/ui-rendering-spec/`](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/docs/ui-rendering-spec); everything else is in this directory.
 
 ## What it is for
 
@@ -35,11 +35,11 @@ Read chapters 0 to 3 in order; they define the vocabulary, the layers, the draw 
 | [12](12-component-catalog.md) | Required components and their behaviour contracts |
 | [13](13-observability-and-performance.md) | Frame timer, batcher counters, GPU timer, tree snapshot, lint, gallery, screenshots, injection, perf capture |
 | [14](14-testing-and-conformance.md) | Test layers, gates, conformance scoring of both reference implementations |
-| [15](../../_legacy/docs/ui-rendering-spec/15-backend-webgl2.md) | WebGL2 and Electron specifics, port risks (in `_legacy/`, with the TypeScript engine) |
+| [15](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/docs/ui-rendering-spec/15-backend-webgl2.md) | WebGL2 and Electron specifics, port risks (at [`_legacy/`](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy), with the TypeScript engine) |
 | [16](16-backend-opengl.md) | OpenGL mapping and the worldsim gap list |
-| [17](../../_legacy/docs/ui-rendering-spec/17-review-log.md) | Review findings and their resolutions (in `_legacy/`) |
-| [research/](research/README.md) | The research reports the specification was abstracted from: worldsim's draw core, components, and tooling (01 to 03) here; the sibling engine audit ([04](../../_legacy/docs/ui-rendering-spec/research/04-sibling-engine-audit.md)) and web prior art with sources ([05](../../_legacy/docs/ui-rendering-spec/research/05-webgl-prior-art.md)) in `_legacy/` |
-| [review/](../../_legacy/docs/ui-rendering-spec/review/README.md) | The independent review reports that challenged the first draft (in `_legacy/`) |
+| [17](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/docs/ui-rendering-spec/17-review-log.md) | Review findings and their resolutions (at [`_legacy/`](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy)) |
+| [research/](research/README.md) | The research reports the specification was abstracted from: worldsim's draw core, components, and tooling (01 to 03) here; the sibling engine audit ([04](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/docs/ui-rendering-spec/research/04-sibling-engine-audit.md)) and web prior art with sources ([05](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/docs/ui-rendering-spec/research/05-webgl-prior-art.md)) at [`_legacy/`](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy) |
+| [review/](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/docs/ui-rendering-spec/review/README.md) | The independent review reports that challenged the first draft (at [`_legacy/`](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy)) |
 
 ## Conformance levels
 

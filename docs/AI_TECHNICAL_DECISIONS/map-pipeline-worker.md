@@ -1,12 +1,12 @@
 # The map pipeline runner (DDB-446)
 
-Date: 2026-10-09, revised 2026-10-10 for founding and loading (DDB-467). Code: `_legacy/src/renderer/game/map/MapPipeline.ts` (the runner), `AreaMapPipeline.ts` (the stages), `map/worker/` (the TypeScript build's generation worker and its client), and `campaign/CampaignFounding.ts` and `campaign/CampaignMaps.ts` (founding on a generated map, and the session's map). Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Seeds and determinism, Pipeline, Validation and retries, Performance, and Saving. Follows [realistic-map.md](./realistic-map.md), decision 5, and builds on [seeded-prng.md](./seeded-prng.md), [map-params.md](./map-params.md), and [campaign-founding.md](./campaign-founding.md).
+Date: 2026-10-09, revised 2026-10-10 for founding and loading (DDB-467). Code: [`_legacy/src/renderer/game/map/MapPipeline.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/map/MapPipeline.ts) (the runner), `AreaMapPipeline.ts` (the stages), `map/worker/` (the TypeScript build's generation worker and its client), and `campaign/CampaignFounding.ts` and `campaign/CampaignMaps.ts` (founding on a generated map, and the session's map). Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Seeds and determinism, Pipeline, Validation and retries, Performance, and Saving. Follows [realistic-map.md](./realistic-map.md), decision 5, and builds on [seeded-prng.md](./seeded-prng.md), [map-params.md](./map-params.md), and [campaign-founding.md](./campaign-founding.md).
 
 ## Context
 
 The spec runs generation as a pipeline: each stage on a stream forked from its upstream's winning stream with its own name and attempt, each with its own checks and an optional `accept(map, stage)` hook after them, a local-retry stage's optional `keepable(problems)` saying which failing attempts it may keep, 8 attempts a stage and then a whole-map restart up to 32, stops and dressing retrying only themselves, and debug and release builds parting ways past each cap. It runs once, at founding.
 
-Before the runner, three places chained terrain, highways, and growth by hand on flat streams, `root.fork('map', 0).fork(stage, attempt)`, with no checks and no retries: `roadTesting.growMap`, `_legacy/scripts/road-growth.mjs`, and the gallery's area map fixture.
+Before the runner, three places chained terrain, highways, and growth by hand on flat streams, `root.fork('map', 0).fork(stage, attempt)`, with no checks and no retries: `roadTesting.growMap`, [`_legacy/scripts/road-growth.mjs`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/scripts/road-growth.mjs), and the gallery's area map fixture.
 
 Terrain's insides change with uplift and erosion (Map 4), so the pipeline reaches terrain only through its stage.
 
@@ -41,7 +41,7 @@ An escalation could instead have been a failure a stage returns naming the stage
 
 Terrain, water (water-and-biomes.md), hazards and places (places.md), the roads (road-network.md), then the route tree and the POIs (route-tree-and-pois.md). The highways and growth stages this record started with were stand-ins until the places and the road links and graph (Maps 6 to 8) replaced them. The roads' check is too few loops, a place no road reaches, and `checkRoadNetwork`, the network checks the map validator will run, worded `rule: detail`.
 
-Terrain is the first stage, so its stream is `root.fork('map', m).fork('terrain', t)`, and every stage after nests under the one before. `roadTesting.roadMap`, `_legacy/scripts/road-network.mjs`, and the gallery's `fixtureAreaMap` all run the runner.
+Terrain is the first stage, so its stream is `root.fork('map', m).fork('terrain', t)`, and every stage after nests under the one before. `roadTesting.roadMap`, [`_legacy/scripts/road-network.mjs`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/scripts/road-network.mjs), and the gallery's `fixtureAreaMap` all run the runner.
 
 Retries can hide a regression from a test: a network that breaks a road rule is retried, and the test sees the attempt that passed. So `roadMap` throws on any failure but too few loops, which the spec retries on purpose, naming what failed. `road-network.mjs check` reports each stage's first-attempt pass rate, the spec's health metric.
 

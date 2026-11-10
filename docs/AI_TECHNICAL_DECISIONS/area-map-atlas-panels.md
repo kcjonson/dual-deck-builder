@@ -1,6 +1,6 @@
 # The area map and run route panels on the atlas sheet
 
-Date: 2026-10-17, with DDB-509 (epic DDB-500). Spec: [UI Art Direction](../specs/UI%20Art%20Direction.md), Screens: area map and run route. Builds on [atlas-components.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/atlas-components.md) and [theme-selection.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/theme-selection.md), and supersedes the point in [area-map-atlas-style.md](./area-map-atlas-style.md) that kept the side panels dark. The atlas is the playtest direction, not the final UI.
+Date: 2026-10-17, with DDB-509 (epic DDB-500). Spec: [UI Art Direction](../specs/UI%20Art%20Direction.md), Screens: area map and run route. Builds on [atlas-components.md](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/docs/AI_TECHNICAL_DECISIONS/atlas-components.md) and [theme-selection.md](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/docs/AI_TECHNICAL_DECISIONS/theme-selection.md), and supersedes the point in [area-map-atlas-style.md](./area-map-atlas-style.md) that kept the side panels dark. The atlas is the playtest direction, not the final UI.
 
 ## Context
 
@@ -31,7 +31,7 @@ The destination's box (glyph, name, the day and light in mono, the kind and yiel
 
 ### Tabs and back
 
-The area map is a sibling of the menu, the compound, and the crew, so it hangs the section tabs (the meta sections' tab set, `_legacy/src/renderer/game/screens/metaSections.ts`) and loses Back; Escape still goes to the compound. The run route is a step under the area map, so it hangs the same tabs open at the area map and keeps a back link as well, a back-road button, "Back to the area map".
+The area map is a sibling of the menu, the compound, and the crew, so it hangs the section tabs (the meta sections' tab set, [`_legacy/src/renderer/game/screens/metaSections.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/screens/metaSections.ts)) and loses Back; Escape still goes to the compound. The run route is a step under the area map, so it hangs the same tabs open at the area map and keeps a back link as well, a back-road button, "Back to the area map".
 
 Each tab's id is `${id}.${section}` (`area_map_tabs.compound`), so focus can be restored to it by id.
 

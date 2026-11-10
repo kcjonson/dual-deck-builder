@@ -13,7 +13,7 @@ Drawing it takes an image draw with a source rect, a multiplied tint, and nine-s
 
 ### One page, built offline
 
-The art is one 2048x2048 RGBA PNG, `_legacy/src/assets/ui-art/ui-art.png`, built offline, loaded at startup, and kept for the whole run beside the font atlases.
+The art is one 2048x2048 RGBA PNG, [`_legacy/src/assets/ui-art/ui-art.png`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/assets/ui-art/ui-art.png), built offline, loaded at startup, and kept for the whole run beside the font atlases.
 
 A failed load is not fatal, unlike the fonts: it is logged, and the art draws fall back. A paper piece draws a flat rect of its tint, and a baked surface piece (the cover, card stock) its `ground` colour, so ink laid on paper never lands on the dark table; marks and icons draw nothing.
 
@@ -25,7 +25,7 @@ Size: 67 pieces on one 2048x2048 page (the result screens added the LOST and FAL
 
 ### Built by a script, from SVG
 
-`_legacy/scripts/build-ui-art.mjs` rasterises every piece in `_legacy/scripts/ui-art/pieces.mjs` with Playwright's Chromium. Each piece is SVG with geometry and colours lifted from the canvas sources; texture comes from `feTurbulence` with fixed seeds, and every other random choice from a PRNG seeded by the piece's name. Pieces are packed by MaxRects (largest first, ties by name) with a 4 px gutter their edge texels are extruded into, so linear filtering never reads a neighbour. The script writes the page and a generated, typed manifest (`_legacy/src/renderer/game/art/uiArtManifest.ts`). `--check` rebuilds in memory and compares bytes; it is stable on one machine, but another Chromium or OS can anti-alias a stroke differently, so it is not a CI gate. It ignores line endings in the manifest, so a Windows checkout with autocrlf does not read as stale.
+[`_legacy/scripts/build-ui-art.mjs`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/scripts/build-ui-art.mjs) rasterises every piece in [`_legacy/scripts/ui-art/pieces.mjs`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/scripts/ui-art/pieces.mjs) with Playwright's Chromium. Each piece is SVG with geometry and colours lifted from the canvas sources; texture comes from `feTurbulence` with fixed seeds, and every other random choice from a PRNG seeded by the piece's name. Pieces are packed by MaxRects (largest first, ties by name) with a 4 px gutter their edge texels are extruded into, so linear filtering never reads a neighbour. The script writes the page and a generated, typed manifest ([`_legacy/src/renderer/game/art/uiArtManifest.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/art/uiArtManifest.ts)). `--check` rebuilds in memory and compares bytes; it is stable on one machine, but another Chromium or OS can anti-alias a stroke differently, so it is not a CI gate. It ignores line endings in the manifest, so a Windows checkout with autocrlf does not read as stale.
 
 ### Paper is white, wear is multiplied, the tint is the paper
 
@@ -49,7 +49,7 @@ R5.20 and the spec: no `multiply`. Each swipe is baked in Highlighter yellow at 
 
 ## Drawing a piece
 
-A piece is drawn by its 1x name at a rect with a tint, paper nine-sliced, and the 2x raster stands in above a pixel ratio of 1. The TypeScript did this in `drawUiArt` (`_legacy/src/renderer/game/art/uiArt.ts`). Tape is drawn level; the component placing it rotates it onto a corner.
+A piece is drawn by its 1x name at a rect with a tint, paper nine-sliced, and the 2x raster stands in above a pixel ratio of 1. The TypeScript did this in `drawUiArt` ([`_legacy/src/renderer/game/art/uiArt.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/art/uiArt.ts)). Tape is drawn level; the component placing it rotates it onto a corner.
 
 ## Deferred
 
@@ -62,4 +62,4 @@ A piece is drawn by its 1x name at a rect with a tint, paper nine-sliced, and th
 
 ## In the C++ alpha
 
-None of this ports (2026-10-31, [procedural-paper.md](./procedural-paper.md)). salal draws no raster art and has no nine-slice, so the alpha computes its paper in the base shader, a fill hook seeded per surface, and draws the stamps, tape, logo, card backs and cover as flat-fill vector, with the icons through salal's icon pipeline. The page, its build script and its pieces stay in `_legacy/` until cutover deletes them.
+None of this ports (2026-10-31, [procedural-paper.md](./procedural-paper.md)). salal draws no raster art and has no nine-slice, so the alpha computes its paper in the base shader, a fill hook seeded per surface, and draws the stamps, tape, logo, card backs and cover as flat-fill vector, with the icons through salal's icon pipeline. The page, its build script and its pieces stayed in [`_legacy/`](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy) until the cutover deleted them.

@@ -1,6 +1,6 @@
 # Locker and default deck rules (DDB-310)
 
-Date: 2026-10-08. Code: `_legacy/src/renderer/game/campaign/DeckRules.ts` and `Campaign.ts` (`getCardMoveBlocker`, `moveCards`, `getScrapBlocker`, `scrapCards`, `cardsOwned`), with the numbers in `_legacy/src/renderer/game/data/deck-rules.json`. Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Decks and the locker, The rules; At the compound: the Crew screen). Builds on [campaign-state-model.md](./campaign-state-model.md), which describes the rules as they stand.
+Date: 2026-10-08. Code: [`_legacy/src/renderer/game/campaign/DeckRules.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/campaign/DeckRules.ts) and `Campaign.ts` (`getCardMoveBlocker`, `moveCards`, `getScrapBlocker`, `scrapCards`, `cardsOwned`), with the numbers in [`_legacy/src/renderer/game/data/deck-rules.json`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/data/deck-rules.json). Specs: [Compound and Supply Runs](../specs/Compound%20and%20Supply%20Runs.md) (Decks and the locker, The rules; At the compound: the Crew screen). Builds on [campaign-state-model.md](./campaign-state-model.md), which describes the rules as they stand.
 
 ## Context
 

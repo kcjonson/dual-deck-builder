@@ -22,7 +22,7 @@ A consumer asks for a stack with `copies` and for a state with `miniState`. The 
 
 Layout and the lint both ignore ink, so nothing stops a grid of minis from being built so tight that one stack runs into the next card's hex while the lint stays clean. `MINI_GRID` is the spacing every grid of minis takes instead of picking its own: a 16 px gap (twice the ink, and 2 px to breathe) and a 7 px margin round the grid, which keeps the ink inside a scroller's clip; `miniGridHeight(rows)` is what a number of rows takes. Driver selection uses it, and the Crew screen will.
 
-The tag is `StatusTagDraw` (`_legacy/src/renderer/game/ui/statusTag.ts`): mono capitals in a box of the card's ground with a muted outline, right-aligned to a point. The driver card (INJURED, LOST, SEAT 1) and the escort card (STAYING) wear the same tag, so it isn't private to the mini.
+The tag is `StatusTagDraw` ([`_legacy/src/renderer/game/ui/statusTag.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/ui/statusTag.ts)): mono capitals in a box of the card's ground with a muted outline, right-aligned to a point. The driver card (INJURED, LOST, SEAT 1) and the escort card (STAYING) wear the same tag, so it isn't private to the mini.
 
 Considered: growing the box to hold the stack and the tag. The 80x112 card would stop being the box layout lines up, a single card and a stack in one grid would sit differently, and the box would change with the copy count.
 

@@ -1,6 +1,6 @@
 # Terrain fields (DDB-288)
 
-Date: 2026-10-07. Code: `_legacy/src/renderer/game/map/` (`Noise.ts`, `Terrain.ts`, `Biome.ts`, `TerrainSites.ts`). Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Pipeline, 1. Terrain. Follows [seeded-prng.md](./seeded-prng.md) and [map-params.md](./map-params.md).
+Date: 2026-10-07. Code: [`_legacy/src/renderer/game/map/`](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/map) (`Noise.ts`, `Terrain.ts`, `Biome.ts`, `TerrainSites.ts`). Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Pipeline, 1. Terrain. Follows [seeded-prng.md](./seeded-prng.md) and [map-params.md](./map-params.md).
 
 The land's relief, the plains, ranges, ridges, canyons, and badlands layers this record built elevation from, gave way to uplift and erosion: [terrain-erosion.md](./terrain-erosion.md). Moisture, rough country, cliffs, cost, and the water then went to the water stage: [water-and-biomes.md](./water-and-biomes.md). Towns went to the places stage, and hotspots to its hazards stage on the same rules: [places.md](./places.md). What's here still holds for the noise, contamination, the biome thresholds, the start's blends, and hotspots, as noted where the later stages changed them.
 

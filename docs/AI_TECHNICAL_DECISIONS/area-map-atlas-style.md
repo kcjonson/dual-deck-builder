@@ -5,7 +5,7 @@
 
 ## Context
 
-The area map and run route screens draw the generated map through one map view, over a terrain bake (the TypeScript view's record is `_legacy/docs/AI_TECHNICAL_DECISIONS/area-map-view.md`). Until now they drew it functionally: saturated yellow-khaki land, hard dark-red cliff streaks, every road class a thin dark line, a dark background past the disc, towns as black dots, POI names in white boxes, POIs as numbered tier badges, and the compound as a black square.
+The area map and run route screens draw the generated map through one map view, over a terrain bake (the TypeScript view's record is [`_legacy/docs/AI_TECHNICAL_DECISIONS/area-map-view.md`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/docs/AI_TECHNICAL_DECISIONS/area-map-view.md)). Until now they drew it functionally: saturated yellow-khaki land, hard dark-red cliff streaks, every road class a thin dark line, a dark background past the disc, towns as black dots, POI names in white boxes, POIs as numbered tier badges, and the compound as a black square.
 
 The target is Area Map Generation's "Rendering: the road atlas" and Decision 4 of realistic-map.md, with the renders in `docs/design/realistic-map/` (mixed-seed-7.png first). This change restyles everything the map already carries. The dressing's output (street grids with missing blocks, rail, river and range and pass names, highway shields) waits on the dressing stage and comes after it; so do the lettered side-by-side route bands and a finer close-zoom bake.
 

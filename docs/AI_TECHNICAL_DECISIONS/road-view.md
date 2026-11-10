@@ -13,7 +13,7 @@ Three tasks build on the slots at once: DDB-135 scales the vehicle token x1 to x
 
 1. **Keep two layers, one per side of the centre line.** Each owns three lanes.
    - Cons: a flanker belongs to one team and draws on the other's layer, so every lookup (plate by vehicle, focus order, drop targets) has to ask both; the old screen already did that in three places.
-2. **One road component, a pure layout function beside it (chosen).** The function takes the road band's size and returns every number (lanes, rows, slot size, the token scale) and any slot's rect; the road component draws the ground and owns every token. In the TypeScript build these are `computeRoadLayout` and `roadSlotRect` in `_legacy/src/renderer/game/screens/combat/CombatLayout.ts`, and `RoadView.ts` beside it.
+2. **One road component, a pure layout function beside it (chosen).** The function takes the road band's size and returns every number (lanes, rows, slot size, the token scale) and any slot's rect; the road component draws the ground and owns every token. In the TypeScript build these are `computeRoadLayout` and `roadSlotRect` in [`_legacy/src/renderer/game/screens/combat/CombatLayout.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/screens/combat/CombatLayout.ts), and `RoadView.ts` beside it.
    - Pros: the function is testable without a tree and is what the other three tasks use; the component has one map from vehicle to token.
 3. **Slots as components** (18 boxes the tokens sit in).
    - Cons: 18 extra nodes that do nothing a rect from the layout function doesn't; a swerve would reparent a token mid-motion.
