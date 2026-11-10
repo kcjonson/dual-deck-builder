@@ -198,7 +198,7 @@ Record: day-clock.md.
 110. DDB-302: each unit short costs 1 person and 1 unrest, food and water shortfalls summed. Counting only the larger one is a one-line change.
 111. DDB-302: unrest only rises, since nothing in the spec lowers it yet.
 112. DDB-302: a driver whose injury reaches 0 days is ready at full HP.
-113. DDB-302: one log line per short day.
+113. DDB-302: one log line per short day. A night that logged nothing else and healed nobody writes "A quiet night." (decided).
 114. DDB-302: getting home ends the day (6).
 115. DDB-302: 0 People reports the campaign as abandoned (2); ending it is the campaign end's job (37 to 42).
 

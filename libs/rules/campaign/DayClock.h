@@ -38,10 +38,10 @@ namespace rules::campaign {
 
 	// Ends the day, in order: upkeep for the People there at dusk (call 109), each unit short costing people, never more
 	// than there are, and unrest (call 110), a day off every injury (call 112), a log line for a short day dated the day
-	// that ended (call 113), and the day turns, every stop cleared stopCooldownDays before the new day back at its dawn
-	// with its roll up one (stop-clearing.md), and the garage's new stock (call 398). A night that leaves no People with
-	// no run out ends the campaign instead, and the day doesn't turn (calls 38 and 39). Throws std::invalid_argument once
-	// the campaign is over.
+	// that ended, or "A quiet night." when the day logged nothing else and nobody healed (call 113), and the day turns, every stop cleared
+	// stopCooldownDays before the new day back at its dawn with its roll up one (stop-clearing.md), and the garage's new stock (call 398).
+	// A night that leaves no People with no run out ends the campaign instead, and the day doesn't turn (calls 38 and 39). Throws
+	// std::invalid_argument once the campaign is over.
 	DayEnd endDay(Campaign& campaign, const Content& content, const CampaignRules& rules);
 
 	struct Need {
