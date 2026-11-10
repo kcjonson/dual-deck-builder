@@ -10,9 +10,11 @@
 #include "road/RoadView.h"
 #include "scenes/battle/BattleLog.h"
 #include "scenes/battle/Dock.h"
+#include "scenes/battle/TurnBanner.h"
 
 #include <rules/battle/Battle.h>
 #include <rules/battle/CardPlay.h>
+#include <rules/battle/Encounters.h>
 #include <rules/campaign/Campaign.h>
 #include <rules/campaign/RunDecks.h>
 
@@ -93,6 +95,10 @@ namespace game::testing {
 						begun.state.drivers[0].hand.push_back({.card = rules::CardId{card}});
 					}
 				}
+				return push(begun);
+			}
+
+			BattleScene& push(const rules::BattleStart& begun) {
 				app->scenes().push<BattleScene>(
 					BattleArgs{
 						.start =
@@ -369,6 +375,42 @@ namespace game::testing {
 			ASSERT_TRUE(press("leave"));
 			ASSERT_TRUE(left);
 			EXPECT_EQ(left->state.phase, rules::Phase::Over);
+		}
+
+		TEST_F(Battle, AFightPlayedOutToARoutSaysTheRaidersFledAndTakesThemOffTheRoad) {
+			// Six Scavengers in two waves against the first playable card: the last one still at the wheel is a sixth of the
+			// threat, so it flees with no wave left to come.
+			rules::BattleSetup setup{.players = {seat("mechanic"), seat("interceptor")}, .seed = 1};
+			rules::fieldEncounter(setup, testRules().content, rules::EncounterId{"scav_swarm"}, 0);
+			push(rules::startBattle(setup, testRules().content));
+			scene().playOut();
+			frame();
+			const rules::BattleState& fight = scene().current().state;
+			ASSERT_EQ(fight.outcome, rules::Outcome::Won);
+			ASSERT_EQ(fight.rout, rules::RoutCause::ThreatThinned);
+			int fled = 0;
+			for (int index = 0; index < static_cast<int>(fight.vehicles.size()); ++index) {
+				const rules::VehicleIndex vehicle{index};
+				const std::string		  token = "vehicle_" + std::to_string(index);
+				if (rules::fled(fight, vehicle)) {
+					++fled;
+					EXPECT_EQ(find(token), nullptr) << "a raider that fled isn't drawn as one still fighting";
+				} else if (fight.vehicle(vehicle).onRoad) {
+					EXPECT_NE(find(token), nullptr) << "a wreck or a raider with no driver keeps its stamp";
+				}
+			}
+			EXPECT_EQ(fled, 1);
+			const auto* banner = dynamic_cast<const battle::TurnBanner*>(find("banner"));
+			ASSERT_NE(banner, nullptr);
+			EXPECT_EQ(banner->text(), "RAIDERS FLED");
+
+			const nlohmann::json exported = state();
+			EXPECT_EQ(exported["outcome"], "Won");
+			EXPECT_EQ(exported["rout"], "threat thinned");
+			const battle::LogDrawer* log = logDrawer();
+			ASSERT_NE(log, nullptr);
+			EXPECT_NE(log->lines().back().text.find("flee"), std::string::npos) << "the log says why it's over";
+			EXPECT_EQ(exported["last"], log->lines().back().text);
 		}
 
 		TEST_F(Battle, TheMenuKeyOpensTheMenuOverTheFightAndKeepFightingGoesBackToIt) {

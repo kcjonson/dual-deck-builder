@@ -12,5 +12,5 @@
 10. Press End Turn: the dock drops and greys, End Turn reads WAIT, RAIDERS' TURN crosses the road, and about a second later the raiders act one at a time, the acting one glowing, its hits popping and the bars dropping as each lands.
 11. Wait: YOUR TURN shows, the bars match the log, a new hand is dealt, and the dock comes back up.
 12. Press L, then LOG: the log drawer opens and closes over the right of the road, its lines tagged by turn.
-13. Win the fight (or `/api/dev/battle-play-out`): FIGHT WON stays over the road and the End Turn column shows Leave the fight.
+13. Win the fight (or `/api/dev/battle-play-out`): FIGHT WON stays over the road, or RAIDERS FLED with the raiders that fled gone from it and the log saying why, and the End Turn column shows Leave the fight.
 14. Press Leave the fight: the battle result opens, then Back on the road returns to the run.

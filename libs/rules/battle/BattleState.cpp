@@ -40,6 +40,10 @@ namespace rules {
 		return vehicle.onRoad && vehicle.structure > 0 && (vehicle.isEscort() || vehicle.driver.has_value());
 	}
 
+	bool fled(const BattleState& state, VehicleIndex vehicle) {
+		return state.rout.has_value() && state.vehicle(vehicle).side == Side::Raiders && vehicleInFight(state, vehicle);
+	}
+
 	bool driverInFight(const BattleState& state, DriverIndex index) {
 		const BattleDriver& driver = state.driver(index);
 		if (!driver.isAlive() || driver.crashedOut) {

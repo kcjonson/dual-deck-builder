@@ -21,9 +21,12 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <iterator>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <variant>
+#include <vector>
 
 namespace game {
 
@@ -49,16 +52,24 @@ namespace game {
 			return "";
 		}
 
-		std::string endText(rules::Outcome outcome) {
+		// A rout is won with raiders still standing, so it says they fled.
+		std::string endText(rules::Outcome outcome, std::optional<rules::RoutCause> rout) {
 			switch (outcome) {
 				case rules::Outcome::Won:
-					return "FIGHT WON";
+					return rout ? "RAIDERS FLED" : "FIGHT WON";
 				case rules::Outcome::Lost:
 					return "CONVOY LOST";
 				case rules::Outcome::BrokenOff:
 					return "BROKEN OFF";
 			}
 			return "OVER";
+		}
+
+		nlohmann::json routText(std::optional<rules::RoutCause> rout) {
+			if (!rout) {
+				return nullptr;
+			}
+			return *rout == rules::RoutCause::LeaderOut ? "leader out" : "threat thinned";
 		}
 
 		void place(ui::Component* component, Foundation::Rect box) {
@@ -250,16 +261,26 @@ namespace game {
 		cancelAim();
 		const std::unique_ptr<rules::Policy> standIn = ai::makePolicy(rules::Behavior{.policy = "first_playable"}, rules::Side::Player);
 		const BattleState					 before = fight.state;
+		// Only the end is worded, so the log says how the fight ended, a rout's raiders fleeing included.
+		std::vector<rules::Event> ended;
 		ai::playFight(
 			fight.state,
 			game().rules.content,
 			[&standIn](const BattleState& /*board*/, DriverIndex /*seat*/) -> const rules::Policy& { return *standIn; },
-			game().rules.raiders.forRaiders()
+			game().rules.raiders.forRaiders(),
+			{.onApplied = [&ended](const BattleState& /*board*/, const Action& /*action*/, const std::vector<rules::Event>& events) {
+				std::ranges::copy_if(events, std::back_inserter(ended), [](const rules::Event& event) {
+					return std::holds_alternative<rules::event::FightEnded>(event);
+				});
+			}}
 		);
-		const std::vector<battle::LogLine> played{
+		std::vector<battle::LogLine> played{
 			{.turn = fight.state.turn, .text = "The rest of the fight played out.", .tone = battle::LogTone::Plain}
 		};
+		const std::vector<battle::LogLine> end = battle::logLines(fight.state, game().rules.content, ended, fight.state.turn, seats);
+		played.insert(played.end(), end.begin(), end.end());
 		log.get()->add(played);
+		ticker = played.back().text;
 		afterAction(before, {});
 	}
 
@@ -344,7 +365,7 @@ namespace game {
 		battle::DockPicture picture = battle::dockPicture(fight.state, content, *targeting, seats);
 		if (fight.state.outcome) {
 			picture.outcome = outcomeText(*fight.state.outcome);
-			banner.get()->announceEnd(endText(*fight.state.outcome));
+			banner.get()->announceEnd(endText(*fight.state.outcome, fight.state.rout));
 		}
 		dock.get()->show(picture);
 		dock.get()->setLocked(!playerTurn && !fight.state.outcome);
@@ -352,7 +373,10 @@ namespace game {
 	}
 
 	void BattleScene::showRoad() {
-		road.get()->show(road::roadPicture(playback.shown(), game().rules.content, intents, arrivals, seats));
+		const BattleState& shownState = playback.shown();
+		road::RoadPicture  picture = road::roadPicture(shownState, game().rules.content, intents, arrivals, seats);
+		std::erase_if(picture.vehicles, [&shownState](const road::RoadVehicle& vehicle) { return rules::fled(shownState, vehicle.index); });
+		road.get()->show(picture);
 	}
 
 	void BattleScene::showTopBar() {
@@ -463,6 +487,7 @@ namespace game {
 			{"turn", state.turn},
 			{"phase", phaseText(state.phase)},
 			{"outcome", state.outcome ? nlohmann::json(outcomeText(*state.outcome)) : nlohmann::json(nullptr)},
+			{"rout", routText(state.rout)},
 			{"actions", offered},
 			{"playing", playback.playing()},
 			{"aiming", pending.has_value()},
