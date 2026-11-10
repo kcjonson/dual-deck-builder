@@ -148,8 +148,9 @@ namespace game {
 			if (slot.getSize().x != fit.width) {
 				fit.width = slot.getSize().x;
 				fit.heights.assign(entries.size(), 0.0F);
-				bool reshown = !box.isVisible();
+				bool reshown = !box.isVisible() || !rows.isVisible();
 				box.setVisible(true);
+				rows.setVisible(true);
 				for (const ui::ComponentId id : entries) {
 					ui::Component* entry = context->find(id);
 					reshown = reshown || !entry->isVisible();
@@ -159,7 +160,7 @@ namespace game {
 					return;
 				}
 			}
-			if (box.isVisible()) {
+			if (box.isVisible() && rows.isVisible()) {
 				fit.chrome = rows.getBounds().y + box.getLayout().padding.bottom;
 				for (size_t index = 0; index < entries.size(); ++index) {
 					const ui::Component* entry = context->find(entries[index]);
@@ -179,6 +180,7 @@ namespace game {
 				++count;
 			}
 			box.setVisible(room >= -0.5F);
+			rows.setVisible(count > 0);
 			for (size_t index = 0; index < entries.size(); ++index) {
 				context->find(entries[index])->setVisible(index < count);
 			}
@@ -336,7 +338,6 @@ namespace game {
 					.layout =
 						[] {
 							ui::Layout layout = column(14.0F);
-							layout.flexGrow = 1.0F;
 							return layout;
 						}(),
 					.overflow = ui::Overflow::Scroll,
