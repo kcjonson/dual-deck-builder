@@ -115,7 +115,6 @@ Record: campaign-end.md.
 Record: mvp-supply-run.md.
 
 64. DDB-454: a failed run ends the day too, unless it ends the campaign.
-65. DDB-454: a fight in progress isn't saved. Quitting mid-fight resumes at the stop before it, and the fight replays from the same seed.
 66. DDB-454: the reward offers 3 cards, pick one or skip: rarity at Card System Design's drop rates, no duplicates, no signature cards, order cards only while the convoy has an escort, and the same three after a reload.
 67. DDB-454: the quick load out (a stub) seats the first legal pair in pool order on their default decks, and takes every escort, their cards in Driver 1's deck. Replaced by 177.
 68. DDB-454: arrival is summed up in one line. Cards won stay in the locker, with no per-card debrief offer.
@@ -144,7 +143,6 @@ Record: stops-and-routes.md, with the tuning numbers.
 Record: mvp-supply-run.md.
 
 83. DDB-454: destinations come in tiers 1, 2, and 3, and the whole yield loads when the run reaches the destination. The yield itself is now the POI type's (stops-and-routes.md), scaled by what's left there (102 to 108).
-84. DDB-454: abandoning a fight (the combat menu, behind a confirm that starts on "Keep fighting") means the crew flees and goes missing, and the run's cargo and escorts are lost. When they're the compound's last drivers, the warning says the campaign ends.
 85. DDB-454: call 35 as built: the crew rule counts drivers whose status is ready. One ready driver goes solo; ready drivers who all share an archetype go as a same-archetype pair. To weigh with 47: solo runs were close to hopeless as tuned (raider tuning, 94 to 100, looked at it).
 86. DDB-454: Plan a supply run is off when nobody is fit and when no routes are known.
 87. DDB-454: arrival ("Home from X with Y") and failure (the dead and missing by name) each write a log line before the day ends.
@@ -198,7 +196,7 @@ Record: day-clock.md.
 110. DDB-302: each unit short costs 1 person and 1 unrest, food and water shortfalls summed. Counting only the larger one is a one-line change.
 111. DDB-302: unrest only rises, since nothing in the spec lowers it yet.
 112. DDB-302: a driver whose injury reaches 0 days is ready at full HP.
-113. DDB-302: one log line per short day.
+113. DDB-302: one log line per short day. A night that logged nothing else and healed nobody writes "A quiet night." (decided).
 114. DDB-302: getting home ends the day (6).
 115. DDB-302: 0 People reports the campaign as abandoned (2); ending it is the campaign end's job (37 to 42).
 

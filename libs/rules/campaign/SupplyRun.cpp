@@ -252,6 +252,21 @@ namespace rules::campaign {
 		return startCampaignFight(campaign, content, encounter);
 	}
 
+	CampaignFightStart beginRunFight(Campaign& campaign, const Content& content, const MapLayers& map) {
+		CampaignFightStart start = startRunFight(campaign, content, map);
+		campaign.run->fighting = true;
+		return start;
+	}
+
+	FightWriteBack abandonFightInProgress(Campaign& campaign, const Content& content, const CampaignRules& rules, const MapLayers& map) {
+		if (!campaign.run || !campaign.run->fighting) {
+			throw std::invalid_argument("abandonFightInProgress: no fight is in progress");
+		}
+		CampaignFight fight = startRunFight(campaign, content, map).fight;
+		fight.abandoned = true;
+		return endRunFight(campaign, content, rules, map, fight);
+	}
+
 	FightWriteBack
 	endRunFight(Campaign& campaign, const Content& content, const CampaignRules& rules, const MapLayers& map, const CampaignFight& fight) {
 		// Checked before the write-back, so a fight from anywhere else changes nothing.

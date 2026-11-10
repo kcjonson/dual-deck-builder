@@ -85,20 +85,23 @@ namespace rules::campaign {
 			return VehicleCondition{.structure = vehicle.structure, .armor = std::min(vehicle.armor, vehicle.baseArmor)};
 		}
 
-		// "A run was lost: Road Warrior 1 is dead and Interceptor 1 is missing.", then "Cargo lost with the run: 2 fuel, 30
-		// scrap, and Repair Kit x2." (call 23), which a run that carried nothing leaves out.
+		// "A run was lost: Road Warrior 1 is dead and Interceptor 1 is missing.", or "A run was abandoned: ..." for one the crew
+		// gave up, then "Cargo lost with the run: 2 fuel, 30 scrap, and Repair Kit x2." (call 23), which a run that carried
+		// nothing leaves out.
 		void logRunLost(Campaign& campaign, const Content& content, const FightWriteBack& lost) {
 			std::vector<std::string> fates;
 			for (const SeatWriteBack& seat : lost.seats) {
 				fates.push_back(driverName(campaign, content, seat.driver) + (seat.fate == SeatFate::Dead ? " is dead" : " is missing"));
 			}
-			addLog(campaign, "A run was lost: " + listed(fates) + ".");
+			addLog(campaign, std::string(lost.lost->abandoned ? "A run was abandoned: " : "A run was lost: ") + listed(fates) + ".");
 			if (const std::string cargo = cargoText(content, lost.lost->cargo, lost.lost->cargoCards); !cargo.empty()) {
 				addLog(campaign, "Cargo lost with the run: " + cargo + ".");
 			}
 		}
 
-		FightWriteBack loseRun(Campaign& campaign, const Content& content, const CompoundRules& rules, const BattleState& state) {
+		// A driver still alive is missing whether they crashed out with nobody to pick them up or fled a fight abandoned.
+		FightWriteBack
+		loseRun(Campaign& campaign, const Content& content, const CompoundRules& rules, const BattleState& state, bool abandoned) {
 			Run			   run = std::move(*campaign.run);
 			FightWriteBack result{
 				.outcome = Outcome::Lost,
@@ -107,6 +110,7 @@ namespace rules::campaign {
 				.dividends = {},
 				.lost = RunLost{
 					.run = run.id,
+					.abandoned = abandoned,
 					.poi = run.route ? std::optional<int>(run.route->poi) : std::nullopt,
 					.cardsLost = {},
 					.cargo = run.cargo,
@@ -200,14 +204,20 @@ namespace rules::campaign {
 		fieldEncounter(setup, content, encounter, run.stage);
 		BattleStart start = startBattle(setup, content);
 		return CampaignFightStart{
-			.fight = CampaignFight{.run = run.id, .number = run.fights, .encounter = encounter, .state = std::move(start.state)},
+			.fight =
+				CampaignFight{
+					.run = run.id, .number = run.fights, .encounter = encounter, .state = std::move(start.state), .abandoned = false
+				},
 			.events = std::move(start.events),
 		};
 	}
 
 	FightWriteBack writeBackFight(Campaign& campaign, const Content& content, const CampaignRules& rules, const CampaignFight& fight) {
 		const BattleState& state = fight.state;
-		if (state.phase != Phase::Over || !state.outcome) {
+		if (fight.abandoned && state.phase == Phase::Over) {
+			throw std::invalid_argument("writeBackFight: the fight is over, so it was won or lost, not abandoned");
+		}
+		if (!fight.abandoned && (state.phase != Phase::Over || !state.outcome)) {
 			throw std::invalid_argument("writeBackFight: the fight is still on");
 		}
 		if (!campaign.run || campaign.run->id != fight.run || campaign.run->fights != fight.number) {
@@ -216,8 +226,8 @@ namespace rules::campaign {
 			);
 		}
 		checkFightOf(campaign, state);
-		if (*state.outcome == Outcome::Lost) {
-			return loseRun(campaign, content, rules.compound, state);
+		if (fight.abandoned || *state.outcome == Outcome::Lost) {
+			return loseRun(campaign, content, rules.compound, state, fight.abandoned);
 		}
 
 		Run&									run = *campaign.run;
@@ -277,6 +287,7 @@ namespace rules::campaign {
 			}
 		}
 		++run.fights;
+		run.fighting = false;
 		if (won) {
 			++campaign.tally.fightsWon;
 		}

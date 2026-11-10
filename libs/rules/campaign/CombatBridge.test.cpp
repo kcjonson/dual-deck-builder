@@ -234,6 +234,61 @@ namespace {
 		EXPECT_EQ(readCampaign(writeCampaign(campaign, testContent()), testContent()), campaign);
 	}
 
+	TEST(CombatBridge, AnAbandonedFightFailsTheRunAsALostOneDoesTheLivingFleeingAndTheDownDead) {
+		Campaign	 campaign = onARun();
+		const CrewId warrior = crewOf(campaign, "road_warrior");
+		const CrewId interceptor = crewOf(campaign, "interceptor");
+		addCardsWon(campaign, testContent(), {{card("headshot"), 1}});
+		campaign.run->cargo.scrap = 30;
+
+		// Partway through the player's turn: the Road Warrior down, the Interceptor still at the wheel, hurt.
+		CampaignFight fight = startCampaignFight(campaign, testContent(), kTail).fight;
+		fight.state.driver(DriverIndex{0}).hitpoints = 0;
+		fight.state.driver(DriverIndex{1}).hitpoints = 15;
+		fight.state.vehicle(VehicleIndex{1}).structure = 40;
+		ASSERT_NE(fight.state.phase, Phase::Over);
+		fight.abandoned = true;
+		const FightWriteBack written = writeBackFight(campaign, testContent(), testRules(), fight);
+
+		EXPECT_EQ(written.outcome, Outcome::Lost);
+		EXPECT_EQ(
+			written.seats,
+			(std::vector{
+				SeatWriteBack{.driver = warrior, .fate = SeatFate::Dead, .healed = 0},
+				SeatWriteBack{.driver = interceptor, .fate = SeatFate::Missing, .healed = 0},
+			})
+		) << "the one still at the wheel flees";
+		EXPECT_EQ(campaign.driver(warrior).status, DriverStatus::Dead);
+		const DriverRecord& fled = campaign.driver(interceptor);
+		EXPECT_EQ(fled.status, DriverStatus::Missing);
+		EXPECT_EQ(fled.hitpoints, 15);
+		EXPECT_EQ(fled.vehicle, (VehicleCondition{.structure = 40, .armor = 0})) << "the damage the fight left";
+		ASSERT_TRUE(written.lost.has_value());
+		EXPECT_TRUE(written.lost->abandoned);
+		EXPECT_EQ(written.lost->cargo, (Resources{.scrap = 30}));
+		EXPECT_EQ(written.lost->cargoCards, (CardCounts{{card("headshot"), 1}}));
+		EXPECT_EQ(written.escortsLost, (std::vector{kHauler, kMedTruck, kOutrider})) << "every escort that came along, unhurt or not";
+		EXPECT_TRUE(campaign.convoy.empty());
+		EXPECT_FALSE(campaign.run.has_value());
+		EXPECT_EQ(campaign.tally.runsFailed, 1);
+		EXPECT_EQ(campaign.tally.fightsWon, 0);
+		ASSERT_GE(campaign.log.size(), 2U);
+		EXPECT_EQ(campaign.log[campaign.log.size() - 2].text, "A run was abandoned: Road Warrior 1 is dead and Interceptor 1 is missing.");
+		EXPECT_EQ(campaign.log.back().text, "Cargo lost with the run: 30 scrap and Headshot.");
+		EXPECT_FALSE(campaign.end.has_value()) << "the Mechanic is still at home";
+		EXPECT_EQ(readCampaign(writeCampaign(campaign, testContent()), testContent()), campaign);
+
+		// Abandoned by the compound's last drivers, it ends the campaign; one that's over can't be abandoned.
+		Campaign last = onARun();
+		last.driver(crewOf(last, "mechanic")).status = DriverStatus::Missing;
+		CampaignFight theirs = startCampaignFight(last, testContent(), kTail).fight;
+		theirs.abandoned = true;
+		CampaignFight over = ended(theirs, Outcome::Won);
+		EXPECT_THROW((void)writeBackFight(last, testContent(), testRules(), over), std::invalid_argument);
+		(void)writeBackFight(last, testContent(), testRules(), theirs);
+		EXPECT_EQ(last.end->cause, EndCause::LastDriver);
+	}
+
 	TEST(CombatBridge, OnlyTheRunsNextFightWhenItsOverIsWrittenBack) {
 		Campaign	  campaign = onARun();
 		CampaignFight fight = startCampaignFight(campaign, testContent(), kTail).fight;

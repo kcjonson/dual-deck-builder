@@ -16,14 +16,21 @@
 #include <rules/battle/Battle.h>
 #include <rules/battle/EnemyTurn.h>
 #include <rules/battle/Waves.h>
+#include <rules/campaign/Recruits.h>
+#include <rules/campaign/RunDecks.h>
 
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
+#include <iterator>
 #include <memory>
+#include <optional>
+#include <stdexcept>
 #include <utility>
 #include <variant>
+#include <vector>
 
 namespace game {
 
@@ -49,16 +56,24 @@ namespace game {
 			return "";
 		}
 
-		std::string endText(rules::Outcome outcome) {
+		// A rout is won with raiders still standing, so it says they fled.
+		std::string endText(rules::Outcome outcome, std::optional<rules::RoutCause> rout) {
 			switch (outcome) {
 				case rules::Outcome::Won:
-					return "FIGHT WON";
+					return rout ? "RAIDERS FLED" : "FIGHT WON";
 				case rules::Outcome::Lost:
 					return "CONVOY LOST";
 				case rules::Outcome::BrokenOff:
 					return "BROKEN OFF";
 			}
 			return "OVER";
+		}
+
+		nlohmann::json routText(std::optional<rules::RoutCause> rout) {
+			if (!rout) {
+				return nullptr;
+			}
+			return *rout == rules::RoutCause::LeaderOut ? "leader out" : "threat thinned";
 		}
 
 		void place(ui::Component* component, Foundation::Rect box) {
@@ -150,7 +165,8 @@ namespace game {
 		top = root.addChild<battle::TopBar>({
 			.id = "top_bar",
 			.onToggleLog = [this] { toggleLog(); },
-			.onMainMenu = [this] { app().scenes().switchTo(scenes::kMainMenu); },
+			.onAbandon = [this] { abandon(); },
+			.abandonWarning = [this] { return abandonWarning(); },
 		});
 		dock = root.addChild<battle::Dock>({
 			.id = "dock",
@@ -250,16 +266,26 @@ namespace game {
 		cancelAim();
 		const std::unique_ptr<rules::Policy> standIn = ai::makePolicy(rules::Behavior{.policy = "first_playable"}, rules::Side::Player);
 		const BattleState					 before = fight.state;
+		// Only the end is worded, so the log says how the fight ended, a rout's raiders fleeing included.
+		std::vector<rules::Event> ended;
 		ai::playFight(
 			fight.state,
 			game().rules.content,
 			[&standIn](const BattleState& /*board*/, DriverIndex /*seat*/) -> const rules::Policy& { return *standIn; },
-			game().rules.raiders.forRaiders()
+			game().rules.raiders.forRaiders(),
+			{.onApplied = [&ended](const BattleState& /*board*/, const Action& /*action*/, const std::vector<rules::Event>& events) {
+				std::ranges::copy_if(events, std::back_inserter(ended), [](const rules::Event& event) {
+					return std::holds_alternative<rules::event::FightEnded>(event);
+				});
+			}}
 		);
-		const std::vector<battle::LogLine> played{
+		std::vector<battle::LogLine> played{
 			{.turn = fight.state.turn, .text = "The rest of the fight played out.", .tone = battle::LogTone::Plain}
 		};
+		const std::vector<battle::LogLine> end = battle::logLines(fight.state, game().rules.content, ended, fight.state.turn, seats);
+		played.insert(played.end(), end.begin(), end.end());
 		log.get()->add(played);
+		ticker = played.back().text;
 		afterAction(before, {});
 	}
 
@@ -270,6 +296,17 @@ namespace game {
 		}
 		leaving = true;
 		land(playback.finish());
+		finish(std::move(fight));
+	}
+
+	void BattleScene::abandon() {
+		if (fight.state.phase == Phase::Over || playback.playing() || leaving) {
+			LOG_ERROR(Game, "BattleScene: abandoning a fight that's over, playing back, or left");
+			return;
+		}
+		leaving = true;
+		cancelAim();
+		fight.abandoned = true;
 		finish(std::move(fight));
 	}
 
@@ -344,7 +381,7 @@ namespace game {
 		battle::DockPicture picture = battle::dockPicture(fight.state, content, *targeting, seats);
 		if (fight.state.outcome) {
 			picture.outcome = outcomeText(*fight.state.outcome);
-			banner.get()->announceEnd(endText(*fight.state.outcome));
+			banner.get()->announceEnd(endText(*fight.state.outcome, fight.state.rout));
 		}
 		dock.get()->show(picture);
 		dock.get()->setLocked(!playerTurn && !fight.state.outcome);
@@ -352,7 +389,10 @@ namespace game {
 	}
 
 	void BattleScene::showRoad() {
-		road.get()->show(road::roadPicture(playback.shown(), game().rules.content, intents, arrivals, seats));
+		const BattleState& shownState = playback.shown();
+		road::RoadPicture  picture = road::roadPicture(shownState, game().rules.content, intents, arrivals, seats);
+		std::erase_if(picture.vehicles, [&shownState](const road::RoadVehicle& vehicle) { return rules::fled(shownState, vehicle.index); });
+		road.get()->show(picture);
 	}
 
 	void BattleScene::showTopBar() {
@@ -444,11 +484,72 @@ namespace game {
 	std::string BattleScene::actionText(const Action& action) const {
 		if (const auto* play = std::get_if<rules::action::PlayCard>(&action)) {
 			const rules::BattleDriver& driver = fight.state.driver(play->driver);
+			const std::string		   where = playText(fight.state, game().rules.content, *play, seats);
 			return fighterName(fight.state, game().rules.content, play->driver, seats) + " plays " +
-				   game().rules.content.cards.at(driver.hand[static_cast<size_t>(play->handIndex)].card).name + " " +
-				   playText(fight.state, game().rules.content, *play, seats);
+				   game().rules.content.cards.at(driver.hand[static_cast<size_t>(play->handIndex)].card).name +
+				   (where.empty() ? "" : " " + where);
 		}
 		return "End the turn";
+	}
+
+	// What giving the fight up costs, read off the fight written back abandoned on a copy of the campaign, so the warning
+	// and the write-back can't disagree: "Road Warrior 1 and Interceptor 1 flee and go missing. The cargo (30 scrap) and
+	// the Fuel Hauler are lost with the run. The day ends."
+	std::string BattleScene::abandonWarning() const {
+		constexpr const char*		  kAnyRun = "The crew flees and goes missing, and the run's cargo and escorts are lost.";
+		const std::optional<Session>& session = game().session;
+		if (!session || !session->campaign.run) {
+			return kAnyRun;
+		}
+		const rules::Content&		   content = game().rules.content;
+		rules::campaign::Campaign	   after = session->campaign;
+		rules::campaign::CampaignFight given = fight;
+		given.abandoned = true;
+		rules::campaign::FightWriteBack back;
+		try {
+			back = rules::campaign::writeBackFight(after, content, game().rules.campaign, given);
+		} catch (const std::invalid_argument& error) {
+			LOG_ERROR(Game, "BattleScene: the fight can't be written back abandoned: %s", error.what());
+			return kAnyRun;
+		}
+		const auto named = [&](const std::vector<rules::campaign::CrewId>& drivers) {
+			std::vector<std::string> names;
+			for (const rules::campaign::CrewId& driver : drivers) {
+				names.push_back(rules::campaign::driverName(after, content, driver));
+			}
+			return rules::campaign::listed(names);
+		};
+		std::vector<rules::campaign::CrewId> fled;
+		std::vector<rules::campaign::CrewId> dead;
+		for (const rules::campaign::SeatWriteBack& seat : back.seats) {
+			(seat.fate == rules::campaign::SeatFate::Dead ? dead : fled).push_back(seat.driver);
+		}
+		std::string words;
+		if (!fled.empty()) {
+			words = named(fled) + (fled.size() == 1 ? " flees and goes missing" : " flee and go missing");
+		}
+		if (!dead.empty()) {
+			words += (words.empty() ? "" : ", and ") + named(dead) + (dead.size() == 1 ? ", who is down, dies" : ", who are down, die");
+		}
+		words += ".";
+		std::vector<std::string>		lost;
+		const rules::campaign::RunLost& run = *back.lost;
+		if (const std::string cargo = rules::campaign::cargoText(content, run.cargo, run.cargoCards); !cargo.empty()) {
+			lost.push_back("the cargo (" + cargo + ")");
+		}
+		for (const rules::campaign::ConvoyEscort& escort : run.escorts) {
+			lost.push_back("the " + content.escorts.at(escort.type).name);
+		}
+		if (!lost.empty()) {
+			std::string line = rules::campaign::listed(lost);
+			line.front() = static_cast<char>(std::toupper(static_cast<unsigned char>(line.front())));
+			words += " " + line + (lost.size() == 1 ? " is" : " are") + " lost with the run.";
+		}
+		if (!run.found.empty()) {
+			words += " " + named(run.found) + (run.found.size() == 1 ? " stays" : " stay") + " missing.";
+		}
+		words += after.end ? " Nobody is left to drive, so the campaign ends." : " The day ends.";
+		return words;
 	}
 
 	std::string BattleScene::exportState() const {
@@ -462,6 +563,7 @@ namespace game {
 			{"turn", state.turn},
 			{"phase", phaseText(state.phase)},
 			{"outcome", state.outcome ? nlohmann::json(outcomeText(*state.outcome)) : nlohmann::json(nullptr)},
+			{"rout", routText(state.rout)},
 			{"actions", offered},
 			{"playing", playback.playing()},
 			{"aiming", pending.has_value()},

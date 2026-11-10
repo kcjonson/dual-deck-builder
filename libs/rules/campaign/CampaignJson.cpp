@@ -507,11 +507,16 @@ namespace rules::campaign {
 				.found = {},
 				.recruits = {},
 				.fights = requireIntIn(reader, "fights", 0),
+				// Written only while a fight is in progress, so a save from before it existed reads as what it meant.
+				.fighting = reader.optionalBool("fighting"),
 				.route = std::nullopt,
 			};
 			const nlohmann::json& route = reader.requireValue("route");
 			if (!route.is_null()) {
 				run.route = readRunRoute(JsonReader(route, reader.where() + ".route"), content);
+			}
+			if (run.fighting && !run.route) {
+				reader.failAt("fighting", "is set on a run that hasn't left, where no fight can be");
 			}
 			for (std::string& name : reader.requireStrings("found")) {
 				const CrewId		found{std::move(name)};
@@ -605,7 +610,7 @@ namespace rules::campaign {
 					{"escortCards", std::move(escortCards)},
 				});
 			}
-			return {
+			nlohmann::json json{
 				{"id", run.id.value},
 				{"stage", run.stage},
 				{"seats", std::move(seats)},
@@ -617,6 +622,10 @@ namespace rules::campaign {
 				{"fights", run.fights},
 				{"route", run.route ? routeJson(*run.route) : nlohmann::json(nullptr)},
 			};
+			if (run.fighting) {
+				json["fighting"] = true;
+			}
+			return json;
 		}
 
 	} // namespace

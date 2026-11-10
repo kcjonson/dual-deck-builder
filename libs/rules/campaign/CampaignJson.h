@@ -16,7 +16,9 @@
 namespace rules::campaign {
 
 	// The save format's version: the campaign's JSON carries it, and the game hands it to salal's SaveFormat when it
-	// writes the JSON to a slot. Any change to the JSON's shape bumps it, and a save of another version doesn't load.
+	// writes the JSON to a slot. A change to the JSON's shape that an older save can't be read under bumps it, and a save
+	// of another version doesn't load. A field written only when it's set, which an older save reads right without, as a
+	// run's `fighting`, doesn't.
 	inline constexpr int kSaveVersion = 6;
 
 	// The campaign's save (campaign.md, The save). Writing reads the JSON back the way a load would, and throws

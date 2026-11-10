@@ -37,8 +37,8 @@ namespace game {
 	// hand and End Turn, the log drawer, and the turn banner, in the dark theme. A card is dragged from the hand onto what
 	// it's played at, by the pointer or the keys; a two-step play waits on the road for its next pick. Every play is one of
 	// legalActions', made with apply, and what apply returns plays back through Playback, the raiders' turn beat by beat.
-	// The raiders plan each turn through their own policies. It finishes with the fight once it's over, for the run to
-	// write back.
+	// The raiders plan each turn through their own policies. It finishes with the fight once it's over, or given up from
+	// the menu, for the run to write back.
 	class BattleScene final : public GameScene<BattleArgs, rules::campaign::CampaignFight> {
 	  public:
 		explicit BattleScene(BattleArgs args);
@@ -61,6 +61,8 @@ namespace game {
 		void playOut();
 		// Hands the fight to the run once it's over.
 		void leave();
+		// Hands the fight to the run given up partway, the menu's Abandon the run.
+		void abandon();
 
 		// The last action's events still playing back, and the fight as the screen shows it meanwhile.
 		[[nodiscard]] bool						playing() const { return playback.playing(); }
@@ -104,6 +106,7 @@ namespace game {
 		void								toggleLog();
 
 		[[nodiscard]] std::string actionText(const rules::Action& action) const;
+		[[nodiscard]] std::string abandonWarning() const;
 
 		rules::campaign::CampaignFight	   fight;
 		std::vector<rules::Action>		   legal;

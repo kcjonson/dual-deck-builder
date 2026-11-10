@@ -218,6 +218,43 @@ namespace {
 		EXPECT_EQ(campaign.mapState, MapState{});
 	}
 
+	TEST(SupplyRun, AFightBegunIsSavedInProgressAndAQuitAbandonsItAtItsOpening) {
+		const auto [choice, place] = routeWith(map::StopType::Ambush);
+		Campaign	   campaign = at(choice, place);
+		const MapState mapBefore = campaign.mapState;
+		EXPECT_THROW((void)abandonFightInProgress(campaign, testContent(), testRules(), layers()), std::invalid_argument)
+			<< "no fight is in progress";
+		EXPECT_FALSE(writeCampaign(campaign, testContent())["run"].contains("fighting")) << "a save outside a fight is as it was";
+
+		const CampaignFightStart begun = beginRunFight(campaign, testContent(), layers());
+		EXPECT_TRUE(campaign.run->fighting);
+		const nlohmann::json save = writeCampaign(campaign, testContent());
+		EXPECT_EQ(save["run"]["fighting"], true);
+		EXPECT_EQ(readCampaign(save, testContent()), campaign) << "a save holds the fight in progress";
+
+		Campaign won = campaign;
+		(void)endRunFight(won, testContent(), testRules(), layers(), ended(begun.fight, Outcome::Won));
+		EXPECT_FALSE(won.run->fighting) << "written back, it's over";
+
+		// Continue after a quit: the fight given up at its opening, each seat fleeing with what they went into it with.
+		std::vector<int> hitpoints;
+		for (const RunDeck& seat : campaign.run->seats) {
+			hitpoints.push_back(campaign.driver(seat.driver).hitpoints);
+		}
+		const FightWriteBack back = abandonFightInProgress(campaign, testContent(), testRules(), layers());
+		ASSERT_TRUE(back.lost.has_value());
+		EXPECT_TRUE(back.lost->abandoned);
+		EXPECT_EQ(back.lost->poi, choice.poi);
+		ASSERT_EQ(back.seats.size(), hitpoints.size());
+		for (size_t seat = 0; seat < back.seats.size(); ++seat) {
+			EXPECT_EQ(back.seats[seat].fate, SeatFate::Missing);
+			EXPECT_EQ(campaign.driver(back.seats[seat].driver).hitpoints, hitpoints[seat]);
+		}
+		EXPECT_FALSE(campaign.run.has_value());
+		EXPECT_EQ(campaign.mapState, mapBefore) << "a failed run clears nothing";
+		EXPECT_EQ(campaign.log.back().text, "A run was abandoned: Road Warrior 1 is missing and Interceptor 1 is missing.");
+	}
+
 	TEST(SupplyRun, AFindIsTakenOrLeftAndEachKindBringsItsOwn) {
 		const auto [supplied, suppliesAt] = routeWith(map::StopType::FindSupplies);
 		Campaign		campaign = at(supplied, suppliesAt);

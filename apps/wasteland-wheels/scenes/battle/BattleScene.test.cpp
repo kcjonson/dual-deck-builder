@@ -1,8 +1,8 @@
 // The battle scene driven the way a player drives it, through the App's own input: a card dragged onto a raider, a card
 // picked up and dropped with the keys, a slot pick and a two-step play, the turn ended and the raiders' turn played
 // back beat by beat until it settles on the fight, the log opening on the matchup and stamping the raiders' moves with
-// their own turn, the top bar's menu opened by its key and by Escape once no card waits and the log is shut, and left
-// for the main menu, L and Escape with nothing focused, the run's scrap and fuel on the bar, and the scene linted at
+// their own turn, the top bar's menu opened by its key and by Escape once no card waits and the log is shut, and the
+// fight given up from it, L and Escape with nothing focused, the run's scrap and fuel on the bar, and the scene linted at
 // three sizes.
 
 #include "scenes/battle/BattleScene.h"
@@ -10,9 +10,11 @@
 #include "road/RoadView.h"
 #include "scenes/battle/BattleLog.h"
 #include "scenes/battle/Dock.h"
+#include "scenes/battle/TurnBanner.h"
 
 #include <rules/battle/Battle.h>
 #include <rules/battle/CardPlay.h>
+#include <rules/battle/Encounters.h>
 #include <rules/campaign/Campaign.h>
 #include <rules/campaign/RunDecks.h>
 
@@ -93,6 +95,10 @@ namespace game::testing {
 						begun.state.drivers[0].hand.push_back({.card = rules::CardId{card}});
 					}
 				}
+				return push(begun);
+			}
+
+			BattleScene& push(const rules::BattleStart& begun) {
 				app->scenes().push<BattleScene>(
 					BattleArgs{
 						.start =
@@ -310,6 +316,17 @@ namespace game::testing {
 			EXPECT_EQ(enabled("menu"), !battle.current().state.outcome);
 		}
 
+		TEST_F(Battle, TheDevActionLabelsEndAtTheirTargetNotAtPlayIt) {
+			open(1);
+			const auto labels = nlohmann::json::parse(scene().exportState())["actions"];
+			ASSERT_FALSE(labels.empty());
+			for (const auto& label : labels) {
+				const std::string text = label.get<std::string>();
+				EXPECT_EQ(text.find("play it"), std::string::npos) << text;
+				EXPECT_NE(text.back(), ' ') << text;
+			}
+		}
+
 		TEST_F(Battle, TheLogOpensOnTheMatchup) {
 			open(1);
 			const battle::LogDrawer* log = logDrawer();
@@ -360,6 +377,42 @@ namespace game::testing {
 			EXPECT_EQ(left->state.phase, rules::Phase::Over);
 		}
 
+		TEST_F(Battle, AFightPlayedOutToARoutSaysTheRaidersFledAndTakesThemOffTheRoad) {
+			// Six Scavengers in two waves against the first playable card: the last one still at the wheel is a sixth of the
+			// threat, so it flees with no wave left to come.
+			rules::BattleSetup setup{.players = {seat("mechanic"), seat("interceptor")}, .seed = 1};
+			rules::fieldEncounter(setup, testRules().content, rules::EncounterId{"scav_swarm"}, 0);
+			push(rules::startBattle(setup, testRules().content));
+			scene().playOut();
+			frame();
+			const rules::BattleState& fight = scene().current().state;
+			ASSERT_EQ(fight.outcome, rules::Outcome::Won);
+			ASSERT_EQ(fight.rout, rules::RoutCause::ThreatThinned);
+			int fled = 0;
+			for (int index = 0; index < static_cast<int>(fight.vehicles.size()); ++index) {
+				const rules::VehicleIndex vehicle{index};
+				const std::string		  token = "vehicle_" + std::to_string(index);
+				if (rules::fled(fight, vehicle)) {
+					++fled;
+					EXPECT_EQ(find(token), nullptr) << "a raider that fled isn't drawn as one still fighting";
+				} else if (fight.vehicle(vehicle).onRoad) {
+					EXPECT_NE(find(token), nullptr) << "a wreck or a raider with no driver keeps its stamp";
+				}
+			}
+			EXPECT_EQ(fled, 1);
+			const auto* banner = dynamic_cast<const battle::TurnBanner*>(find("banner"));
+			ASSERT_NE(banner, nullptr);
+			EXPECT_EQ(banner->text(), "RAIDERS FLED");
+
+			const nlohmann::json exported = state();
+			EXPECT_EQ(exported["outcome"], "Won");
+			EXPECT_EQ(exported["rout"], "threat thinned");
+			const battle::LogDrawer* log = logDrawer();
+			ASSERT_NE(log, nullptr);
+			EXPECT_NE(log->lines().back().text.find("flee"), std::string::npos) << "the log says why it's over";
+			EXPECT_EQ(exported["last"], log->lines().back().text);
+		}
+
 		TEST_F(Battle, TheMenuKeyOpensTheMenuOverTheFightAndKeepFightingGoesBackToIt) {
 			open(1);
 			EXPECT_EQ(find("top_bar_scrap"), nullptr) << "no run is out, so there's no cargo to show";
@@ -368,20 +421,23 @@ namespace game::testing {
 			ASSERT_TRUE(press("menu"));
 			ASSERT_NE(find("menu_dialog"), nullptr);
 			EXPECT_TRUE(find("menu_resume")->isFocused()) << "Keep fighting has the focus, so a stray Enter stays in the fight";
-			EXPECT_NE(find("menu_main_menu"), nullptr);
+			EXPECT_NE(find("menu_abandon"), nullptr);
 			ASSERT_TRUE(press("menu_resume"));
 			EXPECT_EQ(find("menu_dialog"), nullptr);
 			EXPECT_EQ(top(), "battle");
 			EXPECT_EQ(scene().current().state, before);
 		}
 
-		TEST_F(Battle, MainMenuLeavesTheFightUnfinished) {
+		TEST_F(Battle, AbandonTheRunHandsTheFightBackGivenUp) {
 			open(1);
 			ASSERT_TRUE(press("menu"));
-			ASSERT_TRUE(press("menu_main_menu"));
+			EXPECT_EQ(textOf("menu_body"), "The crew flees and goes missing, and the run's cargo and escorts are lost.")
+				<< "with no run out, what abandoning costs any run";
+			ASSERT_TRUE(press("menu_abandon"));
 			frame();
-			EXPECT_EQ(top(), scenes::kMainMenu);
-			EXPECT_FALSE(left) << "an unfinished fight isn't handed to the run to write back";
+			ASSERT_TRUE(left) << "the fight goes to the run to write back";
+			EXPECT_TRUE(left->abandoned);
+			EXPECT_NE(left->state.phase, rules::Phase::Over);
 		}
 
 		TEST_F(Battle, EscapePutsAWaitingCardBackBeforeItOpensTheMenu) {

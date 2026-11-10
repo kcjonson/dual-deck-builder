@@ -68,6 +68,7 @@ The trade-offs: what gets easier, what gets harder, what it risks.
 ### Supply runs and stops
 
 - [MVP supply run: pick a route, drive its stops, fight, come home](./mvp-supply-run.md)
+- [Abandoning a run: leaving a fight forfeits it](./abandoning-a-run.md)
 - [Stops on legs, route descriptors, and the run loop's routes](./stops-and-routes.md)
 - [The route tree, legs, meeting points, POIs, and strongholds](./route-tree-and-pois.md)
 - [Clearing: stop cooldowns and cleared POIs](./stop-clearing.md)
