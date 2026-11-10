@@ -7,7 +7,7 @@
 
 The first windowed runs of the C++ game showed three faults when the window changes size: content overlaps on small windows, the main menu's cover and the compound plate stretch with the window's shape, and scrollbars show on scenes that shouldn't scroll. All three come from the same place. Every scene lays out in salal's logical px at whatever size the window is, and the ui's scale is a fixed choice (100, 125 or 150%), so a scene can be handed any logical size from a few hundred px up, and the scenes coped with that by scrolling their bodies and by mapping design canvases onto whatever box they got.
 
-What salal v0.39.0 has: layout in logical px with HiDPI handled under it (the framebuffer is native, the ratio is framebuffer over window), one ui scale that lays the ui out at `window / scale` and draws it scaled (`App::setUiScale`, kept as `ui.scale`), flex and grid layout with min and max sizes, MSDF text, borderless fullscreen at the monitor's mode, and a layout lint. What it hasn't: a scale chosen from the window, a minimum window size, an aspect ratio in layout, a list of video modes, letterboxing (its `app-api.md` leaves a fixed-aspect virtual resolution to the game), and pixel-snapped text under any transform but a translation.
+What salal v0.39.0 has: layout in logical px with HiDPI handled under it (the framebuffer is native, the ratio is framebuffer over window), one ui scale that lays the ui out at `window / scale` and draws it scaled (`App::setUiScale`, kept as `ui.scale`), flex and grid layout with min and max sizes, MSDF text, borderless fullscreen at the monitor's mode, and a layout lint. What it hasn't: a scale chosen from the window, a minimum window size, an aspect ratio in layout, a list of video modes, letterboxing (its `app-api.md` leaves a fixed-aspect virtual resolution to the game "until a second game wants the same one"), and pixel-snapped text under any transform but a translation.
 
 The battle's spec already had the answer for one scene, `s = min(W/1280, H/720)` floored at 0.8, and [battle-scene.md](./battle-scene.md) dropped it so the battle would scale as the other scenes do.
 
@@ -29,7 +29,17 @@ The battle's spec already had the answer for one scene, `s = min(W/1280, H/720)`
 - Scene bodies never scroll; only lists do.
 - Every scene is linted headless at the frame's corners, with checks that only lists show a scrollbar and fixed-shape art keeps its ratio.
 
-salal's share, on its board: the scale from the window with the factor as the setting, a minimum window size, an aspect ratio in layout, pixel-snapped text under a scale and translation, and no scrollbar for overflow under a pixel. salal's docs keep a fixed-aspect virtual resolution as the game's; the frame here is layout, not a render target, so it stays the game's too, and the scale moves into salal because it's the ui's one scale (R7.5) and worldsim will want the same rule.
+**Where it lives.** The mechanism is salal's and the numbers are the game's. Worldsim has the same problem: its `ui-scale-setting.md` measures its UI at about 40% of its mocks' size on a 3072x1728 window, and plans one scale against a 1600x1000 reference, 0.75 to 1.5x, with a default from the window as a later step. salal takes the reference, the floor, the factor's range, the minimum window and the frame's aspects as parameters, and builds:
+
+- the scale from the window, with the factor as the setting;
+- a minimum window size;
+- the frame, opt-in per scene, because worldsim's HUD anchors to the window over a world that fills it, while its menus would use the frame. salal's `app-api.md` left a fixed-aspect virtual resolution to the game until a second game wanted one; the frame is layout rather than a render target, and worldsim is the second game;
+- an aspect ratio in layout;
+- pixel-snapped text under a scale and translation;
+- no scrollbar for overflow under a pixel;
+- a headless helper that lays a scene out at a window size through the scale and the frame, which the game's `lintAt` becomes.
+
+The game keeps its numbers, which scenes use the frame, how each piece of art keeps its shape (`ArtView` and its fit modes are the game's, and salal has no Image component by its own decision), the scroll rule, every scene's layout, and its test sizes.
 
 ## Rationale
 

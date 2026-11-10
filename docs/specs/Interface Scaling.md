@@ -45,6 +45,8 @@ So every scene's content sees a size between `1280 x 720` and the frame's larges
 
 Overlays (dialogs, the card detail, menus) lay out against the frame too, so a dialog never centres over a pillarbox.
 
+Every scene in this game opts into the frame. The frame itself is salal's, opt-in per scene (Engine work, below), since a game whose world fills the window would anchor its HUD to the window instead.
+
 ## Display settings
 
 - **Interface size**: 100% (the default), 90% or 80%, the `f` above, in place of today's 100, 125 and 150%.
@@ -96,18 +98,24 @@ The game's headless tests check every scene at the frame's corners and the sizes
 - No scroller outside the lists above shows a bar.
 - Every fixed-proportion piece is drawn at its art's ratio.
 
-No pixels, no screenshots.
+No pixels, no screenshots. Each scene is laid out at a window size through the real scale and frame, with salal's headless helper for it.
 
 ## Engine work
 
-salal has the scale, the logical viewport and the layout these need, and four pieces it doesn't, which are salal's to build:
+The mechanism is salal's and the numbers are the game's. Another game needs the same thing with different numbers: worldsim plans a single UI scale against a 1600 x 1000 reference, with factors above 1, and a default picked from the window. So salal takes every piece below as a parameter, and this game passes 1280 x 720, 0.8, 1024 x 576, 4:3 to 2.4:1, and 80 to 100%.
 
-1. **The scale from the window.** The App computes `s` from a reference size, a floor and the player's factor on every resize, before the scenes hear of it, and keeps the factor, not `s`, as the setting.
+salal has the scale, the logical viewport and the layout, and these pieces it doesn't:
+
+1. **The scale from the window.** The App computes `s` from a reference size, a floor and the player's factor, clamped to the game's range, on every resize, before the scenes hear of it, and keeps the factor, not `s`, as the setting.
 2. **A minimum window size**, set at create and kept by the window.
-3. **An aspect ratio in layout**, so a box's height can follow its width or its width its height.
-4. **Text on whole pixels under a scale.** Text is snapped to device pixels only under a translation today; under the interface's scale (anything but 100% at 1280 x 720) it isn't, and its edges soften.
+3. **The frame.** A scene opts into a content area clamped to an aspect range and centred: its roots and its overlays lay out against the frame, and its background layer against the window.
+4. **An aspect ratio in layout**, so a box's height can follow its width or its width its height.
+5. **Text on whole pixels under a scale.** Text is snapped to device pixels only under a translation today; under the interface's scale (anything but 100% at 1280 x 720) it isn't, and its edges soften.
+6. **A headless helper that lays a scene out at a window size** through the App's scale and frame, and lints it, for a game's tests. The game's `lintAt` moves there.
 
 Also, overflow of less than a pixel shows no scrollbar.
+
+The game keeps the numbers, which scenes use the frame, how each piece of art keeps its shape (contain or cover, its ratio box), the scroll rule and its list, every scene's layout, and the sizes its tests check.
 
 ## Open decisions
 
