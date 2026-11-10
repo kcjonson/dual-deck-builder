@@ -45,18 +45,18 @@ Inside to inside on the same row is 1, a flanker to their inside lane is 2 (the 
 
 ## 2. Screen bands
 
-Everything is laid out in logical pixels and scaled by the interface's one scale ([Interface Scaling](./Interface%20Scaling.md)): `s = max(0.8, min(W / 1280, H / 720) x f)`, so the frame the battle lays out in is never smaller than 1280x720, and one axis always grows.
+Everything is laid out in the game's px, which are Figma px at 100%, on a canvas between 1600x900 and 3440x1440 ([Interface Scaling](./Interface%20Scaling.md)). The sizes in this section were set on the old 1280x720 canvas; they're set again in px, for the 1600x900 canvas first, with the rest of the game's sizes (Interface Scaling, Sizes).
 
-| Band | Height (logical) | Contents |
+| Band | Height (1280x720 canvas) | Contents |
 |---|---|---|
 | Top bar | 36 | menu, wave and reinforcements ("Wave 2 of 3", "+3 arriving"), turn, a one-line ticker of the last log entry, scrap, fuel, log toggle |
 | Road | everything left, at least 456 | 26px lane header, an 18px row gutter on the left, then the 6x3 slot grid |
 | Dock | 228 | a tab and a fanned hand per driver, End Turn column on the right |
 
-- The stage caps at 1600 logical wide and centres. On 21:9 the road art runs to the screen edges, the UI does not.
+- The stage caps in width and centres. On 21:9 the road art runs to the screen edges, the UI does not.
 - At 1280x720 each slot is 205x141. Spare height goes to the rows, spare width to the slots, and vehicle tokens scale up to x1.25 to fill them. Tokens never scale below x1; a layout that would force that is a failure.
-- The window can't be smaller than 1024x576, where s reaches its 0.8 floor; a phone-sized compact layout isn't covered.
-- Rules text on the card face is 12 logical, which is 18px at 1920x1080 (the Xbox accessibility guideline's PC minimum) and 9.6px at the floor.
+- A phone-sized compact layout isn't covered; the window can't be smaller than 1200x675.
+- Rules text on the card face is 18 px, the Xbox accessibility guideline's PC minimum, which is 13.5 px at the interface's 0.75 floor.
 - One layout function computes all of this, on mount and on resize alike.
 
 ## 3. Vehicle token
