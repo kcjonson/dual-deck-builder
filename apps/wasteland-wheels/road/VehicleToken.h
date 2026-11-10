@@ -117,8 +117,8 @@ namespace game::road {
 		[[nodiscard]] Foundation::Rect plateRect() const;
 		// Where a passenger's row starts down the token at scale 1, under the driver's HP.
 		[[nodiscard]] static float passengerRowY();
-		// Where the plate's title row ends at scale 1; a number set on the plate starts below it.
-		[[nodiscard]] static float titleRowBottom();
+		// The vehicle's silhouette box at scale 1, the column left of the plate that a hit number is set over.
+		[[nodiscard]] static Foundation::Rect spriteRect();
 
 		[[nodiscard]] const char* typeName() const override { return "VehicleToken"; }
 		void					  describe(nlohmann::json& node) const override;

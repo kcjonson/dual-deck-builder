@@ -38,4 +38,4 @@ The sprite is a rear view per vehicle class, `art/vehicle-<class>.svg` at 60x40 
 
 ## Consequences
 
-- Hit numbers pop from the plate, not the whole token.
+- Hit numbers pop over the vehicle's silhouette, in the column left of the plate, so they never cover its icons, bars or title.

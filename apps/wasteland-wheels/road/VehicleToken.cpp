@@ -254,8 +254,8 @@ namespace game::road {
 		return kPlateY + kPadY + kNameRow + kRowGap + kStructureRow + kRowGap + kHpRow + kRowGap;
 	}
 
-	float VehicleToken::titleRowBottom() {
-		return kPlateY + kPadY + kNameRow;
+	Foundation::Rect VehicleToken::spriteRect() {
+		return kSprite;
 	}
 
 	float VehicleToken::inkExtent() const {
