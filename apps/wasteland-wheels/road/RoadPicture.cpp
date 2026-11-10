@@ -144,6 +144,20 @@ namespace game::road {
 			return content.opponents.at(std::get<rules::OpponentId>(owner.profile)).vehicle.vehicleClass;
 		}
 
+		// The vehicle's own name as the pack has it ("Apocalypse Rig"), not the log's "Road Warrior 1's vehicle".
+		std::string
+		vehicleTitleOf(const BattleState& state, const rules::Content& content, VehicleIndex index, std::span<const std::string> seats) {
+			const BattleVehicle& vehicle = state.vehicle(index);
+			if (vehicle.escort || !vehicle.owner) {
+				return vehicleName(state, content, index, seats);
+			}
+			const rules::BattleDriver& owner = state.driver(*vehicle.owner);
+			if (const auto* archetype = std::get_if<rules::DriverId>(&owner.profile)) {
+				return content.drivers.at(*archetype).vehicle.name;
+			}
+			return content.opponents.at(std::get<rules::OpponentId>(owner.profile)).vehicle.name;
+		}
+
 	} // namespace
 
 	TokenData tokenData(
@@ -155,8 +169,11 @@ namespace game::road {
 	) {
 		const BattleVehicle& vehicle = state.vehicle(index);
 		TokenData			 data;
-		data.name = vehicle.owner && !vehicle.escort ? fighterName(state, content, *vehicle.owner, seats)
-													 : vehicleName(state, content, index, seats);
+		const bool			 driven = vehicle.owner && !vehicle.escort;
+		data.name = driven ? fighterName(state, content, *vehicle.owner, seats) : vehicleName(state, content, index, seats);
+		if (driven) {
+			data.vehicle = vehicleTitleOf(state, content, index, seats);
+		}
 		data.vehicleClass = vehicleClassOf(state, content, vehicle);
 		if (vehicle.side == Side::Raiders) {
 			data.side = TokenSide::Raider;
@@ -187,6 +204,8 @@ namespace game::road {
 			data.wreck = Wreck::Wrecked;
 		} else if (vehicle.side == Side::Raiders && !rules::vehicleInFight(state, index)) {
 			data.wreck = Wreck::NoDriver;
+			data.name = data.vehicle;
+			data.vehicle.clear();
 		}
 		if (vehicle.side == Side::Raiders && vehicle.owner) {
 			for (const rules::Intent& intent : intents) {

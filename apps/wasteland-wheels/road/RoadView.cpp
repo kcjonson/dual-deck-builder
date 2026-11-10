@@ -61,7 +61,6 @@ namespace game::road {
 		constexpr double kPopMs = 900.0;
 		constexpr float	 kPopRise = 28.0F;
 		constexpr float	 kPopFace = 30.0F;
-		constexpr float	 kPopGap = 2.0F;
 		constexpr float	 kPopStep = 32.0F;
 		// The row half of a swerve leads with the speed change (road-view.md): the theme has no emphasized curve, so it's
 		// the TypeScript's ease_emphasized.
@@ -1019,13 +1018,13 @@ namespace game::road {
 		const float progress = std::clamp(static_cast<float>((now - pop.started) / kPopMs), 0.0F, 1.0F);
 		const float rise = still ? 0.0F : kPopRise * progress;
 		const float scale = on.scale();
-		const Rect	plate = on.plateRect();
-		// Settles on its stack place just under the title row, so rising never climbs over the name.
-		const float settled = VehicleToken::titleRowBottom() + kPopGap + static_cast<float>(pop.slot) * kPopStep;
+		const Rect	sprite = VehicleToken::spriteRect();
+		// Settles over the silhouette, in the column left of the plate and under the intent pills, stacking down from the token's top.
+		const float settled = static_cast<float>(pop.slot) * kPopStep;
 		const float width =
 			std::max(cards::wordsWidth(pop.text, fonts::kDisplayBold, kPopFace), kPopFace * 0.55F * static_cast<float>(pop.text.size()));
 		return {
-			on.getPosition().x + (plate.x + 10.0F) * scale,
+			on.getPosition().x + (sprite.x + sprite.width * 0.5F) * scale - width * 0.5F,
 			on.getPosition().y + (settled * scale) + kPopRise * scale - rise * scale,
 			width,
 			kPopFace,

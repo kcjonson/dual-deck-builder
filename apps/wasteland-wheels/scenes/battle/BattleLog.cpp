@@ -82,8 +82,8 @@ namespace game::battle {
 				  content(content),
 				  seats(seats) {}
 
-			std::vector<LogLine> wordAll(std::span<const Event> events) {
-				turn = openingTurn(events);
+			std::vector<LogLine> wordAll(std::span<const Event> events, int startTurn) {
+				turn = startTurn;
 				for (size_t at = 0; at < events.size(); ++at) {
 					at += wordOne(events, at);
 				}
@@ -91,17 +91,6 @@ namespace game::battle {
 			}
 
 		  private:
-			// The turn the events start in: an enemy turn shares its player turn's number, and the lines before a player
-			// turn opens belong to the turn before it.
-			int openingTurn(std::span<const Event> events) const {
-				for (const Event& happened : events) {
-					if (const auto* started = std::get_if<event::TurnStarted>(&happened)) {
-						return started->side == rules::Side::Raiders ? started->turn : std::max(1, started->turn - 1);
-					}
-				}
-				return after.turn;
-			}
-
 			void say(std::string text, LogTone tone = LogTone::Plain) {
 				lines.push_back({.turn = turn, .text = std::move(text) + ".", .tone = tone});
 			}
@@ -430,9 +419,28 @@ namespace game::battle {
 
 	} // namespace
 
-	std::vector<LogLine>
-	logLines(const BattleState& after, const rules::Content& content, std::span<const Event> events, std::span<const std::string> seats) {
-		return Wording(after, content, seats).wordAll(events);
+	std::vector<LogLine> logLines(
+		const BattleState&			 after,
+		const rules::Content&		 content,
+		std::span<const Event>		 events,
+		int							 turn,
+		std::span<const std::string> seats
+	) {
+		return Wording(after, content, seats).wordAll(events, turn);
+	}
+
+	LogLine matchupLine(const BattleState& state, const rules::Content& content, std::span<const std::string> seats) {
+		std::string crew;
+		std::string raiders;
+		for (int index = 0; index < static_cast<int>(state.drivers.size()); ++index) {
+			const bool	 yours = state.drivers[static_cast<size_t>(index)].side == rules::Side::Player;
+			std::string& side = yours ? crew : raiders;
+			if (!side.empty()) {
+				side += yours ? " and " : ", ";
+			}
+			side += fighterName(state, content, DriverIndex{index}, seats);
+		}
+		return {.turn = state.turn, .text = crew + " vs " + raiders + ".", .tone = LogTone::Plain};
 	}
 
 	LogDrawer::LogDrawer(const Args& /*args*/) {}

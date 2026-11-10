@@ -37,7 +37,7 @@ namespace {
 		bool				 misses = false;
 		for (const uint32_t seed : {1U, 2U, 3U, 4U, 5U, 6U}) {
 			playFight(seed, 6, [&](const Played& played) {
-				const std::vector<LogLine> lines = logLines(played.after, testRules().content, played.events, kSeats);
+				const std::vector<LogLine> lines = logLines(played.after, testRules().content, played.events, played.before.turn, kSeats);
 				for (const LogLine& line : lines) {
 					EXPECT_FALSE(line.text.empty());
 					EXPECT_EQ(line.text.find('_'), std::string::npos) << "a raw id in: " << line.text;
@@ -91,7 +91,7 @@ namespace {
 			event::DriverDamaged{.driver = raider, .hitpoints = 9},
 			event::DriverDown{.driver = raider},
 		};
-		const std::vector<LogLine> lines = logLines(state, testRules().content, events, kSeats);
+		const std::vector<LogLine> lines = logLines(state, testRules().content, events, state.turn, kSeats);
 		ASSERT_EQ(lines.size(), 5U);
 		EXPECT_EQ(lines[0].tone, LogTone::Raider);
 		EXPECT_EQ(lines[1].text, "Ram misses Road Warrior 1's vehicle: ramming 3 against evade 5.");

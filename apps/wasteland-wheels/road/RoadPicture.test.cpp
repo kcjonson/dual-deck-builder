@@ -100,6 +100,7 @@ namespace {
 		const RoadPicture picture = pictureOf(state, {});
 		const TokenData&  driven = tokenOf(picture, first);
 		EXPECT_EQ(driven.name, "Road Warrior 1");
+		EXPECT_EQ(driven.vehicle, content.drivers.at(rules::DriverId{"road_warrior"}).vehicle.name) << "the vehicle under its driver";
 		EXPECT_EQ(driven.side, TokenSide::Player);
 		EXPECT_EQ(driven.seat, 0);
 		EXPECT_EQ(tokenOf(picture, second).seat, 1);
@@ -116,6 +117,7 @@ namespace {
 		});
 		ASSERT_NE(escort, picture.vehicles.end());
 		EXPECT_EQ(escort->token.name, content.escorts.at(rules::EscortId{"outrider"}).name);
+		EXPECT_TRUE(escort->token.vehicle.empty()) << "an escort's title is its vehicle, with no second line";
 		EXPECT_FALSE(escort->token.driver.has_value()) << "an escort has no driver's meter";
 		EXPECT_FALSE(escort->token.seat.has_value());
 
@@ -147,6 +149,9 @@ namespace {
 		const RoadPicture picture = pictureOf(state, {});
 		EXPECT_EQ(tokenOf(picture, wreck).wreck, road::Wreck::Wrecked);
 		EXPECT_EQ(tokenOf(picture, unmanned).wreck, road::Wreck::NoDriver);
+		EXPECT_FALSE(tokenOf(picture, unmanned).name.empty());
+		EXPECT_TRUE(tokenOf(picture, unmanned).vehicle.empty()) << "unmanned, its vehicle is the title with no second line";
+		EXPECT_FALSE(tokenOf(picture, vehicleOf(state, DriverIndex{4})).vehicle.empty());
 		EXPECT_EQ(tokenOf(picture, vehicleOf(state, DriverIndex{4})).wreck, road::Wreck::None);
 	}
 

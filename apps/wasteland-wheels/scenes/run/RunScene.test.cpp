@@ -113,6 +113,16 @@ namespace {
 				if (linted.insert(kind).second) {
 					EXPECT_EQ(lintThree(), "") << "the run at " << kind;
 					EXPECT_EQ(textOf("title").find("POI"), std::string::npos) << textOf("title");
+					if (kind == "fight" || kind == "find" || kind == "event") {
+						const std::string kicker = textOf("step_kicker");
+						const std::string ofAll = " of " + std::to_string(state()["stops"].get<int>() + 1);
+						if (kicker.rfind("stop ", 0) == 0) {
+							EXPECT_NE(kicker.find(ofAll), std::string::npos) << "the count includes the destination: " << kicker;
+						}
+					}
+					if (kind == "home") {
+						EXPECT_EQ(textOf("notice").find("looks clear"), std::string::npos) << "the head already says the road is clear";
+					}
 				}
 				if (kind == "fight") {
 					ASSERT_TRUE(press("fight"));

@@ -85,6 +85,9 @@ namespace game {
 			ui().icons().add(icons::iconAtlas());
 		}
 		build();
+		const std::vector<battle::LogLine> opening{battle::matchupLine(fight.state, game().rules.content, seats)};
+		log.get()->add(opening);
+		ticker = opening.back().text;
 		const BattleState before = fight.state;
 		afterAction(before, {});
 #ifdef SALAL_DEV_SERVER
@@ -108,22 +111,12 @@ namespace game {
 	}
 
 	void BattleScene::build() {
-		// Escape puts a waiting card back, or with none opens the menu, and L opens the log, wherever focus is. The menu's
-		// keys are its own.
+		// A cancel from wherever focus is in the fight; with nothing focused, Escape reaches handleEvent instead.
 		ui::Ref<ui::Component> root = this->root().addChild<ui::Component>({
 			.id = "battle",
 			.size = {ui::percent(100.0F), ui::percent(100.0F)},
 			.onKeyDown = [this](ui::KeyEvent& event) {
-				if (top.get()->menuOpen()) {
-					return;
-				}
-				if (event.type == ui::KeyEvent::Type::Cancel && pending) {
-					cancelAim();
-					event.consume();
-				} else if (event.type == ui::KeyEvent::Type::Cancel && top.get()->openMenu()) {
-					event.consume();
-				} else if (event.type == ui::KeyEvent::Type::Down && event.key == foundation::Key::L && !event.repeat) {
-					toggleLog();
+				if (event.type == ui::KeyEvent::Type::Cancel && cancel()) {
 					event.consume();
 				}
 			},
@@ -180,9 +173,44 @@ namespace game {
 			.onDragEnd = [this](const battle::HandCard& /*card*/, bool /*dropped*/) { dragged.reset(); },
 			.onLeave = [this] { leave(); },
 		});
-		log = root.addChild<battle::LogDrawer>({.id = "log", .visible = false});
-		banner = root.addChild<battle::TurnBanner>({.id = "banner"});
+		// The drawer lies over the right of the road (Battle Screen Design 6) rather than narrowing it, since a road 320 px
+		// narrower puts the tokens under x1 below 1920 wide. The banner crosses both.
+		log = root.addChild<battle::LogDrawer>({.id = "log", .visible = false, .zIndex = 1});
+		banner = root.addChild<battle::TurnBanner>({.id = "banner", .zIndex = 2});
 		layOut();
+	}
+
+	// The keys the ui didn't take come here, focused somewhere or not (ui-design.md, a HUD's hotkeys), so L and Escape work
+	// from the fight's first frame.
+	bool BattleScene::handleEvent(const foundation::InputEvent& event) {
+		if (event.type != foundation::InputEvent::Type::KeyDown || event.repeat || top.get() == nullptr) {
+			return false;
+		}
+		if (event.key == foundation::Key::Escape) {
+			return cancel();
+		}
+		if (event.key != foundation::Key::L || top.get()->menuOpen()) {
+			return false;
+		}
+		toggleLog();
+		return true;
+	}
+
+	// Escape's order once a drag in flight, which ui's drag service takes first, has had it: a waiting card goes back, an
+	// open log closes, then the menu opens. An open menu takes its own Escape.
+	bool BattleScene::cancel() {
+		if (top.get()->menuOpen()) {
+			return false;
+		}
+		if (pending) {
+			cancelAim();
+			return true;
+		}
+		if (logOpen) {
+			toggleLog();
+			return true;
+		}
+		return top.get()->openMenu();
 	}
 
 	void BattleScene::onResize(const Renderer::Viewport& /*viewport*/) {
@@ -281,7 +309,7 @@ namespace game {
 
 	void BattleScene::showBeat(const battle::Beat& beat) {
 		const rules::Content&			   content = game().rules.content;
-		const std::vector<battle::LogLine> lines = battle::logLines(fight.state, content, beat.events, seats);
+		const std::vector<battle::LogLine> lines = battle::logLines(fight.state, content, beat.events, beat.turn, seats);
 		if (!lines.empty()) {
 			log.get()->add(lines);
 			ticker = lines.back().text;

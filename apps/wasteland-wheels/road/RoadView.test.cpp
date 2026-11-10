@@ -360,23 +360,47 @@ namespace {
 		EXPECT_EQ(described["pops"], 0);
 	}
 
-	TEST_F(RoadViews, TwoHitsOnOneVehicleStackClearOfEachOtherAndTheTitleRow) {
+	TEST_F(RoadViews, TwoHitsOnOneVehicleStackClearOfEachOtherThePlateAndTheRoadsEdges) {
 		open(false);
-		view().popNumber(VehicleIndex{2}, "-12", false);
-		view().popNumber(VehicleIndex{2}, "-3", false);
-		const VehicleToken* on = view().token(VehicleIndex{2});
-		ASSERT_NE(on, nullptr);
-		const float titleBottom = on->getPosition().y + VehicleToken::titleRowBottom() * on->scale();
-		for (int step = 0; step < 8; ++step) {
-			const auto boxes = view().popBoxes();
-			ASSERT_EQ(boxes.size(), 2U);
-			const Foundation::Rect a = boxes[0].box;
-			const Foundation::Rect b = boxes[1].box;
-			const bool			   apart = a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y;
-			EXPECT_TRUE(apart) << "step " << step;
-			EXPECT_GE(a.y, titleBottom) << "step " << step;
-			EXPECT_GE(b.y, titleBottom) << "step " << step;
-			frame(0.1);
+		// The road as picture() has it, with a raider and an escort moved out to the shoulders, the road's outermost lanes.
+		RoadPicture edges = picture();
+		edges.vehicles[1].slot = {.lane = RoadLane::RaiderShoulder, .row = Row::Ahead};
+		edges.vehicles[4].slot = {.lane = RoadLane::PlayerShoulder, .row = Row::Behind};
+		view().show(edges);
+		frame();
+		const Foundation::Vec2 road = view().getSize();
+		const auto			   overlap = [](const Foundation::Rect& a, const Foundation::Rect& b) {
+			return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+		};
+		for (const int index : {1, 2, 4}) {
+			const VehicleToken* on = view().token(VehicleIndex{index});
+			ASSERT_NE(on, nullptr) << index;
+			view().popNumber(VehicleIndex{index}, "-12", false);
+			view().popNumber(VehicleIndex{index}, "-3", false);
+			for (int step = 0; step < 8; ++step) {
+				const Foundation::Rect plate{
+					on->getPosition().x + on->plateRect().x * on->scale(),
+					on->getPosition().y + on->plateRect().y * on->scale(),
+					on->plateRect().width * on->scale(),
+					on->plateRect().height * on->scale(),
+				};
+				std::vector<Foundation::Rect> mine;
+				for (const auto& popped : view().popBoxes()) {
+					if (popped.vehicle == VehicleIndex{index}) {
+						mine.push_back(popped.box);
+					}
+				}
+				ASSERT_EQ(mine.size(), 2U);
+				EXPECT_FALSE(overlap(mine[0], mine[1])) << "vehicle " << index << " step " << step;
+				for (const Foundation::Rect& box : mine) {
+					EXPECT_FALSE(overlap(box, plate)) << "vehicle " << index << " step " << step;
+					EXPECT_GE(box.x, 0.0F) << "vehicle " << index << " step " << step;
+					EXPECT_GE(box.y, 0.0F) << "vehicle " << index << " step " << step;
+					EXPECT_LE(box.x + box.width, road.x) << "vehicle " << index << " step " << step;
+					EXPECT_LE(box.y + box.height, road.y) << "vehicle " << index << " step " << step;
+				}
+				frame(0.1);
+			}
 		}
 	}
 

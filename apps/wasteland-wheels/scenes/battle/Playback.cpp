@@ -359,6 +359,7 @@ namespace game::battle {
 
 	Beat Playback::land(Timed& timed) {
 		Beat beat = std::move(timed.beat);
+		beat.turn = picture.turn;
 		for (const rules::Event& happened : beat.events) {
 			mirror(picture, happened, settled);
 		}
