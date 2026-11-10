@@ -38,4 +38,5 @@ The sprite is a rear view per vehicle class, `art/vehicle-<class>.svg` at 60x40 
 
 ## Consequences
 
+- The plate's title is the driver's name with the vehicle's name under it in 9 px type; with no driver (an escort, an unmanned raider) the vehicle's name is the title alone, centred in the same two-line block so the bars sit at one height on every plate. The plate stays 68 tall: the second line costs 10 px, paid for by trimming the row gaps from 4 to 2 and the top pad from 5 to 3, because growing the plate would push the status chips (which sit under it) past the token's 117 px and break the slot fit.
 - Hit numbers pop over the vehicle's silhouette, in the column left of the plate, so they never cover its icons, bars or title.

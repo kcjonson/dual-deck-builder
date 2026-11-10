@@ -56,7 +56,8 @@ namespace game::road {
 	};
 
 	struct TokenData {
-		std::string				 name;
+		std::string				 name;		   // the plate's title: the driver, or the vehicle when nobody is aboard to name
+		std::string				 vehicle;	   // the vehicle's name in small type under a driver's; empty when `name` is already it
 		std::string				 vehicleClass; // the pack's, which picks the sprite's art
 		TokenSide				 side = TokenSide::Player;
 		std::optional<int>		 seat; // a player's vehicle's driver, 0 or 1: its mark and stripe

@@ -23,7 +23,8 @@ namespace {
 
 	TokenData player() {
 		return {
-			.name = "War Rig",
+			.name = "Road Warrior 1",
+			.vehicle = "War Rig",
 			.vehicleClass = "rig",
 			.side = TokenSide::Player,
 			.seat = 0,
@@ -37,7 +38,8 @@ namespace {
 
 	TokenData raider() {
 		return {
-			.name = "Spiked Interceptor of the Long Road",
+			.name = "Wasteland Raider",
+			.vehicle = "Spiked Interceptor of the Long Road",
 			.vehicleClass = "buggy",
 			.side = TokenSide::Raider,
 			.structure = {.value = 12, .max = 20},
@@ -166,6 +168,14 @@ namespace {
 		EXPECT_EQ(artOf("raider"), "vehicle-buggy");
 		EXPECT_EQ(artOf("hauler"), "vehicle-tanker");
 		EXPECT_EQ(artOf("wreck"), "vehicle-buggy") << "a wreck keeps its shape, greyed";
+		const auto lines = [this](const char* id) {
+			nlohmann::json described;
+			find(id)->describe(described);
+			return std::pair{described["name"].get<std::string>(), described["vehicle"].get<std::string>()};
+		};
+		EXPECT_EQ(lines("rig"), (std::pair<std::string, std::string>{"Road Warrior 1", "War Rig"}))
+			<< "a driver's name, the vehicle under it";
+		EXPECT_EQ(lines("hauler"), (std::pair<std::string, std::string>{"Fuel Hauler", ""})) << "no driver: the vehicle is the title alone";
 	}
 
 } // namespace
