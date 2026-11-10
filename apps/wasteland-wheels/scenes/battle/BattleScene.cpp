@@ -108,22 +108,19 @@ namespace game {
 	}
 
 	void BattleScene::build() {
-		// Escape puts a waiting card back, or with none opens the menu, and L opens the log, wherever focus is. The menu's
-		// keys are its own.
+		// Escape puts a waiting card back, or with none opens the menu, from wherever focus is in the fight. The menu's keys
+		// are its own.
 		ui::Ref<ui::Component> root = this->root().addChild<ui::Component>({
 			.id = "battle",
 			.size = {ui::percent(100.0F), ui::percent(100.0F)},
 			.onKeyDown = [this](ui::KeyEvent& event) {
-				if (top.get()->menuOpen()) {
+				if (event.type != ui::KeyEvent::Type::Cancel || top.get()->menuOpen()) {
 					return;
 				}
-				if (event.type == ui::KeyEvent::Type::Cancel && pending) {
+				if (pending) {
 					cancelAim();
 					event.consume();
-				} else if (event.type == ui::KeyEvent::Type::Cancel && top.get()->openMenu()) {
-					event.consume();
-				} else if (event.type == ui::KeyEvent::Type::Down && event.key == foundation::Key::L && !event.repeat) {
-					toggleLog();
+				} else if (top.get()->openMenu()) {
 					event.consume();
 				}
 			},
@@ -185,6 +182,17 @@ namespace game {
 		log = root.addChild<battle::LogDrawer>({.id = "log", .visible = false, .zIndex = 1});
 		banner = root.addChild<battle::TurnBanner>({.id = "banner", .zIndex = 2});
 		layOut();
+	}
+
+	// The keys the ui didn't take come here, focused somewhere or not (ui-design.md, a HUD's hotkeys), so L opens the log
+	// from the fight's first frame.
+	bool BattleScene::handleEvent(const foundation::InputEvent& event) {
+		if (event.type != foundation::InputEvent::Type::KeyDown || event.key != foundation::Key::L || event.repeat ||
+			top.get() == nullptr || top.get()->menuOpen()) {
+			return false;
+		}
+		toggleLog();
+		return true;
 	}
 
 	void BattleScene::onResize(const Renderer::Viewport& /*viewport*/) {

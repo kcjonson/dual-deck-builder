@@ -68,6 +68,7 @@ namespace game {
 		// A two-step play waiting on the road for its next pick.
 		[[nodiscard]] bool aiming() const { return pending.has_value(); }
 
+		bool handleEvent(const foundation::InputEvent& event) override;
 		void update(const app::FrameContext& frame) override;
 		void onResize(const Renderer::Viewport& viewport) override;
 
