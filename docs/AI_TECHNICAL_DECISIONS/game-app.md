@@ -89,7 +89,7 @@ splash -> main_menu -> founding -> compound -> area_map -> run_route -> load_out
 - `end` puts a campaign into the history with its fall and removes its save; `campaign_end` calls it as it opens. The same ending twice is one line.
 - A history entry is the seed, the day it ended on, the strongholds taken, and the ending.
 
-**Settings** are salal's user settings file, `settings.json` in the per-user config folder, read by the App at create. The game keeps nothing of its own there yet; the settings scene applies the App's keys at once and saves the file, and `main` saves it at exit, so the window's size comes back. The per-user folders are named for "Bear Cave Interactive" and "Wasteland Wheels": the saves under `%LOCALAPPDATA%` and the settings under `%APPDATA%` on Windows.
+**Settings** are salal's user settings file, `settings.json` in the per-user config folder, read by the App at create. The game keeps nothing of its own there yet; the settings scene applies the App's keys at once and saves the file, and `main` saves it at exit, so the window's size comes back. The per-user folders are named for "Bear Cavalry Interactive" and "Wasteland Wheels": the saves under `%LOCALAPPDATA%` and the settings under `%APPDATA%` on Windows.
 
 **The dev server** is salal's, on 127.0.0.1:8070 in Debug and RelWithDebInfo, or `--http-port`'s port. Besides the engine's tree, lint, screenshot, input, control, and every scene's `exportState` under `/api/state?what=scene`, the game registers, only where the server is compiled in:
 

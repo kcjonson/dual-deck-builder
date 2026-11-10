@@ -4,7 +4,8 @@
 // writes <out>/WastelandWheels-<n>-<platform>-<arch>.zip and prints its path. The zip holds one folder,
 // WastelandWheels/, with a README.txt and, on Windows, wasteland-wheels.exe, the DLLs it loads and its fonts/ and
 // packs/; on macOS, Wasteland Wheels.app, ad-hoc signed, its files in Contents/Resources. Run it on the platform it
-// packages: the zip is PowerShell's Compress-Archive on Windows and ditto on macOS, which keeps the bundle whole.
+// packages: the zip is Windows' own tar.exe (bsdtar) on Windows, whose entries use forward slashes as the zip format
+// requires (Compress-Archive in Windows PowerShell writes backslashes), and ditto on macOS, which keeps the bundle whole.
 import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -151,8 +152,8 @@ function readme(platform, stamp) {
 					"The build isn't signed, so the first run stops at \"Windows protected your PC\". Choose More info,",
 					'then Run anyway.',
 					'',
-					'Saves are in %LOCALAPPDATA%\\Bear Cave Interactive\\Wasteland Wheels\\saves and settings in',
-					'%APPDATA%\\Bear Cave Interactive\\Wasteland Wheels; deleting the game folder keeps them. Each run',
+					'Saves are in %LOCALAPPDATA%\\Bear Cavalry Interactive\\Wasteland Wheels\\saves and settings in',
+					'%APPDATA%\\Bear Cavalry Interactive\\Wasteland Wheels; deleting the game folder keeps them. Each run',
 					"writes a log to %TEMP%\\Wasteland Wheels, which helps with a bug report.",
 				]
 			: [
@@ -164,7 +165,7 @@ function readme(platform, stamp) {
 					'',
 					'    xattr -dr com.apple.quarantine "/Applications/Wasteland Wheels.app"',
 					'',
-					'Saves and settings are under ~/Library/Application Support/Bear Cave Interactive; deleting the app',
+					'Saves and settings are under ~/Library/Application Support/Bear Cavalry Interactive; deleting the app',
 					'keeps them. Each run writes a log, which helps with a bug report: open "$TMPDIR/Wasteland Wheels"',
 					'in Terminal to find it.',
 				];
@@ -187,9 +188,8 @@ try {
 	mkdirSync(out, { recursive: true });
 	rmSync(zip, { force: true });
 	if (args.platform === 'win') {
-		const quote = (path) => `'${path.replaceAll("'", "''")}'`;
-		const command = `$ProgressPreference = 'SilentlyContinue'; Compress-Archive -Path ${quote(stage)} -DestinationPath ${quote(zip)}`;
-		execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command], { stdio: 'inherit' });
+		const tar = join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe');
+		execFileSync(tar, ['-a', '-c', '-f', zip, '-C', work, kFolder], { stdio: 'inherit' });
 	} else {
 		execFileSync('ditto', ['-c', '-k', '--keepParent', stage, zip]);
 	}
