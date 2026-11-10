@@ -1,12 +1,13 @@
 // The battle scene driven the way a player drives it, through the App's own input: a card dragged onto a raider, a card
 // picked up and dropped with the keys, a slot pick and a two-step play, the turn ended and the raiders' turn played
-// back beat by beat until it settles on the fight, the top bar's menu opened by its key and by Escape once no card
-// waits, and left for the main menu, L opening the log with nothing focused, the run's scrap and fuel on the bar, and the
-// scene linted at three sizes.
+// back beat by beat until it settles on the fight, the log opening on the matchup and stamping the raiders' moves with
+// their own turn, the top bar's menu opened by its key and by Escape once no card waits, and left for the main menu, L
+// opening the log with nothing focused, the run's scrap and fuel on the bar, and the scene linted at three sizes.
 
 #include "scenes/battle/BattleScene.h"
 #include "GameTesting.h"
 #include "road/RoadView.h"
+#include "scenes/battle/BattleLog.h"
 #include "scenes/battle/Dock.h"
 
 #include <rules/battle/Battle.h>
@@ -146,6 +147,14 @@ namespace game::testing {
 				ASSERT_FALSE(scene().playing());
 			}
 
+			// The log drawer, opened with the LOG button if it's shut.
+			const battle::LogDrawer* logDrawer() {
+				if (find("log") == nullptr && !press("log_toggle")) {
+					return nullptr;
+				}
+				return dynamic_cast<const battle::LogDrawer*>(find("log"));
+			}
+
 			[[nodiscard]] std::string textOf(std::string_view id) {
 				const auto* text = dynamic_cast<const ui::Text*>(find(id));
 				return text != nullptr ? text->getText() : "";
@@ -159,12 +168,13 @@ namespace game::testing {
 			const std::optional<PlayCard> play = oneDropAtARaider();
 			ASSERT_TRUE(play) << "no one-drop attack in the opening hands";
 			const rules::BattleDriver before = scene().current().state.driver(play->driver);
+			const nlohmann::json	  opening = state()["last"];
 			ASSERT_TRUE(drag(handId(*play), "vehicle_" + std::to_string(play->target->value)));
 			const rules::BattleDriver& after = scene().current().state.driver(play->driver);
 			EXPECT_LT(after.adrenaline, before.adrenaline);
 			EXPECT_EQ(after.hand.size() + 1, before.hand.size());
 			EXPECT_FALSE(scene().aiming());
-			EXPECT_NE(state()["last"], "") << "the play is in the log and the ticker";
+			EXPECT_NE(state()["last"], opening) << "the play is in the log and the ticker";
 		}
 
 		TEST_F(Battle, ACardDroppedOffTheRoadPlaysNothing) {
@@ -297,6 +307,43 @@ namespace game::testing {
 			EXPECT_FALSE(dock->locked());
 			EXPECT_TRUE(enabled("end_turn"));
 			EXPECT_EQ(enabled("menu"), !battle.current().state.outcome);
+		}
+
+		TEST_F(Battle, TheLogOpensOnTheMatchup) {
+			open(1);
+			const battle::LogDrawer* log = logDrawer();
+			ASSERT_NE(log, nullptr);
+			ASSERT_FALSE(log->lines().empty());
+			const battle::LogLine expected{
+				.turn = 1,
+				.text = "Road Warrior and Interceptor vs Wasteland Raider, Scavenger, Spike Raider.",
+				.tone = battle::LogTone::Plain
+			};
+			EXPECT_EQ(log->lines().front(), expected);
+			EXPECT_EQ(state()["last"], expected.text) << "the ticker is the log's last line";
+		}
+
+		TEST_F(Battle, TheRaidersMovesCarryTheTurnTheyWereMadeIn) {
+			const uint32_t seed = hurtingSeed();
+			ASSERT_NE(seed, 0U);
+			open(seed);
+			ASSERT_TRUE(press("end_turn"));
+			settle();
+			const battle::LogDrawer* log = logDrawer();
+			ASSERT_NE(log, nullptr);
+			const std::vector<battle::LogLine>& lines = log->lines();
+			const auto							raiders = std::ranges::find(lines, "The raiders' turn.", &battle::LogLine::text);
+			const auto							yours = std::ranges::find(lines, "Your turn.", &battle::LogLine::text);
+			ASSERT_NE(raiders, lines.end());
+			ASSERT_NE(yours, lines.end());
+			ASSERT_LT(raiders, yours);
+			EXPECT_EQ(yours->turn, 2);
+			int raiderPlays = 0;
+			for (auto line = lines.begin(); line != yours; ++line) {
+				EXPECT_EQ(line->turn, 1) << line->text;
+				raiderPlays += line > raiders && line->tone == battle::LogTone::Raider ? 1 : 0;
+			}
+			EXPECT_GE(raiderPlays, 1) << "a raider played something on turn 1";
 		}
 
 		TEST_F(Battle, AFightPlayedOutLeavesForTheRun) {

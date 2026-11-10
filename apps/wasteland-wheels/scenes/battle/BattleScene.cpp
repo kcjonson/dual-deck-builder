@@ -85,6 +85,9 @@ namespace game {
 			ui().icons().add(icons::iconAtlas());
 		}
 		build();
+		const std::vector<battle::LogLine> opening{battle::matchupLine(fight.state, game().rules.content, seats)};
+		log.get()->add(opening);
+		ticker = opening.back().text;
 		const BattleState before = fight.state;
 		afterAction(before, {});
 #ifdef SALAL_DEV_SERVER
@@ -291,7 +294,7 @@ namespace game {
 
 	void BattleScene::showBeat(const battle::Beat& beat) {
 		const rules::Content&			   content = game().rules.content;
-		const std::vector<battle::LogLine> lines = battle::logLines(fight.state, content, beat.events, seats);
+		const std::vector<battle::LogLine> lines = battle::logLines(fight.state, content, beat.events, beat.turn, seats);
 		if (!lines.empty()) {
 			log.get()->add(lines);
 			ticker = lines.back().text;
