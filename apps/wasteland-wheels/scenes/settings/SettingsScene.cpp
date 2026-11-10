@@ -1,5 +1,5 @@
 // Settings, an appendix of the atlas (UI Art Direction, Screens): what the App keeps in the user settings file (vsync,
-// fullscreen, the ui's scale, and reduced motion) in legend boxes, each applied at once and the file saved, since the
+// fullscreen, the ui's scale, and motion: system, reduced, or full) in legend boxes, each applied at once and the file saved, since the
 // App never saves it itself. It has no primary action, so no highway; the tabs go back to the menu, as Escape does.
 
 #include "atlas/AtlasTheme.h"
@@ -7,6 +7,7 @@
 #include "atlas/Tokens.h"
 #include "scenes/AtlasPage.h"
 #include "scenes/GameScene.h"
+#include "scenes/settings/MotionSetting.h"
 
 #include <ui/components/SegmentedControl.h>
 #include <ui/components/Toggle.h>
@@ -39,6 +40,7 @@ namespace game {
 					{"vsync", app().settings().get<bool>("video.vsync", true)},
 					{"fullscreen", app().fullscreenMonitor().has_value()},
 					{"uiScale", app().uiScale()},
+					{"motion", static_cast<int>(savedMotion(app()))},
 					{"reducedMotion", app().reducedMotion()},
 					{"notice", notice},
 				}
@@ -91,14 +93,21 @@ namespace game {
 						saved();
 					},
 				});
-				toggleRow(look, "reduced_motion", "Reduce motion", app().reducedMotion(), [this](bool on) {
-					app().setReducedMotion(on);
-					saved();
+				ui::Ref<ui::Component> motionRow = row(look, "Reduce motion");
+				motionRow.addChild<ui::SegmentedControl>({
+					.id = "motion",
+					.options = {"System", "Reduced", "Full"},
+					.selected = static_cast<int>(savedMotion(app())),
+					.onChange = [this](int index) {
+						chooseMotion(app(), static_cast<MotionSetting>(index));
+						saved();
+					},
 				});
 				look.addChild<ui::Text>({
 					.id = "reduced_motion_note",
 					.style = styles::note,
-					.text = "Reduced motion finishes every animation at once: screen fades, card movement, and combat effects.",
+					.text = "System follows your device's reduced motion setting where the engine can read it; for now it plays full "
+							"motion. Reduced finishes every animation at once: screen fades, card movement, and combat effects.",
 					.wrap = true,
 				});
 				// Hidden until a save fails, so a failure never rebuilds the page under the control that changed.
