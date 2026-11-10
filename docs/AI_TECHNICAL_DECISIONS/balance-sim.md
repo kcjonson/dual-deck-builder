@@ -5,7 +5,7 @@
 
 ## Context
 
-Step 4 of the port plan: `apps/balance-sim`, the command line tool [Balance Simulation](../specs/Balance%20Simulation.md) specs, over the rules and the AI. This first part is its `fights` mode. The TypeScript's is `_legacy/scripts/balance-sim.mjs` over `_legacy/src/renderer/game/sim/`, a crew played through a route's fights by the game's Battle and AI controller, seated and written back by its combat bridge.
+Step 4 of the port plan: `apps/balance-sim`, the command line tool [Balance Simulation](../specs/Balance%20Simulation.md) specs, over the rules and the AI. This first part is its `fights` mode. The TypeScript's is [`_legacy/scripts/balance-sim.mjs`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/scripts/balance-sim.mjs) over [`_legacy/src/renderer/game/sim/`](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/sim), a crew played through a route's fights by the game's Battle and AI controller, seated and written back by its combat bridge.
 
 What the C++ already had: packs and `Content`, `pickEncounter` and `fieldEncounter`, `startBattle`, the campaign's `startCampaignFight` and `writeBackFight`, `makePolicy` and `OpponentPolicies`, and `ai::playFight`. What this needed decided: where the sim's core lives, how a tuning comes in, how a run's fights are fielded and carried from one to the next, how a fight stops at the stall cap and gets measured, and how runs spread over threads without the numbers moving.
 

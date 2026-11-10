@@ -2,7 +2,7 @@
 
 Wasteland Wheels is a roguelike deckbuilder with vehicular combat in a post-apocalyptic setting. The core mechanic is the "Symbiotic Driver System": the player controls two drivers and their vehicles at once.
 
-It started as a TypeScript proof of concept, now frozen under [_legacy/](../_legacy/). The C++ version on the salal engine is the early alpha. These docs describe the game as it should be; the alpha keeps what worked in the concept and changes what should change, with no compatibility of any kind with the TypeScript build.
+It started as a TypeScript proof of concept, deleted at the cutover on 2026-11-09 (its last state is [_legacy/](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy)). The C++ version on the salal engine is the early alpha. These docs describe the game as it should be; the alpha keeps what worked in the concept and changes what should change, with no compatibility of any kind with the TypeScript build.
 
 Work, status and progress are tracked on Specboard, not in this repo.
 
@@ -33,4 +33,4 @@ The specs in [specs/](./specs/) say how the game plays and looks:
 - [design/](./design/): mocks, wireframes and art the specs embed.
 - [research/](./research/README.md): genre research, comparable games and naming.
 - [testing/](./testing/README.md): the testing strategy.
-- [_legacy/docs/](../_legacy/docs/): the TypeScript engine's decision records, the old dev log and hub, and the spec's resolved reviews, kept for history.
+- [_legacy/docs/](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/docs): the TypeScript engine's decision records, the old dev log and hub, and the spec's resolved reviews, kept at that commit for history.

@@ -61,4 +61,4 @@ Contrast is checked without a GPU. The hook darkens the tint by at most its wear
 - No 1x/2x pairs: the paper and the vector art are sharp at any pixel ratio.
 - The logo is flatter than the mock until its texture is redrawn as geometry. Its tracks fade in opacity steps rather than the mask's ramp, and where they cross they darken, which the mock's group opacity didn't.
 - Art drawn at less than full opacity shows its layers through each other (the logo's casing over its shadow), since each shape blends on its own; the splash's fade will show it for a moment.
-- The atlas, its build script and its 67 pieces stay in `_legacy/` until cutover deletes them. Nothing is carried over.
+- The atlas, its build script and its 67 pieces stayed in [`_legacy/`](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy) until the cutover deleted them. Nothing is carried over.

@@ -1,6 +1,6 @@
 # Places and hazards (DDB-442)
 
-Date: 2026-10-10. Code: `_legacy/src/renderer/game/map/` (`Hazards.ts`, `Places.ts`, `PlaceNames.ts`, `Terrain.ts` laying the hazards over the land; `AreaMapPipeline.ts` runs the stages), measured by `_legacy/scripts/road-network.mjs places`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Seeds and determinism, Pipeline, 3. Biomes, hazards, and cost, and 4. Settlements. Builds Map 6 of [realistic-map.md](./realistic-map.md) on the water of [water-and-biomes.md](./water-and-biomes.md), and replaces terrain-fields.md's town placement and the old `highways` stand-in stage.
+Date: 2026-10-10. Code: [`_legacy/src/renderer/game/map/`](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/map) (`Hazards.ts`, `Places.ts`, `PlaceNames.ts`, `Terrain.ts` laying the hazards over the land; `AreaMapPipeline.ts` runs the stages), measured by `_legacy/scripts/road-network.mjs places`. Spec: [Area Map Generation](../specs/Area%20Map%20Generation.md), Seeds and determinism, Pipeline, 3. Biomes, hazards, and cost, and 4. Settlements. Builds Map 6 of [realistic-map.md](./realistic-map.md) on the water of [water-and-biomes.md](./water-and-biomes.md), and replaces terrain-fields.md's town placement and the old `highways` stand-in stage.
 
 ## Context
 
@@ -88,11 +88,11 @@ The roads stage (road-network.md) joins every place in `placeList`'s order, the 
 
 ## Drawing them
 
-The area map's look for places, ruins, and the fog over them is [area-map-atlas-style.md](./area-map-atlas-style.md)'s; how the TypeScript view drew them plain (provisional call 9) is in [area-map-view.md](../../_legacy/docs/AI_TECHNICAL_DECISIONS/area-map-view.md).
+The area map's look for places, ruins, and the fog over them is [area-map-atlas-style.md](./area-map-atlas-style.md)'s; how the TypeScript view drew them plain (provisional call 9) is in [area-map-view.md](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/docs/AI_TECHNICAL_DECISIONS/area-map-view.md).
 
 ## Determinism
 
-Everything on the gameplay path is adds, multiplies, divides, compares, and square roots, with no trig or other libm transcendentals; bearings become unit vectors through `unitVector`, a polynomial sine and cosine (`_legacy/src/renderer/game/map/Geometry.ts`). Sorting the ranked cells breaks ties by index. Those are exact in IEEE doubles, and with floating-point contraction off (`-ffp-contract=off`, which salal's foundation sets for GCC and Clang) no multiply and add fuse, so the same seed and params give the same places and hotspots on every platform. The tests pin two maps' places and hotspots as hashes of their coordinates, with their counts and town names.
+Everything on the gameplay path is adds, multiplies, divides, compares, and square roots, with no trig or other libm transcendentals; bearings become unit vectors through `unitVector`, a polynomial sine and cosine ([`_legacy/src/renderer/game/map/Geometry.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/map/Geometry.ts)). Sorting the ranked cells breaks ties by index. Those are exact in IEEE doubles, and with floating-point contraction off (`-ffp-contract=off`, which salal's foundation sets for GCC and Clang) no multiply and add fuse, so the same seed and params give the same places and hotspots on every platform. The tests pin two maps' places and hotspots as hashes of their coordinates, with their counts and town names.
 
 ## Hazards in the C++ alpha
 

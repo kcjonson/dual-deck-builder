@@ -12,7 +12,7 @@ The driver card (DDB-312, [driver-card.md](./driver-card.md)) set the pattern: a
 
 ### What the three cards share
 
-The play card, the driver card, and the escort card share one base (`_legacy/src/renderer/game/ui/CardBase.ts`): each is one hit target (R8.29), shows the pointer cursor once something listens, and hands its data to a selection listener on a click (R9.31) or `activate` (R9.27), with Enter and Space left to the screen's hotkeys when nothing listens; each draws the focus ring under its own tags and hex, settles its look on every state change, and pins a pinned view again when the data changes. Each card keeps its own look; the play card adds its lift on top.
+The play card, the driver card, and the escort card share one base ([`_legacy/src/renderer/game/ui/CardBase.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/ui/CardBase.ts)): each is one hit target (R8.29), shows the pointer cursor once something listens, and hands its data to a selection listener on a click (R9.31) or `activate` (R9.27), with Enter and Space left to the screen's hotkeys when nothing listens; each draws the focus ring under its own tags and hex, settles its look on every state change, and pins a pinned view again when the data changes. Each card keeps its own look; the play card adds its lift on top.
 
 Considered: free helpers each card calls. Four of the six pieces are overrides of the component base, which a base class states once and a helper can't.
 

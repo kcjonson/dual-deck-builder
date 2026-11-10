@@ -11,7 +11,7 @@ Targeting picked vehicles and nothing else. Six movement cards move a vehicle to
 
 ### The steps come from the card's effects
 
-`aimStepsOf(card)` (`_legacy/src/renderer/game/screens/combat/CombatModel.ts`) returns the picks a card waits for, in order, from `pickedMoveOf` and its target type, never its name:
+`aimStepsOf(card)` ([`_legacy/src/renderer/game/screens/combat/CombatModel.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/screens/combat/CombatModel.ts)) returns the picks a card waits for, in order, from `pickedMoveOf` and its target type, never its name:
 
 | Card shape | Steps |
 |---|---|
@@ -38,7 +38,7 @@ While a slot step waits, vehicles neither dim nor take focus: the readouts on th
 
 The hovered slot drives two things.
 
-- Range readouts, from `previewDestination` (`_legacy/src/renderer/game/mechanics/AimPreview.ts`): every raider's range from where the vehicle you're moving will stand, or for a shove from your vehicle with the raider at the hovered slot (call 300). R1 and R2 count against the card's own range, or Range 2 for a card with none (call 301). A readout is red-edged when the card's vehicle step still to come could land there from that slot (Strafe). With nothing hovered a slot step shows no readouts; they're a preview of a destination, not of where you stand.
+- Range readouts, from `previewDestination` ([`_legacy/src/renderer/game/mechanics/AimPreview.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/mechanics/AimPreview.ts)): every raider's range from where the vehicle you're moving will stand, or for a shove from your vehicle with the raider at the hovered slot (call 300). R1 and R2 count against the card's own range, or Range 2 for a card with none (call 301). A readout is red-edged when the card's vehicle step still to come could land there from that slot (Strafe). With nothing hovered a slot step shows no readouts; they're a preview of a destination, not of where you stand.
 - The raiders' plan: the screen asks `Battle.getAllIntents({ preview })` with the card, the vehicle chosen so far, and the hovered slot, else the chosen one, so an intent the move takes out of reach drops off its pills, and the end-turn preview, which reads the pills, drops its line. Leaving the slot puts the plan back. Once Strafe's slot is chosen the preview holds while it waits for its raider, except while END TURN has the pointer or focus: ending the turn puts an aimed card back, so the end-turn preview shows the plan without it, and the pills refresh as END TURN's preview comes and goes. The preview is only worked out when the hovered slot, the step, or END TURN's preview changes, never per frame; going back to the plain plan is skipped unless a preview was showing.
 
 `previewAim` now takes `destination` and reads range from `BoardProjection.landingSlots`, the same slots the target rule measures from, so Strafe's chips and hit check read from its chosen slot and Cut Off's from the row ahead, before and after a slot is chosen. It also takes an optional `board`, so the screen's readouts build one projection for every raider rather than one each.

@@ -150,8 +150,7 @@ namespace game::testing {
 			app = app::App::create(
 				{.applicationName = "wasteland-wheels-tests",
 				 .baseShader = base_shader::source(),
-				 .fontAtlases =
-					 faces ? std::span<const Renderer::FontAtlasSource>(fonts::kAtlases) : std::span<const Renderer::FontAtlasSource>(),
+				 .fontAtlases = faces ? fonts::atlases() : std::span<const Renderer::FontAtlasSource>(),
 				 .defaultFont = fonts::kBody,
 				 .settingsFile = dir.path() / "settings.json",
 				 .savesDirectory = dir.path() / "saves",

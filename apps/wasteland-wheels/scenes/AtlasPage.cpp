@@ -158,12 +158,4 @@ namespace game {
 		return footOf(box);
 	}
 
-	const char* buildLine() {
-#ifdef SALAL_DEV_SERVER
-		return "Development build";
-#else
-		return "Early alpha";
-#endif
-	}
-
 } // namespace game

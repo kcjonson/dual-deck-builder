@@ -10,9 +10,9 @@ own driver and deck (the "Symbiotic Driver System"). The repo is still named
 dual-deck-builder.
 
 It started as a TypeScript proof of concept that nobody outside has played. That
-version is frozen in [`_legacy/`](_legacy/), and the game is being rebuilt in
-C++20 on salal (`../salal`, github.com/kcjonson/salal), Kevin's 2D engine, as
-the **early alpha**. All game development is halted until the port is done.
+version was deleted at the cutover on 2026-11-09 (its last state is [`_legacy/`](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy)),
+and the game is now C++20 on salal (`../salal`, github.com/kcjonson/salal),
+Kevin's 2D engine, as the **early alpha**.
 
 The alpha owes the concept nothing:
 
@@ -22,8 +22,8 @@ The alpha owes the concept nothing:
 - **Things don't have to stay the same.** Keep what worked, fix what didn't,
   simplify where the concept grew awkward. The specs and decision records in
   `docs/` say what the game should be; change them when the alpha changes it.
-- **The TypeScript is a reference, not an oracle.** Read it to see how something
-  worked. Don't match its output, its draw order or its quirks.
+- **The TypeScript is a reference, not an oracle.** Read it at that permalink to see
+  how something worked. Don't match its output, its draw order or its quirks.
 - **No pixel diffing, golden images or screenshot baselines.**
 
 The port plan is [docs/technical/port-plan.md](docs/technical/port-plan.md).
@@ -67,7 +67,6 @@ apps/
   wasteland-wheels/  the game: its scenes on salal's app and ui, saves, settings, dev routes
 docs/             specs, decision records, design art, the port plan
 scripts/          Node tooling (format.mjs, vector-art.mjs)
-_legacy/          the TypeScript proof of concept, frozen, with its own CLAUDE.md
 ```
 
 `libs/rules` is organised by area, `core/`, `packs/`, `map/`, `battle/`,
@@ -97,9 +96,6 @@ re-reads effect fields with its own switch.
 engine, it's salal work on salal's board, not a workaround here. salal is pinned
 to a tag; bump it deliberately.
 
-**Do not touch `_legacy/`** beyond keeping it runnable. No features, no fixes.
-It's deleted once the alpha replaces it.
-
 **Fail loud.** An assert or `LOG_ERROR` beats a quiet default, a swallowed error
 or a fallback that hides a broken state.
 
@@ -126,7 +122,7 @@ Worldsim says "scene", not "screen", in code.
 **Clean code, no legacy** (worldsim's rule). When you replace something, delete
 what it replaced in the same commit. No flags for old paths, no fallbacks, no
 functions kept for reference, no version suffixes, no TODOs about removing old
-code. `_legacy/` is the one exception, and it goes whole.
+code.
 
 **Formatting and lint.** `.clang-format` and `.clang-tidy` are worldsim's.
 `node scripts/format.mjs` checks every C++ file with clang-format 21 (the
@@ -156,8 +152,7 @@ configure refuses it. salal comes through FetchContent at the tag in
 `CMakeLists.txt`; to build against the sibling checkout, configure with
 `-DFETCHCONTENT_SOURCE_DIR_SALAL=C:/Users/kevin/Code/salal`.
 
-Tests are gtest, in two lanes, the way the TypeScript split `npm test` from
-`npm run test:slow`. `ddb_add_tests` builds a library's `*.test.cpp` into
+Tests are gtest, in two lanes. `ddb_add_tests` builds a library's `*.test.cpp` into
 `ddb_<lib>_tests`, the fast lane, and its `*.slow.test.cpp` into
 `ddb_<lib>_slow_tests`, labelled `slow`: the tests that run the whole map
 pipeline or otherwise take half a second or more, which go in a
@@ -174,11 +169,12 @@ the behaviour it pins is still what the alpha wants.
 
 `apps/wasteland-wheels` builds `build/apps/wasteland-wheels/Debug/wasteland-wheels.exe`
 (`--scene=<name>` starts in a scene, `--http-port <port>` moves the dev server
-off 127.0.0.1:8070). It reads the base pack from the source tree, as the balance
-sim does. Its tests (`ddb_game_tests`, `ddb_game_slow_tests`) run the scenes
-headless through the App's own frame and input, on salal's `HeadlessPlatform`
-and null renderer, and press components by id the way a dev-server session
-does with `/api/ui/tree` and `/api/input`; `game-app.md` lists the game's own
+off 127.0.0.1:8070, `--check` loads its files and exits). It reads its packs and
+faces from its own folder, where every build stages them; `game-app.md` has the
+playtest build and `scripts/package.mjs`. Its tests (`ddb_game_tests`,
+`ddb_game_slow_tests`) run the scenes headless through the App's own frame and
+input, on salal's `HeadlessPlatform` and null renderer, and press components by
+id the way a dev-server session does with `/api/ui/tree` and `/api/input`; `game-app.md` lists the game's own
 routes. The fast lane plays on the map tests' fixture map; only the slow lane
 makes real ones.
 
@@ -235,9 +231,3 @@ it was checked, and commit as Kevin would, with no AI attribution.
 scouts, ranked hypotheses, one at a time, nothing fixed until Kevin confirms,
 tracked in the Specboard bug's notes.
 
-## The TypeScript version
-
-`_legacy/` builds and tests as it always did, from inside it:
-`cd _legacy && npm ci && npm test`. `node _legacy/scripts/balance-sim.mjs`
-runs from the repo root. Its `CLAUDE.md` describes it, and its docs are in
-`_legacy/docs/`.

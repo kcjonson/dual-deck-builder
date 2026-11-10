@@ -1,7 +1,12 @@
 #include "Fonts.h"
 
+#include "GameFiles.h"
+
 #include <utils/Log.h>
 
+#include <array>
+#include <filesystem>
+#include <string>
 #include <utility>
 
 namespace game::fonts {
@@ -17,7 +22,24 @@ namespace game::fonts {
 			{.name = "mono", .family = kMono, .weight = 400.0F},
 		}};
 
+		Renderer::FontAtlasSource face(const std::filesystem::path& fonts, Renderer::FontFamily family, const std::string& name) {
+			return {.family = family, .pngPath = (fonts / (name + ".png")).string(), .jsonPath = (fonts / (name + ".json")).string()};
+		}
+
 	} // namespace
+
+	std::span<const Renderer::FontAtlasSource> atlases() {
+		static const std::array<Renderer::FontAtlasSource, 4> kAtlases = [] {
+			const std::filesystem::path fonts = filesDirectory() / "fonts";
+			return std::array{
+				face(fonts, kDisplayBold, "barlow-condensed-bold"),
+				face(fonts, kDisplaySemibold, "barlow-condensed-semibold"),
+				face(fonts, kBody, "open-sans-regular"),
+				face(fonts, kMono, "jetbrains-mono-regular"),
+			};
+		}();
+		return kAtlases;
+	}
 
 	std::span<const ui::FontFamilyName> familyNames() {
 		return kNames;

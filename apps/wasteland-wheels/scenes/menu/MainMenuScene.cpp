@@ -5,6 +5,7 @@
 // Campaign history follows, then the appendices in two columns: settings, the card showcase, credits, developer tools
 // in a development build, and Exit. New campaign over any save, a campaign in progress, a damaged one or an old one, asks first.
 
+#include "Build.h"
 #include "atlas/AtlasButton.h"
 #include "atlas/AtlasTheme.h"
 #include "atlas/ContentsEntry.h"
@@ -270,7 +271,9 @@ namespace game {
 					}(),
 				});
 				foot.addChild<ui::Text>({.id = "imprint", .style = caption, .text = "Printed before \xC2\xB7 revised by hand after"});
-				foot.addChild<ui::Text>({.id = "build", .style = caption, .text = buildLine()});
+				foot.addChild<ui::Text>(
+					{.id = "build", .style = caption.extend({.textTransform = Foundation::TextTransform::None}), .text = buildLine()}
+				);
 			}
 
 			void continueCampaign() {

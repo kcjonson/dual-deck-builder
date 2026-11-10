@@ -1,5 +1,5 @@
-# Wasteland Wheels in C++ on salal. The TypeScript version it ports from is frozen
-# under _legacy/ and has nothing to do with this build.
+# Wasteland Wheels in C++ on salal. The TypeScript version it ported from is gone
+# and has nothing to do with this build.
 #
 # The dependency rule, salal's (salal/docs/architecture.md): the game's rules,
 # libs/rules, link salal::foundation and nothing above it, so they stay deterministic

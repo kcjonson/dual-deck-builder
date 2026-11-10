@@ -1,6 +1,6 @@
 # The main menu's campaign entries (DDB-283)
 
-Date: 2026-10-08. Code: `_legacy/src/renderer/game/screens/main-menu/MainMenuScreen.ts` and `campaignText.ts`, `screens/campaign-history/CampaignHistoryScreen.ts`, and `screens/compound/CompoundScreen.ts`. Spec: [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) 1.1. Builds on [campaign-save-and-load.md](./campaign-save-and-load.md) and [campaign-founding.md](./campaign-founding.md), whose APIs it uses as built.
+Date: 2026-10-08. Code: [`_legacy/src/renderer/game/screens/main-menu/MainMenuScreen.ts`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/screens/main-menu/MainMenuScreen.ts) and `campaignText.ts`, `screens/campaign-history/CampaignHistoryScreen.ts`, and `screens/compound/CompoundScreen.ts`. Spec: [Game Flow and UI Specification](../specs/Game%20Flow%20and%20UI%20Specification.md) 1.1. Builds on [campaign-save-and-load.md](./campaign-save-and-load.md) and [campaign-founding.md](./campaign-founding.md), whose APIs it uses as built.
 
 ## Context
 

@@ -13,10 +13,6 @@ screenshot baselines, and no pixel comparisons, in CI or locally. Decided
 | Happy-path scripts | `docs/testing/happy-path/*.md` | before every commit that touches what they cover |
 | Perf | the dev server's `/api/metrics`, and salal's perf suite | before committing rendering or hot-path changes |
 
-The TypeScript proof of concept keeps its own checks, run from `_legacy/`:
-`cd _legacy`, then `npm test`, `npm run test:slow`, `npm run test:smoke`, or
-`node scripts/perf-capture.mjs`.
-
 ## Happy-path scripts
 
 Test scripts written for a human, one file per flow (start a run, a battle,

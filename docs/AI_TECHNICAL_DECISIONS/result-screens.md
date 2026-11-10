@@ -5,7 +5,7 @@
 
 ## Context
 
-Three scenes report what just happened: a fight's result, the run debrief (Game Flow 6.1), and the campaign's end (6.3). The alpha had the debrief and the end as placeholder rows on ui's default tokens, and no fight result: the battle scene's footer said "Won" and the run's notice said "The fight is won." The TypeScript had a battle result screen between the fight and the run, a debrief inside the run screen, and a defeat screen (`_legacy/src/renderer/game/screens/battleResult`, `defeat`, and `run`).
+Three scenes report what just happened: a fight's result, the run debrief (Game Flow 6.1), and the campaign's end (6.3). The alpha had the debrief and the end as placeholder rows on ui's default tokens, and no fight result: the battle scene's footer said "Won" and the run's notice said "The fight is won." The TypeScript had a battle result screen between the fight and the run, a debrief inside the run screen, and a defeat screen ([`_legacy/src/renderer/game/screens/battleResult`](https://github.com/kcjonson/dual-deck-builder/blob/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/screens/battleResult), `defeat`, and `run`).
 
 UI Art Direction puts results where W3 earns its place: a defeat is a burnt sheet, and what was lost or cleared gets its stamp. The first launch also turned up two wording slips here: the cargo line read "6 food, 4 water, and 5 fuel, 1 card won", and the debrief said a driver was in the infirmary "for 2 days" while the compound right after said "fit in 1 day".
 

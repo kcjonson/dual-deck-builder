@@ -5,7 +5,7 @@
 
 ## Context
 
-The battle scene was the last placeholder in the port: each driver's hand as rows, a row per target once a card was picked (with the same target twice when two plays differed only in their slot), the raiders as lines of text, and an End Turn button that ran the whole enemy turn and showed its end, vehicles a turn later and HP lower with nothing to say why, since the scene dropped every event `apply` returned. [Battle Screen Design](../specs/Battle%20Screen%20Design.md) is the screen, and the TypeScript built it in `_legacy/src/renderer/game/screens/combat/`. What it waited on was salal's drag tier, which v0.39.0 brought (`ui/Drag.h`).
+The battle scene was the last placeholder in the port: each driver's hand as rows, a row per target once a card was picked (with the same target twice when two plays differed only in their slot), the raiders as lines of text, and an End Turn button that ran the whole enemy turn and showed its end, vehicles a turn later and HP lower with nothing to say why, since the scene dropped every event `apply` returned. [Battle Screen Design](../specs/Battle%20Screen%20Design.md) is the screen, and the TypeScript built it in [`_legacy/src/renderer/game/screens/combat/`](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/src/renderer/game/screens/combat). What it waited on was salal's drag tier, which v0.39.0 brought (`ui/Drag.h`).
 
 Three questions needed answers the TypeScript didn't give: how the screen shows an enemy turn that the rules play inside one `apply`, how aiming a card fits salal's declared drag and drop, and which theme the scene draws in now that the meta scenes are the atlas.
 

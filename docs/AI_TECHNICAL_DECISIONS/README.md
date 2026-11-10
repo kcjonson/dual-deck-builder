@@ -2,7 +2,7 @@
 
 One record per significant decision about how Wasteland Wheels works: the context, the options, what was picked and why. Game rules live in [../specs/](../specs/); these say how the game carries them out.
 
-The records come from the TypeScript proof of concept. The ones here still describe the game; the C++ alpha can change any of them, and when it does, the record changes with it. Records about the TypeScript engine, its ui framework and its tooling are in [_legacy/docs/AI_TECHNICAL_DECISIONS/](../../_legacy/docs/AI_TECHNICAL_DECISIONS/).
+The records come from the TypeScript proof of concept. The ones here still describe the game; the C++ alpha can change any of them, and when it does, the record changes with it. Records about the TypeScript engine, its ui framework and its tooling are in [_legacy/docs/AI_TECHNICAL_DECISIONS/](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/docs/AI_TECHNICAL_DECISIONS).
 
 ## Writing one
 

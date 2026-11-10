@@ -5,7 +5,7 @@
 
 ## Context
 
-The compound pilot ported the atlas parts it used ([compound-screen.md](./compound-screen.md), In the C++ alpha). The other screen ports need the rest: the card in its three sizes, the detail view, face, and mini (Game Flow 7.0, [mini-card.md](./mini-card.md), and the TypeScript's `card-face-and-detail-view.md` in `_legacy/docs/`); the card back (UI Art Direction, Card hints); the vehicle token ([vehicle-token.md](./vehicle-token.md)); the gauges and the map's markers (UI Art Direction, Components); and a gallery to see them in, the card showcase the main menu's appendices open. Card text also reached the screen with its `{variables}` and `[keywords]` unfilled, because nothing in the alpha filled them.
+The compound pilot ported the atlas parts it used ([compound-screen.md](./compound-screen.md), In the C++ alpha). The other screen ports need the rest: the card in its three sizes, the detail view, face, and mini (Game Flow 7.0, [mini-card.md](./mini-card.md), and the TypeScript's `card-face-and-detail-view.md` in [`_legacy/docs/`](https://github.com/kcjonson/dual-deck-builder/tree/0a912c7457093b893b47656277b0894e8f50a48b/_legacy/docs)); the card back (UI Art Direction, Card hints); the vehicle token ([vehicle-token.md](./vehicle-token.md)); the gauges and the map's markers (UI Art Direction, Components); and a gallery to see them in, the card showcase the main menu's appendices open. Card text also reached the screen with its `{variables}` and `[keywords]` unfilled, because nothing in the alpha filled them.
 
 ## Options considered
 
