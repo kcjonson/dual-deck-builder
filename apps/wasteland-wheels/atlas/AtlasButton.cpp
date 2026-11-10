@@ -97,6 +97,7 @@ namespace game::atlas {
 		} else if (compact) {
 			labelStyle = styles::print::backRoadLabel.extend({.fontSize = kCompactLabel});
 		}
+		enabledStyle = labelStyle;
 		text = addChild<ui::Text>({
 			.id = id.empty() ? std::string() : id + "_label",
 			.style = labelStyle,
@@ -128,6 +129,7 @@ namespace game::atlas {
 			);
 		}
 
+		syncLabel(enabled, theme);
 		const ui::ColorToken fill =
 			!enabled ? (highway ? palette::index : palette::freshPaper) : (highway ? palette::highway : palette::freshPaper);
 		drawPaper({
@@ -151,6 +153,17 @@ namespace game::atlas {
 		if (state.focusVisible) {
 			const float reach = kFocusGap + kFocusWidth;
 			drawRule({-reach, -reach, size.x + 2.0F * reach, size.y + 2.0F * reach}, ink(palette::ink), kFocusWidth, key);
+		}
+	}
+
+	// A disabled highway is drawn on the index fill, where its cream label vanishes; the label goes to ink there.
+	void AtlasButton::syncLabel(bool enabled, const ui::Theme& theme) {
+		if (enabled == labelEnabled) {
+			return;
+		}
+		labelEnabled = enabled;
+		if (ui::Text* shown = text.get()) {
+			shown->setStyle(enabled ? enabledStyle : enabledStyle.extend({.color = theme.get(palette::ink)}));
 		}
 	}
 

@@ -44,6 +44,7 @@ namespace game::atlas {
 	  private:
 		// The lift or the press as a transform, so the label moves with the face; a key press shows it too.
 		void settle();
+		void syncLabel(bool enabled, const ui::Theme& theme);
 
 		std::string			  label;
 		Road				  road;
@@ -51,6 +52,8 @@ namespace game::atlas {
 		bool				  compact;
 		std::function<void()> onPress;
 		ui::Ref<ui::Text>	  text;
+		ui::Style			  enabledStyle;
+		bool				  labelEnabled = true;
 	};
 
 } // namespace game::atlas
