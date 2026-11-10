@@ -212,7 +212,7 @@ namespace game {
 				if (route.next >= static_cast<int>(route.stops.size())) {
 					return route.objective ? "the road home" : poiName();
 				}
-				return "stop " + std::to_string(route.next + 1) + " of " + std::to_string(route.stops.size());
+				return "stop " + std::to_string(route.next + 1) + " of " + std::to_string(route.stops.size() + 1);
 			}
 
 			[[nodiscard]] const rules::map::Stop* stopHere() const {
@@ -586,16 +586,7 @@ namespace game {
 					);
 				}
 				const bool atPoi = pastStops && !route.objective;
-				line(
-					"objective",
-					destination && !destination->glyph.empty() ? destination->glyph : "*",
-					poiName(),
-					route.objective ? "LOOTED"
-					: atPoi			? "HERE"
-									: "",
-					route.objective,
-					atPoi
-				);
+				line("objective", "*", poiName(), route.objective ? "TAKEN" : atPoi ? "HERE" : "", route.objective, atPoi);
 				const bool homeward = pastStops && route.objective;
 				line("home", "", "Home", homeward ? (next == Ahead::Fight ? "AMBUSH" : "NEXT") : "", false, homeward);
 				box.addChild<ui::Text>({
@@ -648,8 +639,7 @@ namespace game {
 						act([this](Campaign& played, const Session& on) {
 							const rules::campaign::ObjectiveTaken taken =
 								rules::campaign::takeObjective(played, game().rules.campaign, on.layers());
-							notice = "Loaded " + amountsText(taken.yields) + "." +
-									 (taken.ambush ? " Raiders wait on the road home." : " The road home looks clear.");
+							notice = "Loaded " + amountsText(taken.yields) + "." + (taken.ambush ? " Raiders wait on the road home." : "");
 						});
 						return;
 					case Ahead::Home:
