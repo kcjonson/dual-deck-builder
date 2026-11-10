@@ -379,9 +379,11 @@ namespace game::testing {
 				return lintAt(1280, 800) + lintAt(1440, 900) + lintAt(1920, 1080);
 			};
 			EXPECT_EQ(three(), "") << "planning";
-			key(foundation::Key::L);
+			ASSERT_TRUE(press("log_toggle"));
+			ASSERT_NE(find("log"), nullptr);
 			EXPECT_EQ(three(), "") << "with the log open";
-			key(foundation::Key::L);
+			ASSERT_TRUE(press("log_toggle"));
+			ASSERT_EQ(find("log"), nullptr);
 			ASSERT_TRUE(press("menu"));
 			EXPECT_EQ(three(), "") << "with the menu open";
 			ASSERT_TRUE(press("menu_resume"));

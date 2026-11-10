@@ -180,8 +180,10 @@ namespace game {
 			.onDragEnd = [this](const battle::HandCard& /*card*/, bool /*dropped*/) { dragged.reset(); },
 			.onLeave = [this] { leave(); },
 		});
-		log = root.addChild<battle::LogDrawer>({.id = "log", .visible = false});
-		banner = root.addChild<battle::TurnBanner>({.id = "banner"});
+		// The drawer lies over the right of the road (Battle Screen Design 6) rather than narrowing it, since a road 320 px
+		// narrower puts the tokens under x1 below 1920 wide. The banner crosses both.
+		log = root.addChild<battle::LogDrawer>({.id = "log", .visible = false, .zIndex = 1});
+		banner = root.addChild<battle::TurnBanner>({.id = "banner", .zIndex = 2});
 		layOut();
 	}
 
