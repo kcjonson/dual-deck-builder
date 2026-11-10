@@ -71,6 +71,9 @@ namespace game {
 		const rules::Content&				  content
 	);
 
+	// A status as a player reads it: "Speed boost", from the rules' own name for it.
+	[[nodiscard]] std::string statusName(rules::Status status);
+
 	// A card by its pack name, "Ram (2)" with its adrenaline cost.
 	[[nodiscard]] std::string cardText(const rules::Content& content, const rules::CardId& card);
 

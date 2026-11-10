@@ -444,9 +444,10 @@ namespace game {
 	std::string BattleScene::actionText(const Action& action) const {
 		if (const auto* play = std::get_if<rules::action::PlayCard>(&action)) {
 			const rules::BattleDriver& driver = fight.state.driver(play->driver);
+			const std::string		   where = playText(fight.state, game().rules.content, *play, seats);
 			return fighterName(fight.state, game().rules.content, play->driver, seats) + " plays " +
-				   game().rules.content.cards.at(driver.hand[static_cast<size_t>(play->handIndex)].card).name + " " +
-				   playText(fight.state, game().rules.content, *play, seats);
+				   game().rules.content.cards.at(driver.hand[static_cast<size_t>(play->handIndex)].card).name +
+				   (where.empty() ? "" : " " + where);
 		}
 		return "End the turn";
 	}

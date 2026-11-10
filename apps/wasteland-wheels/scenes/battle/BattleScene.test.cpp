@@ -310,6 +310,17 @@ namespace game::testing {
 			EXPECT_EQ(enabled("menu"), !battle.current().state.outcome);
 		}
 
+		TEST_F(Battle, TheDevActionLabelsEndAtTheirTargetNotAtPlayIt) {
+			open(1);
+			const auto labels = nlohmann::json::parse(scene().exportState())["actions"];
+			ASSERT_FALSE(labels.empty());
+			for (const auto& label : labels) {
+				const std::string text = label.get<std::string>();
+				EXPECT_EQ(text.find("play it"), std::string::npos) << text;
+				EXPECT_NE(text.back(), ' ') << text;
+			}
+		}
+
 		TEST_F(Battle, TheLogOpensOnTheMatchup) {
 			open(1);
 			const battle::LogDrawer* log = logDrawer();
