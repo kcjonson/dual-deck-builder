@@ -36,13 +36,14 @@ namespace game::road {
 		constexpr float			   kPlateWidth = VehicleToken::kWidth - kPlateX;
 		constexpr float			   kPlateHeight = 68.0F;
 		constexpr float			   kPassengerRow = 18.0F;
-		constexpr float			   kPadY = 5.0F;
+		constexpr float			   kPadY = 3.0F;
 		constexpr float			   kPadRight = 6.0F;
 		constexpr float			   kPadLeft = 6.0F;
 		constexpr float			   kPadLeftStriped = 9.0F;
 		constexpr float			   kStripe = 3.0F;
-		constexpr float			   kRowGap = 4.0F;
-		constexpr float			   kNameRow = 16.0F;
+		constexpr float			   kRowGap = 2.0F;
+		constexpr float			   kNameRow = 15.0F;
+		constexpr float			   kVehicleRow = 10.0F;
 		constexpr float			   kMarkSize = 12.0F;
 		constexpr float			   kStructureRow = 18.0F;
 		constexpr float			   kStructureBar = 16.0F;
@@ -57,6 +58,7 @@ namespace game::road {
 		constexpr float			   kNameSize = 15.0F;
 		constexpr float			   kValueSize = 12.0F;
 		constexpr float			   kChipSize = 9.0F;
+		constexpr float			   kVehicleSize = 9.0F;
 		constexpr float			   kStampSize = 18.0F;
 		constexpr float			   kStampCentreX = 130.0F;
 		constexpr float			   kStampTop = 44.0F;
@@ -251,11 +253,11 @@ namespace game::road {
 	}
 
 	float VehicleToken::passengerRowY() {
-		return kPlateY + kPadY + kNameRow + kRowGap + kStructureRow + kRowGap + kHpRow + kRowGap;
+		return kPlateY + kPadY + kNameRow + kVehicleRow + kRowGap + kStructureRow + kRowGap + kHpRow + kRowGap;
 	}
 
-	float VehicleToken::titleRowBottom() {
-		return kPlateY + kPadY + kNameRow;
+	Foundation::Rect VehicleToken::spriteRect() {
+		return kSprite;
 	}
 
 	float VehicleToken::inkExtent() const {
@@ -316,6 +318,7 @@ namespace game::road {
 
 	void VehicleToken::describe(nlohmann::json& node) const {
 		node["name"] = token.name;
+		node["vehicle"] = token.vehicle;
 		node["art"] = artFor(token.vehicleClass);
 		node["structure"] = meterText(token.structure);
 		node["armor"] = token.armor;
@@ -497,21 +500,35 @@ namespace game::road {
 			mark = *token.seat == 0 ? TargetMark::Triangle : TargetMark::Diamond;
 		}
 		const float nameRoom = right - left - (mark ? kMarkSize + 5.0F : 0.0F);
+		const bool	twoLines = !token.vehicle.empty();
+		// One title centres in the two lines' block so the bars below sit at the same height on every plate.
+		const float titleY = twoLines ? y : y + kVehicleRow * 0.5F;
 		cards::drawWords({
 			.text = cards::fittedLine(token.name, fonts::kDisplayBold, kNameSize, nameRoom),
-			.at = {left, y},
+			.at = {left, titleY},
 			.face = fonts::kDisplayBold,
 			.size = kNameSize,
 			.color = wrecked ? kWreckText : kBone,
 			.boxHeight = kNameRow,
 			.key = key,
 		});
+		if (twoLines) {
+			cards::drawWords({
+				.text = cards::fittedLine(token.vehicle, fonts::kDisplayBold, kVehicleSize, right - left),
+				.at = {left, y + kNameRow},
+				.face = fonts::kDisplayBold,
+				.size = kVehicleSize,
+				.color = wrecked ? kWreckText : kSpeedText,
+				.boxHeight = kVehicleRow,
+				.key = key,
+			});
+		}
 		if (mark) {
 			const Foundation::Color color =
 				wrecked ? kWreckDim : (escort ? kEscortBone : cards::kDriverColors.at(static_cast<size_t>(*token.seat)));
-			drawMark(*mark, {right - kMarkSize * 0.5F, y + kNameRow * 0.5F}, kMarkSize, color, key);
+			drawMark(*mark, {right - kMarkSize * 0.5F, titleY + kNameRow * 0.5F}, kMarkSize, color, key);
 		}
-		y += kNameRow + kRowGap;
+		y += kNameRow + kVehicleRow + kRowGap;
 
 		// The armor shield with its value, beside the structure bar.
 		const float shieldHeight = kStructureRow;

@@ -69,7 +69,7 @@ Everything is laid out in logical pixels on a 1280x720 reference and scaled by o
 |---|---|---|
 | Intents (raiders) | 24 tall, full token width | icon, value, and a target mark; two pills, then "+N" |
 | Sprite | 60x40 | rear view, facing up the road; speed chevrons and number under it |
-| Plate | 132x68 | vehicle name (15px condensed, ellipsis, full name on hover), armor shield beside the structure bar, driver HP bar at the same weight as structure |
+| Plate | 132x68 | driver name (15px condensed, ellipsis, full name on hover) with the vehicle name under it in 9px (the smallest type the game uses); with no driver (an escort, an unmanned raider) the vehicle name is the title alone, armor shield beside the structure bar, driver HP bar at the same weight as structure |
 | Passenger row | +18 | only when a passenger rides along; token becomes 135 tall |
 | Statuses | 20 tall | five chips under the plate, then "+N" |
 
