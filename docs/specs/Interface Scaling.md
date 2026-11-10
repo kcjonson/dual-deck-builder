@@ -39,13 +39,15 @@ The scale follows the window, not the display's DPI. A Retina Mac, a 150% Window
 
 ## The frame
 
-A scene's content lays out in a frame: the canvas, clamped to an aspect between 4:3 and 2.4:1 and centred. Inside those aspects the frame is the whole canvas. Outside them the scene's background (the table under the atlas sheets, the road under the battle) still fills the window, and the content sits in the frame with the background showing either side, or above and below.
+The scale sets how small the canvas can be. The frame sets how large this game's content can get. Past a point the interface doesn't gain room, it comes apart: columns drift away from each other, a hand fans across half a monitor, and a page reads as islands. So a scene's content lays out in a frame, the canvas clamped to at most `1728 x 960` and centred. Inside that the frame is the whole canvas. Beyond it the scene's background (the table under the atlas sheets, the road under the battle) still fills the window, and the content sits in the frame with the background showing either side, or above and below.
 
-So every scene's content sees a size between `1280 x 720` and the frame's largest, which at 80% is `2160 x 900` wide and `1600 x 1200` tall. Those corners are what a scene is designed for and tested at (Checks, below); nothing outside them is a size a scene can be given.
+At 100% one axis of the canvas is always at the reference, so the frame's largest size works out to aspects between 4:3 and 2.4:1: every common monitor up to 3440 x 1440 fills, and only super-ultrawides and near-square windows show background. Below 100% the canvas grows on both axes, and the frame keeps it from spreading further.
+
+So every scene's content sees a size between `1280 x 720` and `1728 x 960`. That range is what a scene is designed for and tested at (Checks, below); nothing outside it is a size a scene can be given.
 
 Overlays (dialogs, the card detail, menus) lay out against the frame too, so a dialog never centres over a pillarbox.
 
-Every scene in this game opts into the frame. The frame itself is salal's, opt-in per scene (Engine work, below), since a game whose world fills the window would anchor its HUD to the window instead.
+Every scene in this game opts into the frame. A game whose play area stretches as far as the window goes, a world map under a HUD, wants the scale's minimum and no maximum, so the frame is salal's and opt-in per scene (Engine work, below).
 
 ## Display settings
 
@@ -92,7 +94,7 @@ The battle's bands ([Battle Screen Design](./Battle%20Screen%20Design.md), Scree
 
 ## Checks
 
-The game's headless tests check every scene at the frame's corners and the sizes between that players have, `1280 x 720`, `1280 x 800`, `1280 x 960`, `1728 x 720`, `1600 x 1200` and `2160 x 900`, in the states that fill it most (a full hand, a full roster, the longest names):
+The game's headless tests check every scene at the frame's reachable corners and the sizes players have most, `1280 x 720`, `1280 x 800`, `1280 x 960`, `1600 x 900`, `1728 x 720`, `1728 x 900` and `1600 x 960`, in the states that fill it most (a full hand, a full roster, the longest names). The canvas can't be past both `1600` wide and `900` high at once, so `1728 x 960` itself never happens.
 
 - salal's layout lint is clean: no overlapping siblings, nothing outside its parent or the viewport, no text overflowing.
 - No scroller outside the lists above shows a bar.
@@ -102,13 +104,13 @@ No pixels, no screenshots. Each scene is laid out at a window size through the r
 
 ## Engine work
 
-The mechanism is salal's and the numbers are the game's. Another game needs the same thing with different numbers: worldsim plans a single UI scale against a 1600 x 1000 reference, with factors above 1, and a default picked from the window. So salal takes every piece below as a parameter, and this game passes 1280 x 720, 0.8, 1024 x 576, 4:3 to 2.4:1, and 80 to 100%.
+The mechanism is salal's and the numbers are the game's. Another game needs the same thing with different numbers: worldsim plans a single UI scale against a 1600 x 1000 reference, with factors above 1 and a default picked from the window, and its play area takes any aspect over its minimum, so it wants the scale without the frame. salal takes every piece below as a parameter, and this game passes 1280 x 720, 0.8, 1024 x 576, a 1728 x 960 frame, and 80 to 100%.
 
 salal has the scale, the logical viewport and the layout, and these pieces it doesn't:
 
 1. **The scale from the window.** The App computes `s` from a reference size, a floor and the player's factor, clamped to the game's range, on every resize, before the scenes hear of it, and keeps the factor, not `s`, as the setting.
 2. **A minimum window size**, set at create and kept by the window.
-3. **The frame.** A scene opts into a content area clamped to an aspect range and centred: its roots and its overlays lay out against the frame, and its background layer against the window.
+3. **The frame.** A scene opts into a content area with a maximum size, centred: its roots and its overlays lay out against the frame, and its background layer against the window. A scene that doesn't opt in lays out against the window.
 4. **An aspect ratio in layout**, so a box's height can follow its width or its width its height.
 5. **Text on whole pixels under a scale.** Text is snapped to device pixels only under a translation today; under the interface's scale (anything but 100% at 1280 x 720) it isn't, and its edges soften.
 6. **A headless helper that lays a scene out at a window size** through the App's scale and frame, and lints it, for a game's tests. The game's `lintAt` moves there.
@@ -121,6 +123,6 @@ The game keeps the numbers, which scenes use the frame, how each piece of art ke
 
 1. The reference, `1280 x 720`. Proposed because it's 16:9, the battle was designed on it, and at 1920 x 1080 it gives 1.5 with rules text at 18 px.
 2. The floor, 0.8, and with it the smallest window, `1024 x 576`.
-3. The frame's aspects, 4:3 to 2.4:1. Proposed so the widest common monitors (3440 x 1440, 2560 x 1080) fill and only super-ultrawides pillarbox.
+3. The frame's largest size, `1728 x 960`: how spread out the interface may get before it pillarboxes. Proposed so the widest common monitors (3440 x 1440, 2560 x 1080) fill and only super-ultrawides and near-square windows show background. It could differ per scene (the map pages may hold together wider than a result page); proposed one size for all until a scene shows it needs its own.
 4. The interface sizes, 100, 90 and 80%. A player who wants larger text on a small window can't have it under this scheme; a text size setting would be its own thing.
 5. Window size presets in Settings. Proposed: none; the window is resized by dragging and comes back at its size.

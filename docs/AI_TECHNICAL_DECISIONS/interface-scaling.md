@@ -16,24 +16,24 @@ The battle's spec already had the answer for one scene, `s = min(W/1280, H/720)`
 1. **A fixed virtual resolution, letterboxed.** Every scene lays out at 1280x720 and the whole picture scales to fit the window with bars. One layout and nothing ever overflows, but a 16:10 MacBook gets bars top and bottom, an ultrawide gets wide ones, a 4:3 window wastes a quarter of itself, and salal has none of it, so the game would build render-target scaling to get worse use of the screen.
 2. **Fully dynamic layout (what the game has).** Fills any window, but every scene has to be right at every size, which is the bug list. The test surface is unbounded.
 3. **A resolution picker.** A list of video modes for fullscreen, with the game rendering at the one picked. The art is vector and the text MSDF, so a lower resolution buys only GPU headroom a 2D game doesn't need, and it says nothing about layout: the scenes would still meet every logical size. salal has no mode list either.
-4. **One scale from the window over a bounded canvas (chosen).** The scale is computed from the window so the logical canvas is never smaller than 1280x720, the content's frame is clamped to aspects between 4:3 and 2.4:1, and the player gets a factor of 100, 90 or 80% on top. Layout stays dynamic, but within a short, known range of sizes.
+4. **One scale from the window over a bounded canvas (chosen).** The scale is computed from the window so the logical canvas is never smaller than 1280x720, the content's frame is capped at 1728x960 so it never spreads past where it holds together, and the player gets a factor of 100, 90 or 80% on top. Layout stays dynamic, but within a short, known range of sizes.
 
 ## Decision
 
 [Interface Scaling](../specs/Interface%20Scaling.md) is the spec. In short:
 
 - `s = max(0.8, min(W/1280, H/720) x f)`, with `f` the player's interface size (100, 90 or 80%), recomputed on every resize before the scenes lay out. The window's minimum is 1024x576, so the canvas is never smaller than 1280x720.
-- Each scene's content lays out in a frame, the canvas clamped to 4:3 to 2.4:1 and centred; backgrounds fill the window. Overlays lay out against the frame.
+- Each scene's content lays out in a frame, the canvas capped at 1728x960 and centred; backgrounds fill the window. Overlays lay out against the frame. At 100% that cap means every aspect from 4:3 to 2.4:1 fills.
 - No resolution setting. Fullscreen stays borderless at the monitor's mode.
 - Art with a shape keeps it: a ratio box, and a drawing scaled by one number, contained or covering, never mapped per axis. Cards stay at fixed px and never shrink.
 - Scene bodies never scroll; only lists do.
 - Every scene is linted headless at the frame's corners, with checks that only lists show a scrollbar and fixed-shape art keeps its ratio.
 
-**Where it lives.** The mechanism is salal's and the numbers are the game's. Worldsim has the same problem: its `ui-scale-setting.md` measures its UI at about 40% of its mocks' size on a 3072x1728 window, and plans one scale against a 1600x1000 reference, 0.75 to 1.5x, with a default from the window as a later step. salal takes the reference, the floor, the factor's range, the minimum window and the frame's aspects as parameters, and builds:
+**Where it lives.** The mechanism is salal's and the numbers are the game's. Worldsim has the same problem: its `ui-scale-setting.md` measures its UI at about 40% of its mocks' size on a 3072x1728 window, and plans one scale against a 1600x1000 reference, 0.75 to 1.5x, with a default from the window as a later step. salal takes the reference, the floor, the factor's range, the minimum window and the frame's largest size as parameters, and builds:
 
 - the scale from the window, with the factor as the setting;
 - a minimum window size;
-- the frame, opt-in per scene, because worldsim's HUD anchors to the window over a world that fills it, while its menus would use the frame. salal's `app-api.md` left a fixed-aspect virtual resolution to the game until a second game wanted one; the frame is layout rather than a render target, and worldsim is the second game;
+- the frame, opt-in per scene. The two games want opposite things past the minimum: worldsim's play area stretches as far as the window goes, so it takes any aspect over its minimum size and wants no frame on its world (its menus might want one), while this game's interface comes apart when it's spread too far, so it caps it. salal's `app-api.md` left a fixed-aspect virtual resolution to the game until a second game wanted one; the frame is layout rather than a render target, and worldsim is the second game;
 - an aspect ratio in layout;
 - pixel-snapped text under a scale and translation;
 - no scrollbar for overflow under a pixel;
@@ -43,7 +43,7 @@ The game keeps its numbers, which scenes use the frame, how each piece of art ke
 
 ## Rationale
 
-Bounding the canvas is what fixes the three faults at once. With the canvas at least 1280x720, the fixed columns, the 560 px boxes and the road's 456 px floor always fit, so the scrolling bodies that guarded against small windows can go. With the frame's aspect bounded, a ratio box can't be pushed out of its column by a window that's very tall or very wide. And the test surface becomes six sizes instead of all of them, which the headless tests can cover on every scene.
+Bounding the canvas is what fixes the three faults at once. With the canvas at least 1280x720, the fixed columns, the 560 px boxes and the road's 456 px floor always fit, so the scrolling bodies that guarded against small windows can go. With the frame capped, the interface can't spread until it reads as islands, and a ratio box can't be pushed out of its column by a window that's very tall or very wide. And the test surface becomes seven sizes instead of all of them, which the headless tests can cover on every scene.
 
 Keeping layout dynamic inside the bound uses the whole screen on 16:10 and ultrawide monitors, which a letterbox wastes, and the scale following the window rather than the display's DPI means a Retina Mac and a 150% Windows display get the same canvas, so DPI is the renderer's business and never a scene's.
 
