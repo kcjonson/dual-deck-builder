@@ -46,7 +46,7 @@ How a card is aimed:
 
 **The dark theme.** The game's tokens are one resolver with two modes ([theme-tokens.md](./theme-tokens.md)): the palettes, faces and print styles are a set every mode shares, and each mode points ui's semantic roles at one palette, the atlas's for the meta scenes and the battle mock's for this scene (UI Art Direction, Building it: combat keeps the dark theme until its own pass).
 
-**Layout.** The scene lays out in the ui's logical px as every other scene does, and the ui's scale setting is its scale: the spec's own `s` would have scaled the battle and nothing else. Spare height goes to the rows and spare width to the slots, with the stage capped at 1600 and the road's art bleeding to the window's edges. The log drawer lies over the right of the road, layered above it, and doesn't narrow it: a road 320 px narrower puts the tokens under x1 at any width below 1920.
+**Layout.** The scene lays out in the ui's logical px as every other scene does, and the interface's one scale is its scale ([interface-scaling.md](./interface-scaling.md)): the spec's `s` became that scale for every scene rather than the battle's own. Spare height goes to the rows and spare width to the slots, with the stage capped at 1600 and the road's art bleeding to the window's edges. The log drawer lies over the right of the road, layered above it, and doesn't narrow it: a road 320 px narrower puts the tokens under x1 at any width below 1920.
 
 ## Rationale
 

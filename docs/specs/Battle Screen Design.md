@@ -45,9 +45,7 @@ Inside to inside on the same row is 1, a flanker to their inside lane is 2 (the 
 
 ## 2. Screen bands
 
-Everything is laid out in logical pixels on a 1280x720 reference and scaled by one number:
-
-`s = min(W / 1280, H / 720)`, floored at 0.8. The logical canvas is `W/s x H/s`, never smaller than 1280x720, and one axis always grows.
+Everything is laid out in logical pixels and scaled by the interface's one scale ([Interface Scaling](./Interface%20Scaling.md)): `s = max(0.8, min(W / 1280, H / 720) x f)`, so the frame the battle lays out in is never smaller than 1280x720, and one axis always grows.
 
 | Band | Height (logical) | Contents |
 |---|---|---|
@@ -57,8 +55,8 @@ Everything is laid out in logical pixels on a 1280x720 reference and scaled by o
 
 - The stage caps at 1600 logical wide and centres. On 21:9 the road art runs to the screen edges, the UI does not.
 - At 1280x720 each slot is 205x141. Spare height goes to the rows, spare width to the slots, and vehicle tokens scale up to x1.25 to fill them. Tokens never scale below x1; a layout that would force that is a failure.
-- Below s 0.8 (phone landscape) needs its own compact layout, which this document doesn't cover.
-- Rules text on the card face is 12 logical, which is 18px at 1920x1080 (the Xbox accessibility guideline's PC minimum) and 9.6px at the 1024x768 floor.
+- The window can't be smaller than 1024x576, where s reaches its 0.8 floor; a phone-sized compact layout isn't covered.
+- Rules text on the card face is 12 logical, which is 18px at 1920x1080 (the Xbox accessibility guideline's PC minimum) and 9.6px at the floor.
 - One layout function computes all of this, on mount and on resize alike.
 
 ## 3. Vehicle token
