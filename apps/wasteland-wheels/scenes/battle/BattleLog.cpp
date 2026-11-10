@@ -61,14 +61,6 @@ namespace game::battle {
 			return kLineText;
 		}
 
-		// "Speed boost", from the rules' own name for it.
-		std::string statusName(rules::Status status) {
-			std::string name(nameOf(rules::kStatusNames, status));
-			std::ranges::replace(name, '_', ' ');
-			name.front() = static_cast<char>(std::toupper(static_cast<unsigned char>(name.front())));
-			return name;
-		}
-
 		std::string turnsText(int turns) {
 			return std::to_string(turns) + (turns == 1 ? " turn" : " turns");
 		}

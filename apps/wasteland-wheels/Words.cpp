@@ -207,6 +207,13 @@ namespace game {
 		return "Can't be taken";
 	}
 
+	std::string statusName(rules::Status status) {
+		std::string name(nameOf(rules::kStatusNames, status));
+		std::ranges::replace(name, '_', ' ');
+		name.front() = static_cast<char>(std::toupper(static_cast<unsigned char>(name.front())));
+		return name;
+	}
+
 	std::string cardText(const rules::Content& content, const rules::CardId& card) {
 		const rules::CardDefinition& definition = content.cards.at(card);
 		return definition.name + " (" + std::to_string(definition.cost) + ")";
@@ -243,7 +250,22 @@ namespace game {
 			const auto seat = static_cast<size_t>(driver.value);
 			return seat < seats.size() ? seats[seat] : rules::campaign::archetypeTitle(content, *archetype);
 		}
-		return content.opponents.at(std::get<rules::OpponentId>(fighter.profile)).name;
+		// A raider is numbered by its place among its kind in the fight, dead ones included, so a number outlives a
+		// death and a later wave takes the next one. A lone raider goes without.
+		const auto& kind = std::get<rules::OpponentId>(fighter.profile);
+		int			ordinal = 0;
+		int			kinds = 0;
+		for (int index = 0; index < static_cast<int>(state.drivers.size()); ++index) {
+			const auto* other = std::get_if<rules::OpponentId>(&state.drivers[static_cast<size_t>(index)].profile);
+			if (other != nullptr && *other == kind) {
+				++kinds;
+				if (index <= driver.value) {
+					ordinal = kinds;
+				}
+			}
+		}
+		const std::string& name = content.opponents.at(kind).name;
+		return kinds > 1 ? name + " " + std::to_string(ordinal) : name;
 	}
 
 	std::string vehicleName(
@@ -279,7 +301,7 @@ namespace game {
 			text += (text.empty() ? "to " : ", to ") + laneName(play.destination->lane) + ", " +
 					std::string(nameOf(rules::kRowNames, play.destination->row));
 		}
-		return text.empty() ? "play it" : text;
+		return text;
 	}
 
 	std::string intentText(
@@ -318,7 +340,7 @@ namespace game {
 				break;
 		}
 		for (const rules::Status status : intent.statuses) {
-			text += ", " + std::string(nameOf(rules::kStatusNames, status));
+			text += ", " + statusName(status);
 		}
 		if (intent.area) {
 			text += " on everyone";
