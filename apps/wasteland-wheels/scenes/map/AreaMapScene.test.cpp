@@ -1,5 +1,4 @@
-// The area map and the run route in the atlas: each lints 0 at the sizes the game opens at and at 150% ui scale, where
-// the body scrolls rather than squeezing its heading and primary (DDB-602); a destination chosen by its row or its
+// The area map and the run route in the atlas: each lints 0 on every canvas; a destination chosen by its row or its
 // marker fills its box; Plan a run here opens its run route, whose cards pick a route; and Load out the crew goes to load
 // out on it, or is off with the reason while the stores can't fuel it.
 
@@ -10,10 +9,8 @@
 #include "scenes/map/MapView.h"
 #include "scenes/map/Planning.h"
 
-#include <ui/debug/LayoutLint.h>
 #include <ui/shapes/Text.h>
 
-#include <sstream>
 #include <string>
 
 namespace {
@@ -54,45 +51,27 @@ namespace {
 			frame();
 		}
 
-		[[nodiscard]] std::string lintAt(int width, int height, float scale = 1.0F) {
-			app->setUiScale(scale);
-			platform->resize(width, height);
-			frame();
-			frame();
-			const float			 logicalWidth = static_cast<float>(width) / scale;
-			const float			 logicalHeight = static_cast<float>(height) / scale;
-			const ui::LintResult result = ui::lint(app->scenes().top()->ui(), {logicalWidth, logicalHeight});
-			std::ostringstream	 found;
-			for (const ui::LintViolation& violation : result.violations) {
-				const Foundation::Rect& box = violation.bounds;
-				found << ui::lintRuleName(violation.rule) << " " << violation.path << " at " << box.x << "," << box.y << " " << box.width
-					  << "x" << box.height << (violation.otherPath.empty() ? "" : " against " + violation.otherPath) << "\n";
-			}
-			return found.str();
-		}
-
 		[[nodiscard]] std::string textOf(std::string_view id) {
 			const auto* text = dynamic_cast<const ui::Text*>(find(id));
 			return text != nullptr ? text->getText() : "";
 		}
 
 		void clickAt(Foundation::Vec2 at) {
-			platform->push({.type = foundation::InputEvent::Type::PointerMove, .position = at});
+			platform->push({.type = foundation::InputEvent::Type::PointerMove, .position = inWindow(at)});
 			platform->push(
-				{.type = foundation::InputEvent::Type::PointerDown, .mouseButton = foundation::MouseButton::Left, .position = at}
+				{.type = foundation::InputEvent::Type::PointerDown, .mouseButton = foundation::MouseButton::Left, .position = inWindow(at)}
 			);
-			platform->push({.type = foundation::InputEvent::Type::PointerUp, .mouseButton = foundation::MouseButton::Left, .position = at});
+			platform->push(
+				{.type = foundation::InputEvent::Type::PointerUp, .mouseButton = foundation::MouseButton::Left, .position = inWindow(at)}
+			);
 			frame();
 		}
 	};
 
-	TEST_F(AreaMap, ItLintsZeroAtEverySizeAndScrollsItsBodyAt150Percent) {
+	TEST_F(AreaMap, ItLintsZeroOnEveryCanvas) {
 		foundAndOpen();
 		EXPECT_FALSE(state()["pois"].empty());
-		EXPECT_EQ(lintAt(1280, 800), "");
-		EXPECT_EQ(lintAt(1440, 900), "");
-		EXPECT_EQ(lintAt(1920, 1080), "");
-		EXPECT_EQ(lintAt(1280, 800, 1.5F), "");
+		EXPECT_EQ(lintCanvases(), "");
 	}
 
 	TEST_F(AreaMap, ItShowsTheCampaignsFuelBesideTheDay) {
@@ -129,9 +108,7 @@ namespace {
 		ASSERT_TRUE(press("plan_here"));
 		ASSERT_EQ(top(), "run_route");
 		EXPECT_EQ(state()["poi"], poi);
-		EXPECT_EQ(lintAt(1280, 800, 1.5F), "");
-		EXPECT_EQ(lintAt(1920, 1080), "");
-		EXPECT_EQ(lintAt(1280, 800), "");
+		EXPECT_EQ(lintCanvases(), "");
 
 		ASSERT_TRUE(press("back_to_map"));
 		ASSERT_EQ(top(), scenes::kAreaMap);
@@ -206,9 +183,7 @@ namespace {
 				EXPECT_EQ(find(id), nullptr) << "an unknown stop has no type to tag";
 			}
 		}
-		EXPECT_EQ(lintAt(1280, 800), "");
-		EXPECT_EQ(lintAt(1440, 900), "");
-		EXPECT_EQ(lintAt(1920, 1080), "");
+		EXPECT_EQ(lintCanvases(), "");
 		EXPECT_EQ(stopTag(rules::map::StopType::Ambush), "FIGHT");
 		EXPECT_EQ(stopTag(rules::map::StopType::Wreck), "WRECK");
 		EXPECT_EQ(stopTag(rules::map::StopType::Distress), "DISTRESS");

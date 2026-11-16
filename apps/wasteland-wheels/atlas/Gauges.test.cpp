@@ -93,7 +93,7 @@ namespace {
 			row.addChild<atlas::Marker>({.id = "home", .kind = atlas::MarkerKind::Star, .extent = 22.0F});
 			row.addChild<atlas::Marker>({.id = "gone", .kind = atlas::MarkerKind::Circled, .text = "C", .faded = true});
 		});
-		EXPECT_EQ(lintAt(1280, 800), "");
+		EXPECT_EQ(lintCanvases(), "");
 		EXPECT_EQ(find("scale")->getSize(), (Foundation::Vec2{160.0F, 8.0F}));
 		EXPECT_EQ(find("loader")->getSize(), (Foundation::Vec2{240.0F, 12.0F}));
 		EXPECT_EQ(find("hp_a")->getSize(), (Foundation::Vec2{160.0F, 12.0F}));
@@ -103,8 +103,6 @@ namespace {
 		EXPECT_FLOAT_EQ(cased->fillWidth(), (220.0F - 6.0F) * 0.35F);
 		EXPECT_EQ(find("day")->getSize(), (Foundation::Vec2{31.0F, 38.0F}));
 		EXPECT_EQ(find("home")->getSize(), (Foundation::Vec2{22.0F, 22.0F}));
-		EXPECT_EQ(lintAt(1440, 900), "");
-		EXPECT_EQ(lintAt(1920, 1080), "");
 	}
 
 } // namespace

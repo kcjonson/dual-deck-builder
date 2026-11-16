@@ -6,16 +6,16 @@
 
 namespace game::road {
 
-	Bands bandsFor(Foundation::Vec2 window) {
-		const float stageWidth = std::min(window.x, kStageMaxWidth);
-		const float left = (window.x - stageWidth) * 0.5F;
-		const float roadHeight = window.y - kTopBarHeight - kDockHeight;
+	Bands bandsFor(Foundation::Vec2 frame, float pastFrame) {
+		const float stageWidth = std::min(frame.x, kStageMaxWidth);
+		const float left = (frame.x - stageWidth) * 0.5F;
+		const float roadHeight = frame.y - kTopBarHeight - kDockHeight;
 		return {
-			.stage = {left, 0.0F, stageWidth, window.y},
+			.stage = {left, 0.0F, stageWidth, frame.y},
 			.topBar = {left, 0.0F, stageWidth, kTopBarHeight},
 			.road = {left, kTopBarHeight, stageWidth, roadHeight},
-			.dock = {left, window.y - kDockHeight, stageWidth, kDockHeight},
-			.bleed = left,
+			.dock = {left, frame.y - kDockHeight, stageWidth, kDockHeight},
+			.bleed = left + pastFrame,
 		};
 	}
 

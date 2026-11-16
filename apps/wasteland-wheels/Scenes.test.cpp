@@ -10,7 +10,10 @@
 #include <rules/campaign/SupplyRun.h>
 #include <rules/map/RouteOffers.h>
 
+#include <ui/components/SegmentedControl.h>
+
 #include <algorithm>
+#include <array>
 #include <fstream>
 #include <optional>
 #include <string>
@@ -161,6 +164,55 @@ namespace {
 		ASSERT_TRUE(press("vsync"));
 		EXPECT_FALSE(platform->vsync());
 		EXPECT_EQ(nlohmann::json::parse(std::ifstream(dir.path() / "settings.json"))["video"]["vsync"], false);
+	}
+
+	TEST_F(Scenes, AnInterfaceSizeAppliesAtOnceAndIsSaved) {
+		start();
+		go(scenes::kSettings);
+		EXPECT_FLOAT_EQ(state()["interfaceSize"].get<float>(), 1.0F);
+		const std::array<float, 5> sizes{0.8F, 0.9F, 1.0F, 1.1F, 1.2F};
+		for (const int index : {4, 0, 3}) {
+			auto* control = dynamic_cast<ui::SegmentedControl*>(find("interface_size"));
+			ASSERT_NE(control, nullptr);
+			control->choose(index);
+			frame();
+			const float size = sizes.at(static_cast<size_t>(index));
+			EXPECT_FLOAT_EQ(app->uiScale(), size);
+			EXPECT_FLOAT_EQ(nlohmann::json::parse(std::ifstream(dir.path() / "settings.json"))["ui"]["scale"].get<float>(), size);
+			// The 1920x1080 window's canvas is 1920 x 1080 over the size, 2400 x 1350 at most, inside the cap, so the frame is all of it.
+			const ui::Context& context = app->scenes().top()->ui();
+			EXPECT_NEAR(context.getCanvas().x, 1920.0F / size, 0.01F) << size;
+			EXPECT_NEAR(context.getCanvas().y, 1080.0F / size, 0.01F) << size;
+			EXPECT_EQ(context.getViewport(), context.getCanvas()) << size;
+		}
+		app.reset();
+		start();
+		EXPECT_FLOAT_EQ(app->uiScale(), 1.1F) << "it comes back at the next launch";
+	}
+
+	TEST_F(Scenes, EveryNamedSceneIsFramedOverABackgroundThatCoversTheWindow) {
+		start(fixtureMakers(), true);
+		found();
+		(void)lintOn(kPastTheFrame);
+		for (const char* name :
+			 {scenes::kSplash,
+			  scenes::kMainMenu,
+			  scenes::kSettings,
+			  scenes::kCredits,
+			  scenes::kCampaignHistory,
+			  scenes::kFounding,
+			  scenes::kLoading,
+			  scenes::kCompound,
+			  scenes::kAreaMap,
+			  scenes::kCrew,
+			  scenes::kRun,
+			  scenes::kCampaignEnd,
+			  scenes::kArtGallery,
+			  scenes::kCardShowcase}) {
+			go(name);
+			EXPECT_EQ(top(), name);
+			EXPECT_EQ(backgroundCoversWindow(), "") << name;
+		}
 	}
 
 	// The route to a destination found on the map with a fight on it that meets the fewest stops, so the run is short and

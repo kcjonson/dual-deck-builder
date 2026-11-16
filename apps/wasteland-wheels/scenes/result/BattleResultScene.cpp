@@ -3,6 +3,7 @@
 #include "Words.h"
 #include "atlas/AtlasTheme.h"
 #include "atlas/Icons.h"
+#include "atlas/Sheet.h"
 #include "scenes/result/ResultPage.h"
 
 #include <rules/campaign/Infirmary.h>
@@ -28,6 +29,10 @@ namespace game {
 
 	const ui::Theme& BattleResultScene::sceneTheme() const {
 		return atlas::theme();
+	}
+
+	void BattleResultScene::background(ui::Ref<ui::Component> layer) {
+		atlas::layTable(layer);
 	}
 
 	void BattleResultScene::enter() {

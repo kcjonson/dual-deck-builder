@@ -2,6 +2,7 @@
 
 #include "Words.h"
 #include "atlas/AtlasTheme.h"
+#include "atlas/Sheet.h"
 #include "atlas/Tokens.h"
 
 #include <rules/campaign/Founding.h>
@@ -27,6 +28,10 @@ namespace game {
 
 	const ui::Theme& FoundingScene::sceneTheme() const {
 		return atlas::theme();
+	}
+
+	void FoundingScene::background(ui::Ref<ui::Component> layer) {
+		atlas::layTable(layer);
 	}
 
 	void FoundingScene::enter() {

@@ -33,6 +33,7 @@ namespace game {
 
 	  protected:
 		const ui::Theme& sceneTheme() const override;
+		void			 background(ui::Ref<ui::Component> layer) override;
 		void			 enter() override;
 
 	  private:

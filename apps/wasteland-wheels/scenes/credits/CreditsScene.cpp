@@ -2,6 +2,7 @@
 // once it outgrows the room the title leaves, Page Up and Page Down included. It has no primary action, so no highway;
 // the tabs go back to the menu, as Escape does.
 
+#include "atlas/Sheet.h"
 #include "scenes/credits/Credits.h"
 
 #include "atlas/AtlasTheme.h"
@@ -59,6 +60,8 @@ namespace game {
 
 		  protected:
 			const ui::Theme& sceneTheme() const override { return atlas::theme(); }
+
+			void background(ui::Ref<ui::Component> layer) override { atlas::layTable(layer); }
 
 			void enter() override {
 				const AtlasPage opened = openAtlasPage(

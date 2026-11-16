@@ -14,21 +14,29 @@
 namespace game {
 
 	// What every scene of the game shares: the App and the game's context from onEnter on, ui's font roles on the
-	// game's faces, the page it shows, and a clear in the theme's base surface under it.
+	// game's faces, the page it shows, a clear in the theme's base surface under it, and the frame (Interface Scaling):
+	// its content lays out in the frame and its background, which each scene names, fills the window.
 	template <typename A = app::NoArgs, typename R = app::NoResult>
 	class GameScene : public app::TypedScene<A, R> {
 	  public:
 		void onEnter(app::App& app) final {
 			owner = &app;
 			this->ui().setTheme(sceneTheme());
+			background(this->ui().background());
 			enter();
 		}
+
+		[[nodiscard]] bool framed() const final { return true; }
 
 		void render(float /*alpha*/) override { Renderer::Primitives::clear(this->ui().getTheme().get(ui::tokens::color::surface::base)); }
 
 	  protected:
 		// onEnter's work, with app() and game() there.
 		virtual void enter() = 0;
+
+		// What fills the window under the frame, laid into ui().background() before enter: the table under the sheets,
+		// the road's ground under the battle.
+		virtual void background(ui::Ref<ui::Component> layer) = 0;
 
 		// ui's tokens on the game's faces; a meta scene opts into the atlas (UI Art Direction, Building it).
 		[[nodiscard]] virtual const ui::Theme& sceneTheme() const { return fonts::theme(); }

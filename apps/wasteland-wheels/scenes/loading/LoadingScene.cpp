@@ -7,6 +7,7 @@
 #include "Words.h"
 #include "atlas/AtlasButton.h"
 #include "atlas/AtlasTheme.h"
+#include "atlas/Sheet.h"
 #include "scenes/AtlasPage.h"
 #include "scenes/GameScene.h"
 #include "scenes/founding/FoundingScene.h"
@@ -68,6 +69,8 @@ namespace game {
 
 		  protected:
 			const ui::Theme& sceneTheme() const override { return atlas::theme(); }
+
+			void background(ui::Ref<ui::Component> layer) override { atlas::layTable(layer); }
 
 			void enter() override {
 				std::optional<nlohmann::json> save = game().store.saveJson();

@@ -56,6 +56,10 @@ namespace game {
 		return atlas::theme();
 	}
 
+	void LoadOutScene::background(ui::Ref<ui::Component> layer) {
+		atlas::layTable(layer);
+	}
+
 	void LoadOutScene::enter() {
 		if (!ui().icons().has("food")) {
 			ui().icons().add(icons::iconAtlas());

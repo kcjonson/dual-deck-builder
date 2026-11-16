@@ -1,4 +1,4 @@
-// The run and the event scene in the atlas: every step a run meets lints 0 at the sizes the game opens at, the event's
+// The run and the event scene in the atlas: every step a run meets lints 0 on every canvas, the event's
 // choices and its outcome too; a reward's cards are cards; an event's locked choice says why in the kit's words, with
 // drivers named as the rest of the game names them; a choice is taken by its number key; Back to the road leaves the
 // event untaken; and a fight abandoned from the battle menu, or left in progress by a quit and continued, fails the run
@@ -95,8 +95,6 @@ namespace {
 			}
 		}
 
-		[[nodiscard]] std::string lintThree() { return lintAt(1280, 800) + lintAt(1440, 900) + lintAt(1920, 1080); }
-
 		[[nodiscard]] std::string textOf(std::string_view id) {
 			const auto* text = dynamic_cast<const ui::Text*>(find(id));
 			return text != nullptr ? text->getText() : "";
@@ -112,7 +110,7 @@ namespace {
 			for (int step = 0; step < 40 && top() == scenes::kRun; ++step) {
 				const std::string kind = state()["ahead"];
 				if (linted.insert(kind).second) {
-					EXPECT_EQ(lintThree(), "") << "the run at " << kind;
+					EXPECT_EQ(lintCanvases(), "") << "the run at " << kind;
 					EXPECT_EQ(textOf("title").find("POI"), std::string::npos) << textOf("title");
 					if (kind == "fight" || kind == "find" || kind == "event") {
 						const std::string kicker = textOf("step_kicker");
@@ -134,12 +132,12 @@ namespace {
 					ASSERT_TRUE(press("pull_over"));
 					ASSERT_EQ(top(), "event");
 					if (linted.insert("event_choices").second) {
-						EXPECT_EQ(lintThree(), "") << "the event's choices";
+						EXPECT_EQ(lintCanvases(), "") << "the event's choices";
 					}
 					ASSERT_TRUE(press("choice_" + openChoice()));
 					ASSERT_NE(find("event_go"), nullptr);
 					if (linted.insert("event_outcome").second) {
-						EXPECT_EQ(lintThree(), "") << "the event's outcome";
+						EXPECT_EQ(lintCanvases(), "") << "the event's outcome";
 					}
 					EXPECT_EQ(*context->store.status().campaign, played()) << "the choice is saved as it's taken";
 					ASSERT_TRUE(press("event_go"));
@@ -221,10 +219,10 @@ namespace {
 		const std::string warning = textOf("menu_body");
 		EXPECT_NE(warning.find("flee and go missing."), std::string::npos) << warning;
 		EXPECT_NE(warning.find("The day ends."), std::string::npos) << warning;
-		EXPECT_EQ(lintThree(), "") << "the battle with the menu open";
+		EXPECT_EQ(lintCanvases(), "") << "the battle with the menu open";
 		ASSERT_TRUE(press("menu_abandon"));
 		expectAbandoned(seats);
-		EXPECT_EQ(lintThree(), "") << "the abandoned run's debrief";
+		EXPECT_EQ(lintCanvases(), "") << "the abandoned run's debrief";
 	}
 
 	TEST_F(Abandon, ASaveWithAFightInProgressContinuesIntoItsAbandonment) {

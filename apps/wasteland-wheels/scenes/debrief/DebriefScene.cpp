@@ -4,6 +4,7 @@
 #include "atlas/AtlasTheme.h"
 #include "atlas/Icons.h"
 #include "atlas/ResourceStrip.h"
+#include "atlas/Sheet.h"
 #include "scenes/result/ResultPage.h"
 
 #include <rules/campaign/Recruits.h>
@@ -61,6 +62,10 @@ namespace game {
 
 	const ui::Theme& DebriefScene::sceneTheme() const {
 		return atlas::theme();
+	}
+
+	void DebriefScene::background(ui::Ref<ui::Component> layer) {
+		atlas::layTable(layer);
 	}
 
 	void DebriefScene::enter() {

@@ -1,4 +1,4 @@
-// The battle scene's bands laid out on their own (Battle Screen Design 2, 6 and 8): the top bar across 1280 to 1600, its
+// The battle scene's bands laid out on their own (Battle Screen Design 2, 6 and 8): the top bar on every canvas, its
 // ticker cut to one line and its LOG key toggling the drawer; the drawer keeping its last 100 lines with the newest at
 // the foot; and the turn banner holding its reading time, sliding under motion and not under reduced motion, and the
 // fight's end staying up. Each lints clean.
@@ -71,20 +71,24 @@ namespace {
 		bool				open = false;
 	};
 
-	TEST_F(BattleParts, TheTopBarFitsFrom1280To1600WithItsTickerOnOneLineAndLogTogglesTheDrawer) {
+	TEST_F(BattleParts, TheTopBarFitsEveryCanvasWithItsTickerOnOneLineAndLogTogglesTheDrawer) {
 		lay();
+		// Past anything the bar has room for, even 2600 px across.
 		const std::string longLine =
 			"Scavenger's vehicle plays Precision Shot at Road Warrior 1's vehicle, and it goes on well past anything the bar has room "
-			"for, past the turn and past the LOG key, so the ticker has to cut it short with an ellipsis rather than run over them.";
+			"for, past the turn and past the LOG key, so the ticker has to cut it short with an ellipsis rather than run over them, "
+			"and then it keeps going, through the scrap and the fuel and out the far side of the widest frame there is, because a "
+			"line from the rules can be as long as it likes and the bar is the one that has to hold its shape.";
 		bar.get()->show({.wave = 2, .waves = 3, .arriving = 3, .turn = 4, .raidersActing = true, .ticker = longLine});
-		for (const int width : {1280, 1440, 1600}) {
-			EXPECT_EQ(lintAt(width, 800), "") << width;
-			EXPECT_FLOAT_EQ(find("top")->getSize().y, TopBar::kHeight);
+		for (const Canvas& canvas : kCanvases) {
+			EXPECT_EQ(lintOn(canvas), "") << canvas.name;
+			EXPECT_FLOAT_EQ(find("top")->getSize().y, TopBar::kHeight) << canvas.name;
+			nlohmann::json ticker;
+			find("top_ticker")->describe(ticker);
+			EXPECT_EQ(ticker["text"], longLine);
+			EXPECT_TRUE(ticker["shown"].get<std::string>().ends_with("...")) << canvas.name << ": " << ticker["shown"];
 		}
-		nlohmann::json ticker;
-		find("top_ticker")->describe(ticker);
-		EXPECT_EQ(ticker["text"], longLine);
-		EXPECT_TRUE(ticker["shown"].get<std::string>().ends_with("...")) << ticker["shown"];
+		(void)lint();
 		EXPECT_TRUE(find("top_arriving") != nullptr) << "a wave still to come shows what's arriving";
 
 		bar.get()->show({.wave = 3, .waves = 3, .turn = 5, .ticker = "Your turn."});
@@ -97,7 +101,7 @@ namespace {
 		frame();
 		EXPECT_TRUE(dynamic_cast<ui::Control*>(find("log_toggle"))->isActive()) << "lit while the log is open";
 		EXPECT_NE(find("log"), nullptr);
-		EXPECT_EQ(lintAt(1280, 720), "");
+		EXPECT_EQ(lint(), "");
 	}
 
 	TEST_F(BattleParts, TheDrawerKeepsItsLastHundredLinesWrappedWithTheNewestAtTheFoot) {
@@ -124,7 +128,7 @@ namespace {
 		ASSERT_NE(scroll, nullptr);
 		EXPECT_GT(scroll->getScrollMax().y, 0.0F);
 		EXPECT_FLOAT_EQ(scroll->getScroll().y, scroll->getScrollMax().y) << "scrolled to the newest";
-		EXPECT_EQ(lintAt(1280, 800), "");
+		EXPECT_EQ(lint(), "");
 	}
 
 	TEST_F(BattleParts, TheBannerHoldsItsReadingTimeSlidesOnlyUnderMotionAndTheEndStays) {
@@ -133,7 +137,7 @@ namespace {
 		frame();
 		EXPECT_TRUE(banner.get()->showing());
 		EXPECT_EQ(banner.get()->text(), "RAIDERS' TURN");
-		EXPECT_EQ(lintAt(1280, 800), "");
+		EXPECT_EQ(lint(), "");
 		wait(TurnBanner::kHold + 0.1);
 		EXPECT_TRUE(banner.get()->showing()) << "coming in, then the hold, before it starts to leave";
 		wait(2.0 * TurnBanner::kMotion);

@@ -32,7 +32,7 @@ namespace game {
 
 		constexpr double kFadeSeconds = 0.5;
 		constexpr double kSplashSeconds = 1.5;
-		// The book's share of the table's width, up to the mock's cover, and the decks' cards against the book's width.
+		// The book's share of the frame's width, up to the mock's cover, and the decks' cards against the book's width.
 		constexpr float kBookShare = 57.6F;
 		constexpr float kBookWidest = 830.0F;
 		constexpr float kDeckShare = 15.2F;
@@ -74,7 +74,7 @@ namespace game {
 			return kBands;
 		}
 
-		// The dark table the book lies on, with its grain; it lays out the splash in a centred column.
+		// The dark table the book lies on, to the window's edges; its grain fades in with the splash, the table under it doesn't.
 		class Table : public ui::Component {
 		  public:
 			struct Args {
@@ -91,9 +91,7 @@ namespace game {
 				const float		 alpha = opacity();
 				const int32_t	 key = drawKey();
 				Renderer::Primitives::drawRect(
-					{.bounds = {0.0F, 0.0F, size.x, size.y},
-					 .style = {.fill = atlas::withAlpha(theme.get(palette::table), alpha)},
-					 .key = key}
+					{.bounds = {0.0F, 0.0F, size.x, size.y}, .style = {.fill = theme.get(palette::table)}, .key = key}
 				);
 				const float rows = size.y / 900.0F;
 				for (const GrainBand& band : grain()) {
@@ -128,17 +126,21 @@ namespace game {
 				}
 			}
 
-			void render(float /*alpha*/) override { Renderer::Primitives::clear(ui().getTheme().get(palette::table)); }
-
 			std::string exportState() const override { return nlohmann::json{{"shown", shown}, {"percent", percent}}.dump(); }
 
 		  protected:
 			const ui::Theme& sceneTheme() const override { return atlas::theme(); }
 
+			void background(ui::Ref<ui::Component> layer) override {
+				table = layer.addChild<Table>(
+					{.id = "table", .size = {ui::percent(100.0F), ui::percent(100.0F)}, .pointerEvents = ui::PointerEvents::None}
+				);
+			}
+
 			void enter() override {
 				const ui::Theme& theme = ui().getTheme();
-				table = root().addChild<Table>({
-					.id = "table",
+				splash = root().addChild<ui::Component>({
+					.id = "splash",
 					.size = {ui::percent(100.0F), ui::percent(100.0F)},
 					.layout = [] {
 						ui::Layout layout{
@@ -154,7 +156,7 @@ namespace game {
 				});
 
 				// The decks first, so the book lies over them.
-				ui::Ref<ui::Component> stage = table.addChild<ui::Component>({
+				ui::Ref<ui::Component> stage = splash.addChild<ui::Component>({
 					.id = "stage",
 					.size = {ui::percent(kBookShare), ui::kAuto},
 					.maxSize = {kBookWidest, ui::kAuto},
@@ -179,7 +181,7 @@ namespace game {
 				});
 				stage.addChild<ClosedAtlas>({.id = "book", .size = {ui::percent(100.0F), ui::kAuto}});
 
-				ui::Ref<ui::Component> loader = table.addChild<ui::Component>({
+				ui::Ref<ui::Component> loader = splash.addChild<ui::Component>({
 					.id = "loader",
 					.size = {kLoaderWidth, ui::kAuto},
 					.layout = {.display = ui::Display::Flex, .flexDirection = ui::FlexDirection::Column, .gap = 8.0F},
@@ -207,7 +209,7 @@ namespace game {
 				captions.addChild<ui::Text>({.id = "loader_caption", .style = caption, .text = "Unfolding the map"});
 				percentText = captions.addChild<ui::Text>({.id = "loader_percent", .style = caption, .text = "0%"});
 
-				table.addChild<ui::Text>({
+				splash.addChild<ui::Text>({
 					.id = "build",
 					.layout = {.position = ui::Position::Absolute, .inset = {.right = 0.0F, .bottom = 26.0F, .left = 0.0F}},
 					.style = styles::kicker.extend({
@@ -225,8 +227,11 @@ namespace game {
 		  private:
 			// The fade and the loader at the time shown, the loader by whole percents.
 			void show() {
-				if (ui::Component* ground = table.get()) {
-					ground->setFade(app().reducedMotion() ? 1.0F : static_cast<float>(std::min(1.0, shown / kFadeSeconds)));
+				const float fade = app().reducedMotion() ? 1.0F : static_cast<float>(std::min(1.0, shown / kFadeSeconds));
+				for (ui::Component* faded : {static_cast<ui::Component*>(table.get()), splash.get()}) {
+					if (faded != nullptr) {
+						faded->setFade(fade);
+					}
 				}
 				const int now = static_cast<int>(std::floor(std::min(1.0, shown / kSplashSeconds) * 100.0));
 				if (now == percent) {
@@ -249,6 +254,7 @@ namespace game {
 			}
 
 			ui::Ref<Table>			 table;
+			ui::Ref<ui::Component>	 splash;
 			ui::Ref<atlas::ScaleBar> bar;
 			ui::Ref<ui::Text>		 percentText;
 			double					 shown = 0.0;

@@ -1,6 +1,6 @@
 // The dock laid out alone over a test drop target, from real fights: each driver's half and its cards by id, drag
 // sources on the playable cards only, a pointer drag and the keys' pick-up delivering the card, hover and focus
-// presenting it, End Turn's preview and press, the lock, the fight's end, and the lint at the widths the game opens at.
+// presenting it, End Turn's preview and press, the lock, the fight's end, and the lint on every canvas.
 
 #include "scenes/battle/Dock.h"
 #include "GameTesting.h"
@@ -99,7 +99,7 @@ namespace {
 				{.type = type,
 				 .device = {.kind = foundation::DeviceKind::Mouse},
 				 .mouseButton = foundation::MouseButton::Left,
-				 .position = at}
+				 .position = inWindow(at)}
 			);
 		}
 
@@ -285,18 +285,18 @@ namespace {
 		EXPECT_EQ(heard.back(), "leave");
 	}
 
-	TEST_F(DockTest, TwoFullHandsLintZeroAtTheGamesWidths) {
+	TEST_F(DockTest, TwoFullHandsLintZeroOnEveryCanvas) {
 		const std::initializer_list<std::string_view> seven{
 			"point_blank", "armor_plating", "headshot", "precision_shot", "nitro_boost", "repair_kit", "ramming_speed"
 		};
 		open(duo(seven, seven), true);
 		EXPECT_NE(find("hand_0_6"), nullptr);
 		EXPECT_NE(find("hand_1_6"), nullptr);
-		EXPECT_EQ(lintAt(1280, 720), "");
+		// On the narrowest canvas, nothing in the dock gives up its size to the hands.
+		(void)lintOn(kCanvases[0]);
 		EXPECT_FLOAT_EQ(find("dock")->getSize().y, 228.0F);
 		EXPECT_FLOAT_EQ(find("end_turn")->getSize().x, 148.0F);
-		EXPECT_EQ(lintAt(1440, 900), "");
-		EXPECT_EQ(lintAt(1920, 1080), "");
+		EXPECT_EQ(lintCanvases(), "");
 	}
 
 } // namespace

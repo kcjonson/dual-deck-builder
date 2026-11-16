@@ -23,9 +23,7 @@ namespace {
 		for (const char* id : {"book", "deck_a", "deck_b", "loader_bar", "build"}) {
 			EXPECT_NE(find(id), nullptr) << id;
 		}
-		EXPECT_EQ(lintAt(1280, 800), "");
-		EXPECT_EQ(lintAt(1440, 900), "");
-		EXPECT_EQ(lintAt(1920, 1080), "");
+		EXPECT_EQ(lintCanvases(), "");
 	}
 
 	TEST_F(Splash, TheLoaderFillsAsItHoldsThenTheMenuOpens) {

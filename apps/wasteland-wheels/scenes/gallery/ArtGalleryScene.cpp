@@ -43,6 +43,8 @@ namespace game {
 		  protected:
 			const ui::Theme& sceneTheme() const override { return atlas::theme(); }
 
+			void background(ui::Ref<ui::Component> layer) override { atlas::layTable(layer); }
+
 			void enter() override {
 				ui::Layout sheetLayout = column(8.0F);
 				sheetLayout.alignItems = ui::AlignItems::Stretch;

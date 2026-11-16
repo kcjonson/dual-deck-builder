@@ -1,9 +1,9 @@
 #pragma once
 
 // The battle screen's bands and the road's grid (Battle Screen Design 2, road-view.md): pure functions of a size, which
-// the scene runs on enter and on every resize, so nothing a vehicle does resizes a slot. The scene lays out in the ui's
-// logical px, as every other scene does, and the ui's scale setting is the screen's scale: spare height goes to the rows,
-// spare width to the slots, and the tokens scale up to 1.25 to fill them.
+// the scene runs on enter and on every resize, so nothing a vehicle does resizes a slot. The scene lays out in its frame
+// in ui px, as every other scene does (Interface Scaling): spare height goes to the rows, spare width to the slots, and
+// the tokens scale up to 1.25 to fill them.
 
 #include <rules/battle/RoadGrid.h>
 
@@ -24,16 +24,17 @@ namespace game::road {
 	inline constexpr float kRoadPad = 16.0F;
 	inline constexpr float kRowInset = 4.0F;
 
-	// The screen's bands in the window's logical px.
+	// The screen's bands in the frame's ui px.
 	struct Bands {
-		Foundation::Rect stage; // the window's width capped at kStageMaxWidth, centred, its whole height
+		Foundation::Rect stage; // the frame's width capped at kStageMaxWidth, centred, its whole height
 		Foundation::Rect topBar;
 		Foundation::Rect road; // between the top bar and the dock, the stage's width
 		Foundation::Rect dock;
 		float			 bleed = 0.0F; // how far the road's art runs past the stage on each side, to the window's edges
 	};
 
-	[[nodiscard]] Bands bandsFor(Foundation::Vec2 window);
+	// pastFrame is how far the window runs past the frame on each side.
+	[[nodiscard]] Bands bandsFor(Foundation::Vec2 frame, float pastFrame = 0.0F);
 
 	// The road's grid in the road band's own space: six lanes across past a 16 px pad each side and the 18 px row gutter,
 	// three rows down under the lane header and a 4 px inset. A slot is the whole cell.

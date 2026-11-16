@@ -1,8 +1,8 @@
 #pragma once
 
-// The screen sheet (UI Art Direction, Components): the table, a W2 sheet on it inside the 14 px margin, a double
-// neatline, and duct tape at the top-left and bottom-right corners. It draws under its children, which the scene lays
-// out in it. The tape is art/tape.svg, drawn as the rest of the art is (ArtView.h).
+// The screen sheet (UI Art Direction, Components): a W2 sheet inside the 14 px margin, over the table a scene lays in its
+// background (layTable), a double neatline, and duct tape at the top-left and bottom-right corners. It draws under its
+// children, which the scene lays out in it. The tape is art/tape.svg, drawn as the rest of the art is (ArtView.h).
 
 #include "atlas/Paper.h"
 
@@ -38,5 +38,8 @@ namespace game::atlas {
 	  private:
 		PaperLook look;
 	};
+
+	// The table the sheets lie on, filling a scene's background layer to the window's edges.
+	void layTable(ui::Ref<ui::Component> background);
 
 } // namespace game::atlas

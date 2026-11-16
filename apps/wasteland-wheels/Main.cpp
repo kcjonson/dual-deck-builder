@@ -8,6 +8,7 @@
 #include "Fonts.h"
 #include "GameContext.h"
 #include "GameFiles.h"
+#include "InterfaceScale.h"
 #include "atlas/Paper.h"
 #include "scenes/Scenes.h"
 
@@ -92,13 +93,15 @@ int main(int argc, char* argv[]) {
 		return checkFaces();
 	}
 
-	std::unique_ptr<app::Platform> platform = app::createGlfwPlatform({.title = kTitle});
+	std::unique_ptr<app::Platform> platform =
+		app::createGlfwPlatform({.title = kTitle, .minWidth = game::kMinWindowWidth, .minHeight = game::kMinWindowHeight});
 	if (platform == nullptr) {
 		return 1;
 	}
 	std::unique_ptr<app::App> app = app::App::create(
 		{.organization = "Bear Cavalry Interactive",
 		 .applicationName = kTitle,
+		 .uiScale = game::uiScaleConfig(),
 		 .baseShader = base_shader::source(),
 		 .fontAtlases = game::fonts::atlases(),
 		 .defaultFont = game::fonts::kBody,

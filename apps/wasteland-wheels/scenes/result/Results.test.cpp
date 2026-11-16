@@ -1,5 +1,5 @@
 // The result scenes in the atlas: the battle result, the debrief home and lost, and the campaign's end, each laid out
-// and linted 0 at the sizes the game opens at, with what was lost or cleared stamped, and a defeat on a burnt sheet.
+// and linted 0 on every canvas, with what was lost or cleared stamped, and a defeat on a burnt sheet.
 
 #include "GameTesting.h"
 #include "Words.h"
@@ -58,13 +58,7 @@ namespace {
 			return text != nullptr ? text->getText() : "";
 		}
 
-		void lintsZero() {
-			EXPECT_EQ(lintAt(1280, 800), "");
-			EXPECT_EQ(lintAt(1440, 900), "");
-			EXPECT_EQ(lintAt(1920, 1080), "");
-			EXPECT_EQ(lintAt(1280, 800, 1.5F), "");
-			EXPECT_EQ(lintAt(1280, 800), "") << "back at 100% for what follows";
-		}
+		void lintsZero() { EXPECT_EQ(lintCanvases(), ""); }
 	};
 
 	TEST_F(Results, AWonFightsResultSaysWhatTheRunCarriesOutOfItAndGoesBackOnTheRoad) {

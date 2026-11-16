@@ -23,7 +23,7 @@ namespace game::battle {
 
 	namespace {
 
-		// The mock's dock (Battle Screen Design 4, split-dock.md), in the stage's logical px.
+		// The mock's dock (Battle Screen Design 4, split-dock.md), in the stage's ui px.
 		constexpr float kHeight = 228.0F;
 		constexpr float kStageMaxWidth = 1600.0F;
 		constexpr float kPad = 16.0F;
