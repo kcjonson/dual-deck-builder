@@ -7,6 +7,7 @@
 #include "atlas/AtlasTheme.h"
 #include "atlas/ContentsEntry.h"
 #include "atlas/LegendBox.h"
+#include "atlas/Sheet.h"
 #include "atlas/Tokens.h"
 #include "scenes/AtlasPage.h"
 #include "scenes/GameScene.h"
@@ -40,6 +41,8 @@ namespace game {
 
 		  protected:
 			const ui::Theme& sceneTheme() const override { return atlas::theme(); }
+
+			void background(ui::Ref<ui::Component> layer) override { atlas::layTable(layer); }
 
 			void enter() override {
 				history = game().store.history();

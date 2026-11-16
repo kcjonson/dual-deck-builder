@@ -75,9 +75,7 @@ namespace {
 	TEST_F(Motion, TheSettingsSceneLintsCleanAtEachWindowSize) {
 		start(fixtureMakers(), true);
 		go(scenes::kSettings);
-		EXPECT_EQ(lintAt(1280, 800), "");
-		EXPECT_EQ(lintAt(1440, 900), "");
-		EXPECT_EQ(lintAt(1920, 1080), "");
+		EXPECT_EQ(lintCanvases(), "");
 	}
 
 } // namespace

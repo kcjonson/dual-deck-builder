@@ -6,6 +6,7 @@
 #include "atlas/Glyphs.h"
 #include "atlas/Icons.h"
 #include "atlas/LegendBox.h"
+#include "atlas/Sheet.h"
 #include "atlas/Tokens.h"
 #include "scenes/loadout/LoadOutScene.h"
 #include "scenes/map/MapPage.h"
@@ -52,6 +53,10 @@ namespace game {
 			{"loadOut", !loadOutBlocker().has_value()},
 		}
 			.dump();
+	}
+
+	void RunRouteScene::background(ui::Ref<ui::Component> layer) {
+		atlas::layTable(layer);
 	}
 
 	void RunRouteScene::enter() {

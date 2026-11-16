@@ -27,7 +27,33 @@ namespace game::atlas {
 		constexpr Foundation::Vec2 kTapeBottomRight{-20.0F, -11.0F};
 		constexpr float			   kTapeTurn = -34.0F * std::numbers::pi_v<float> / 180.0F;
 
+		class Table : public ui::Component {
+		  public:
+			struct Args {
+				UI_COMMON_ARGS
+			};
+
+			explicit Table(const Args& /*args*/) {}
+
+			[[nodiscard]] const char* typeName() const override { return "Table"; }
+
+		  protected:
+			void render() override {
+				Renderer::Primitives::drawRect(
+					{.bounds = {0.0F, 0.0F, size.x, size.y},
+					 .style = {.fill = getContext()->getTheme().get(palette::table)},
+					 .key = drawKey()}
+				);
+			}
+		};
+
 	} // namespace
+
+	void layTable(ui::Ref<ui::Component> background) {
+		background.addChild<Table>(
+			{.id = "table", .size = {ui::percent(100.0F), ui::percent(100.0F)}, .pointerEvents = ui::PointerEvents::None}
+		);
+	}
 
 	Sheet::Sheet(const Args& args)
 		: look{
@@ -48,9 +74,6 @@ namespace game::atlas {
 		const float		 margin = theme.get(tokens::sheet::margin);
 		const int32_t	 key = drawKey();
 
-		Renderer::Primitives::drawRect(
-			{.bounds = {0.0F, 0.0F, size.x, size.y}, .style = {.fill = withAlpha(theme.get(palette::table), alpha)}, .key = key}
-		);
 		const Foundation::Rect sheet{margin, margin, size.x - 2.0F * margin, size.y - 2.0F * margin};
 		Renderer::Primitives::drawRect({
 			.bounds = sheet,

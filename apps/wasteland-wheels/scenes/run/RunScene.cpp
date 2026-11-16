@@ -14,6 +14,7 @@
 #include "atlas/Icons.h"
 #include "atlas/LegendBox.h"
 #include "atlas/ResourceStrip.h"
+#include "atlas/Sheet.h"
 #include "atlas/Tokens.h"
 #include "cards/Card.h"
 #include "scenes/GameScene.h"
@@ -126,6 +127,8 @@ namespace game {
 
 		  protected:
 			const ui::Theme& sceneTheme() const override { return atlas::theme(); }
+
+			void background(ui::Ref<ui::Component> layer) override { atlas::layTable(layer); }
 
 			void enter() override {
 				if (!ui().icons().has("food")) {

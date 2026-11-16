@@ -187,4 +187,8 @@ namespace game::road {
 		std::optional<rules::VehicleIndex>	   acting;
 	};
 
+	// The road's ground over the whole of a scene's background layer, so a window taller than the frame isn't bare above
+	// the top bar and below the dock.
+	void layGround(ui::Ref<ui::Component> background);
+
 } // namespace game::road

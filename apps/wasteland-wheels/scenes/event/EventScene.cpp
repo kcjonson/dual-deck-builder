@@ -5,6 +5,7 @@
 #include "atlas/AtlasTheme.h"
 #include "atlas/Icons.h"
 #include "atlas/LegendBox.h"
+#include "atlas/Sheet.h"
 #include "atlas/Tokens.h"
 #include "cards/Card.h"
 #include "scenes/event/ChoiceCard.h"
@@ -73,6 +74,10 @@ namespace game {
 			{"notice", notice},
 		}
 			.dump();
+	}
+
+	void EventScene::background(ui::Ref<ui::Component> layer) {
+		atlas::layTable(layer);
 	}
 
 	void EventScene::enter() {

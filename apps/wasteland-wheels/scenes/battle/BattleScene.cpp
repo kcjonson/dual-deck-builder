@@ -92,6 +92,10 @@ namespace game {
 		return atlas::darkTheme();
 	}
 
+	void BattleScene::background(ui::Ref<ui::Component> layer) {
+		road::layGround(layer);
+	}
+
 	void BattleScene::enter() {
 		if (game().session) {
 			seats = seatNames(game().session->campaign, game().rules.content);
@@ -236,7 +240,10 @@ namespace game {
 	}
 
 	void BattleScene::layOut() {
-		const road::Bands bands = road::bandsFor(ui().getViewport());
+		// The road's art runs past the frame to the window's edges; the frame's corner sits on a whole pixel, so take the wider side.
+		const Foundation::Rect frame = ui().getFrame();
+		const float			   pastFrame = std::max(frame.x, ui().getCanvas().x - frame.x - frame.width);
+		const road::Bands	   bands = road::bandsFor(ui().getViewport(), pastFrame);
 		place(top.get(), bands.topBar);
 		place(dock.get(), bands.dock);
 		// The road is the stage's width; its art runs past it by the bleed.

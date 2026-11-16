@@ -75,6 +75,7 @@ namespace game {
 		void onResize(const Renderer::Viewport& viewport) override;
 
 	  protected:
+		void						   background(ui::Ref<ui::Component> layer) override;
 		void						   enter() override;
 		[[nodiscard]] const ui::Theme& sceneTheme() const override;
 

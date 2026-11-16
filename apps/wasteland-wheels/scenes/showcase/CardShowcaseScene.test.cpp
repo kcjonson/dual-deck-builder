@@ -1,6 +1,6 @@
 // The card showcase and the card it shows: every card's face holds its summary to three lines and its name to its slot
 // (the card data check), the sizes lay out as Game Flow 7.0 has them, the detail view opens on hover and on focus and
-// pins and lets go, both backs draw their mark, and the sheet lints 0 at the sizes the game opens at.
+// pins and lets go, both backs draw their mark, and the sheet lints 0 on every canvas.
 
 #include "GameTesting.h"
 #include "Words.h"
@@ -33,7 +33,9 @@ namespace {
 		void
 		pointerAt(std::string_view id, foundation::InputEvent::Type type, foundation::MouseButton button = foundation::MouseButton::Left) {
 			const Foundation::Rect box = find(id)->screenBounds();
-			platform->push({.type = type, .mouseButton = button, .position = {box.x + box.width * 0.5F, box.y + box.height * 0.5F}});
+			platform->push(
+				{.type = type, .mouseButton = button, .position = inWindow({box.x + box.width * 0.5F, box.y + box.height * 0.5F})}
+			);
 		}
 
 		void key(foundation::Key pressed) {
@@ -50,9 +52,7 @@ namespace {
 		for (const char* id : {"back_a", "back_b", "face_a", "mini_stack", "mini_borrowed", "mini_locked"}) {
 			EXPECT_NE(find(id), nullptr) << id;
 		}
-		EXPECT_EQ(lintAt(1280, 800), "");
-		EXPECT_EQ(lintAt(1440, 900), "");
-		EXPECT_EQ(lintAt(1920, 1080), "");
+		EXPECT_EQ(lintCanvases(), "");
 	}
 
 	// The card data check (Card System Design 1.1): a summary past three lines on the face, or a name that has to be cut,
@@ -109,7 +109,7 @@ namespace {
 		frame();
 		EXPECT_TRUE(card("face_a")->isPinned());
 		EXPECT_NE(find("face_a_pinned_detail"), nullptr);
-		EXPECT_EQ(lintAt(1280, 800), "");
+		EXPECT_EQ(lint(), "");
 
 		pointerAt("face_a", foundation::InputEvent::Type::PointerDown, foundation::MouseButton::Right);
 		pointerAt("face_a", foundation::InputEvent::Type::PointerUp, foundation::MouseButton::Right);

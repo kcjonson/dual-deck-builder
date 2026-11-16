@@ -28,7 +28,7 @@ How a card is aimed:
 
 | piece | what it is |
 |---|---|
-| `road/RoadLayout` | the bands (top bar 36, road, dock 228) and the road's grid, pure functions of the window's logical size, as road-view.md has them |
+| `road/RoadLayout` | the bands (top bar 36, road, dock 228) and the road's grid, pure functions of the frame's size in ui px, as road-view.md has them |
 | `road/RoadPicture` | what the road shows of a fight: a `TokenData` per vehicle on it, planned swerves, intent lines, arrival rows |
 | `road/RoadView` | the road drawn through Primitives and a `VehicleToken` per vehicle; every token and slot a drop target; swerves on the animator; the waiting picks of a two-step play; hit numbers and the acting raider's glow |
 | `battle/Targeting` | the hand's targeting rules over `legalActions`: a card's steps, the picks at each, the play they make, and what it does, off `apply` on a copy |
@@ -46,7 +46,7 @@ How a card is aimed:
 
 **The dark theme.** The game's tokens are one resolver with two modes ([theme-tokens.md](./theme-tokens.md)): the palettes, faces and print styles are a set every mode shares, and each mode points ui's semantic roles at one palette, the atlas's for the meta scenes and the battle mock's for this scene (UI Art Direction, Building it: combat keeps the dark theme until its own pass).
 
-**Layout.** The scene lays out in the ui's logical px as every other scene does, and the interface's scale is its scale ([interface-scaling.md](./interface-scaling.md)): the spec's own `s` gave way to one rule for every scene. Spare height goes to the rows and spare width to the slots, with the stage capped at 1600 and the road's art bleeding to the window's edges. The log drawer lies over the right of the road, layered above it, and doesn't narrow it: a road 320 px narrower puts the tokens under x1 at any width below 1920.
+**Layout.** The scene lays out in its frame's ui px as every other scene does, and the interface's scale is its scale ([interface-scaling.md](./interface-scaling.md)): the spec's own `s` gave way to one rule for every scene. Spare height goes to the rows and spare width to the slots, with the stage capped at 1600 and the road's art bleeding past the frame to the window's edges, over the road's ground in the scene's background. The log drawer lies over the right of the road, layered above it, and doesn't narrow it: a road 320 px narrower puts the tokens under x1 at any width below 1920.
 
 ## Rationale
 

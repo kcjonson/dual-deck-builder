@@ -1,9 +1,10 @@
 // Settings, an appendix of the atlas (UI Art Direction, Screens): what the App keeps in the user settings file (vsync,
-// fullscreen, the ui's scale, and motion: system, reduced, or full) in legend boxes, each applied at once and the file saved, since the
-// App never saves it itself. It has no primary action, so no highway; the tabs go back to the menu, as Escape does.
+// fullscreen, the interface size, and motion: system, reduced, or full) in legend boxes, each applied at once and the file
+// saved, since the App never saves it itself. It has no primary action, so no highway; the tabs go back to the menu, as Escape does.
 
 #include "atlas/AtlasTheme.h"
 #include "atlas/LegendBox.h"
+#include "atlas/Sheet.h"
 #include "atlas/Tokens.h"
 #include "scenes/AtlasPage.h"
 #include "scenes/GameScene.h"
@@ -28,7 +29,8 @@ namespace game {
 
 		namespace styles = atlas::styles::print;
 
-		constexpr std::array<float, 3> kUiScales{1.0F, 1.25F, 1.5F};
+		// The player's factor on the ui scale (Interface Scaling, Display settings).
+		constexpr std::array<float, 5> kInterfaceSizes{0.8F, 0.9F, 1.0F, 1.1F, 1.2F};
 		constexpr float				   kBoxWidth = 560.0F;
 
 		class SettingsScene final : public GameScene<> {
@@ -39,7 +41,7 @@ namespace game {
 				return nlohmann::json{
 					{"vsync", app().settings().get<bool>("video.vsync", true)},
 					{"fullscreen", app().fullscreenMonitor().has_value()},
-					{"uiScale", app().uiScale()},
+					{"interfaceSize", app().uiScale()},
 					{"motion", static_cast<int>(savedMotion(app()))},
 					{"reducedMotion", app().reducedMotion()},
 					{"notice", notice},
@@ -49,6 +51,8 @@ namespace game {
 
 		  protected:
 			const ui::Theme& sceneTheme() const override { return atlas::theme(); }
+
+			void background(ui::Ref<ui::Component> layer) override { atlas::layTable(layer); }
 
 			void enter() override { build(); }
 
@@ -81,15 +85,16 @@ namespace game {
 				});
 
 				ui::Ref<atlas::LegendBox> look = box(opened.body, "interface", "Interface");
-				const float				  scale = app().uiScale();
-				const auto nearest = std::ranges::min_element(kUiScales, {}, [scale](float option) { return std::abs(option - scale); });
-				ui::Ref<ui::Component> scaleRow = row(look, "Interface scale");
-				scaleRow.addChild<ui::SegmentedControl>({
-					.id = "ui_scale",
-					.options = {"100%", "125%", "150%"},
-					.selected = static_cast<int>(nearest - kUiScales.begin()),
+				const float				  size = app().uiScale();
+				const auto				  nearest =
+					std::ranges::min_element(kInterfaceSizes, {}, [size](float option) { return std::abs(option - size); });
+				ui::Ref<ui::Component> sizeRow = row(look, "Interface size");
+				sizeRow.addChild<ui::SegmentedControl>({
+					.id = "interface_size",
+					.options = {"80%", "90%", "100%", "110%", "120%"},
+					.selected = static_cast<int>(nearest - kInterfaceSizes.begin()),
 					.onChange = [this](int index) {
-						app().setUiScale(kUiScales.at(static_cast<size_t>(index)));
+						app().setUiScale(kInterfaceSizes.at(static_cast<size_t>(index)));
 						saved();
 					},
 				});

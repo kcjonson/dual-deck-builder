@@ -749,6 +749,19 @@ namespace game::road {
 		node["pops"] = pops.size();
 	}
 
+	void layGround(ui::Ref<ui::Component> background) {
+		background.addChild<Painter>({
+			.id = "road_ground",
+			.size = {ui::percent(100.0F), ui::percent(100.0F)},
+			.pointerEvents = ui::PointerEvents::None,
+			.type = "RoadGround",
+			.paint = [](const ui::Component& ground, int32_t key) {
+				const Vec2 size = ground.getSize();
+				Primitives::drawRect({.bounds = {0.0F, 0.0F, size.x, size.y}, .style = {.fill = kRoadGround}, .key = key});
+			},
+		});
+	}
+
 	// --- Drawing ---
 
 	void RoadView::render() {

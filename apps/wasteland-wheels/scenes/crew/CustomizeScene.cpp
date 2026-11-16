@@ -63,6 +63,10 @@ namespace game {
 		return atlas::theme();
 	}
 
+	void CustomizeScene::background(ui::Ref<ui::Component> layer) {
+		atlas::layTable(layer);
+	}
+
 	void CustomizeScene::enter() {
 		if (!ui().icons().has("food")) {
 			ui().icons().add(icons::iconAtlas());

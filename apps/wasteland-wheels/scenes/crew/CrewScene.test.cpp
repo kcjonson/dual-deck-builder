@@ -1,4 +1,4 @@
-// The Crew screen in the atlas: it lints 0 at the sizes the game opens at with a full locker and a lost driver, Add and
+// The Crew screen in the atlas: it lints 0 on every canvas with a full locker and a lost driver, Add and
 // Remove move a copy and save it, a refusal is the rules' reason under the card, Scrap takes two presses apart, and the
 // chosen driver is marked in highlighter.
 
@@ -61,9 +61,7 @@ namespace {
 		go(scenes::kCrew);
 		ASSERT_NE(find("roster_" + played().drivers.back().id.value), nullptr);
 		EXPECT_FALSE(enabled("roster_" + played().drivers.back().id.value)) << "the lost can't be picked";
-		EXPECT_EQ(lintAt(1280, 800), "");
-		EXPECT_EQ(lintAt(1440, 900), "");
-		EXPECT_EQ(lintAt(1920, 1080), "");
+		EXPECT_EQ(lintCanvases(), "");
 	}
 
 	TEST_F(Crew, AddAndRemoveMoveACopyAndSaveIt) {
@@ -92,7 +90,7 @@ namespace {
 		const CardId left = played().findDriver(driver.id)->defaultDeck.begin()->first;
 		EXPECT_FALSE(enabled("deck_" + left.value + "_remove"));
 		EXPECT_EQ(textOf("deck_" + left.value + "_reason"), "Deck at minimum");
-		EXPECT_EQ(lintAt(1280, 800), "");
+		EXPECT_EQ(lint(), "");
 	}
 
 	TEST_F(Crew, ScrapTakesTwoPressesApart) {
@@ -130,7 +128,7 @@ namespace {
 		EXPECT_GT(inDeck(played().run->seats[0].own.begin()->first.value), 0) << "their default deck as their run deck holds it";
 		EXPECT_FALSE(enabled("locker_headshot_add"));
 		EXPECT_EQ(textOf("locker_headshot_reason"), "Out on a run");
-		EXPECT_EQ(lintAt(1280, 800), "");
+		EXPECT_EQ(lint(), "");
 	}
 
 	TEST_F(Crew, ChoosingADriverMarksThemAndShowsTheirDeck) {

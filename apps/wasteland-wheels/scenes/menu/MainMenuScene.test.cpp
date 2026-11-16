@@ -1,6 +1,6 @@
 // The main menu in the atlas: New campaign leads until there's a campaign to continue, then Continue does with the day
-// in its shield; New campaign asks before it replaces a campaign in progress, a damaged save or an old one; it lints 0 either way at the
-// sizes the game opens at, and at 150% too; and each appendix opens, lints 0, and goes back by its Menu tab.
+// in its shield; New campaign asks before it replaces a campaign in progress, a damaged save or an old one; it lints 0 either way on
+// every canvas; and each appendix opens, lints 0, and goes back by its Menu tab.
 
 #include "GameTesting.h"
 #include "atlas/AtlasButton.h"
@@ -33,7 +33,7 @@ namespace {
 			return {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
 		}
 
-		// New campaign over the save as it stands: the dialog's wording, lint at the three sizes with it up, Cancel leaving
+		// New campaign over the save as it stands: the dialog's wording, lint on every canvas with it up, Cancel leaving
 		// the file byte for byte on the menu, and confirming going to founding.
 		void expectAskedFirst(const std::string& title, const std::string& body, const std::string& confirmLabel) {
 			go(scenes::kMainMenu);
@@ -50,9 +50,7 @@ namespace {
 			EXPECT_EQ(dialog->getTitle(), title);
 			EXPECT_EQ(text->getText(), body);
 			EXPECT_EQ(confirm->getLabel(), confirmLabel);
-			EXPECT_EQ(lintAt(1280, 800), "");
-			EXPECT_EQ(lintAt(1440, 900), "");
-			EXPECT_EQ(lintAt(1920, 1080), "");
+			EXPECT_EQ(lintCanvases(), "");
 
 			ASSERT_TRUE(press("keep"));
 			EXPECT_FALSE(state()["confirming"].get<bool>());
@@ -78,9 +76,7 @@ namespace {
 			 {"new_campaign", "campaign_history", "settings", "card_showcase", "credits", "exit", "cover", "deck_a", "deck_b"}) {
 			EXPECT_NE(find(id), nullptr) << id;
 		}
-		EXPECT_EQ(lintAt(1280, 800), "");
-		EXPECT_EQ(lintAt(1440, 900), "");
-		EXPECT_EQ(lintAt(1920, 1080), "");
+		EXPECT_EQ(lintCanvases(), "");
 	}
 
 	TEST_F(MainMenu, ACampaignInProgressPutsContinueFirstWithItsDay) {
@@ -92,12 +88,7 @@ namespace {
 		EXPECT_EQ(state()["primary"], "continue");
 		ASSERT_TRUE(enabled("continue"));
 		EXPECT_EQ(entry("continue")->getLine(), context->store.status().line);
-		EXPECT_EQ(lintAt(1280, 800), "");
-		EXPECT_EQ(lintAt(1440, 900), "");
-		EXPECT_EQ(lintAt(1920, 1080), "");
-		// At 150% the page scrolls rather than squeezing its entries.
-		app->setUiScale(1.5F);
-		EXPECT_EQ(lintAt(1280, 800), "");
+		EXPECT_EQ(lintCanvases(), "");
 	}
 
 	TEST_F(MainMenu, NewCampaignOverACampaignInProgressAsksFirst) {
@@ -146,9 +137,7 @@ namespace {
 			go(scenes::kMainMenu);
 			ASSERT_TRUE(press(id));
 			ASSERT_EQ(top(), scene);
-			EXPECT_EQ(lintAt(1280, 800), "") << scene;
-			EXPECT_EQ(lintAt(1440, 900), "") << scene;
-			EXPECT_EQ(lintAt(1920, 1080), "") << scene;
+			EXPECT_EQ(lintCanvases(), "") << scene;
 			ASSERT_TRUE(press("main_menu"));
 			EXPECT_EQ(top(), scenes::kMainMenu);
 		}

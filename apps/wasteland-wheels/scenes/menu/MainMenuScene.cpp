@@ -91,6 +91,8 @@ namespace game {
 		  protected:
 			const ui::Theme& sceneTheme() const override { return atlas::theme(); }
 
+			void background(ui::Ref<ui::Component> layer) override { atlas::layTable(layer); }
+
 			void enter() override {
 				if (!ui().icons().has("deck-a")) {
 					ui().icons().add(icons::iconAtlas());
@@ -129,7 +131,7 @@ namespace game {
 						return layout;
 					}(),
 				});
-				// The page scrolls when the window is too short for it, at a large ui scale say; the footer stays put.
+				// The page scrolls when the frame is too short for it; the footer stays put.
 				ui::Ref<ui::Component> page = contents.addChild<ui::Component>({
 					.id = "page",
 					.minSize = {0.0F, 0.0F},

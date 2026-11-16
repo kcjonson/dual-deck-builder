@@ -8,7 +8,6 @@
 #include "scenes/map/MapView.h"
 
 #include <primitives/Primitives.h>
-#include <ui/debug/LayoutLint.h>
 
 #include <chrono>
 #include <functional>
@@ -85,8 +84,7 @@ namespace {
 		EXPECT_TRUE(described["land"].get<bool>());
 		EXPECT_GT(described["markers"].get<int>(), 0);
 		EXPECT_GT(described["labels"].get<int>(), 1) << "Home's and the dressing's";
-		const ui::LintResult lint = ui::lint(app->scenes().top()->ui(), {1280.0F, 800.0F});
-		EXPECT_TRUE(lint.violations.empty()) << lint.violations.size() << " violations, the first at " << lint.violations.front().path;
+		EXPECT_EQ(lint(), "");
 		std::printf(
 			"[ map      ] land baked at radius %d in %lld ms (Debug); a frame of the area map: %u vertices, %u triangles\n",
 			context->session->layers().params.radius,

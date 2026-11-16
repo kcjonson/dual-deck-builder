@@ -1,5 +1,5 @@
 // The road component (road-view.md, targeting-preview.md, slot-targeting.md) headless through the App's frame and input:
-// tokens in their slots at the spec's sizes and linting 0, updated in place and swerving on the animator, cards dragged
+// tokens in their slots on every canvas and linting 0, updated in place and swerving on the animator, cards dragged
 // onto tokens, slots and the road and dropped through Aim, asked once per card and pick, and a two-step play's picks.
 
 #include "road/RoadView.h"
@@ -107,11 +107,11 @@ namespace {
 			};
 		}
 
-		// The road in its band at the window's size, and a card in the hand to drag onto it.
+		// The road in its band on the 1920x1080 canvas the tests start on, and a card in the hand to drag onto it.
 		void open(bool withCard = true) {
 			start();
 			openParts([this, withCard](ui::Ref<ui::Component> root) {
-				const road::Bands bands = road::bandsFor({1280.0F, 800.0F});
+				const road::Bands bands = road::bandsFor({1920.0F, 1080.0F});
 				road = root.addChild<RoadView>({
 					.id = "road",
 					.position = bands.road.position(),
@@ -144,13 +144,13 @@ namespace {
 		// The card picked up and carried to `to`, released there unless `hold`.
 		void dragTo(Foundation::Vec2 to, bool hold = false) {
 			const Foundation::Vec2 from = middleOf("card");
-			platform->push({.type = InputType::PointerMove, .position = from});
-			platform->push({.type = InputType::PointerDown, .mouseButton = foundation::MouseButton::Left, .position = from});
-			platform->push({.type = InputType::PointerMove, .position = {from.x, from.y - 20.0F}});
-			platform->push({.type = InputType::PointerMove, .position = to});
+			platform->push({.type = InputType::PointerMove, .position = inWindow(from)});
+			platform->push({.type = InputType::PointerDown, .mouseButton = foundation::MouseButton::Left, .position = inWindow(from)});
+			platform->push({.type = InputType::PointerMove, .position = inWindow({from.x, from.y - 20.0F})});
+			platform->push({.type = InputType::PointerMove, .position = inWindow(to)});
 			frame();
 			if (!hold) {
-				platform->push({.type = InputType::PointerUp, .mouseButton = foundation::MouseButton::Left, .position = to});
+				platform->push({.type = InputType::PointerUp, .mouseButton = foundation::MouseButton::Left, .position = inWindow(to)});
 				frame();
 			}
 		}
@@ -176,16 +176,18 @@ namespace {
 		Asked			  asked;
 	};
 
-	TEST_F(RoadViews, EveryTokenSitsInItsSlotAtTheGridsScaleAndTheRoadLintsZeroAtEverySpecSize) {
+	TEST_F(RoadViews, EveryTokenSitsInItsSlotAtTheGridsScaleAndTheRoadLintsZeroOnEveryCanvas) {
 		open(false);
-		for (const Foundation::Vec2 window :
-			 {Foundation::Vec2{1280.0F, 720.0F}, {1280.0F, 800.0F}, {1440.0F, 900.0F}, {1920.0F, 1080.0F}}) {
-			const road::Bands bands = road::bandsFor(window);
-			platform->resize(static_cast<int>(window.x), static_cast<int>(window.y));
+		for (const Canvas& canvas : kCanvases) {
+			// Once to take the canvas, then again with the road in the bands the frame has there.
+			(void)lintOn(canvas);
+			const Foundation::Rect frameBox = app->scenes().top()->ui().getFrame();
+			const road::Bands	   bands = road::bandsFor(frameBox.size());
 			view().setPosition(bands.road.position());
 			view().setBand(bands.road.size(), bands.bleed);
-			EXPECT_EQ(lintAt(static_cast<int>(window.x), static_cast<int>(window.y)), "") << window.x << "x" << window.y;
-			EXPECT_TRUE(view().grid().tokensFit);
+			EXPECT_EQ(lintOn(canvas), "") << canvas.name;
+			EXPECT_TRUE(view().grid().tokensFit) << canvas.name;
+			EXPECT_FLOAT_EQ(view().grid().laneWidth, 1550.0F / 6.0F) << canvas.name << ": the stage capped at 1600";
 			for (const RoadVehicle& vehicle : picture().vehicles) {
 				const ui::Component* token = find("vehicle_" + std::to_string(vehicle.index.value));
 				ASSERT_NE(token, nullptr);
@@ -197,10 +199,9 @@ namespace {
 			// Each of the 18 slots has its target over its cell.
 			const Foundation::Rect cell = view().grid().slotRect(kEmptySlot);
 			const Foundation::Rect target = find("slot_4_2")->screenBounds();
-			EXPECT_NEAR(target.x, bands.road.x + cell.x, 0.01F);
+			EXPECT_NEAR(target.x, frameBox.x + bands.road.x + cell.x, 0.01F);
 			EXPECT_NEAR(target.width, cell.width, 0.01F);
 		}
-		EXPECT_FLOAT_EQ(view().grid().laneWidth, 1550.0F / 6.0F) << "the stage capped at 1600";
 	}
 
 	TEST_F(RoadViews, ShowUpdatesTokensInPlaceAddsAndRemovesThemAndSwervesAChangedSlot) {
@@ -266,7 +267,9 @@ namespace {
 		EXPECT_EQ(asked.previews, 1);
 		EXPECT_EQ(asked.ranges, 1);
 
-		platform->push({.type = InputType::PointerUp, .mouseButton = foundation::MouseButton::Left, .position = middleOf("vehicle_0")});
+		platform->push(
+			{.type = InputType::PointerUp, .mouseButton = foundation::MouseButton::Left, .position = inWindow(middleOf("vehicle_0"))}
+		);
 		frame();
 		ASSERT_EQ(asked.drops.size(), 1U);
 		EXPECT_EQ(asked.drops[0].first, kCard);

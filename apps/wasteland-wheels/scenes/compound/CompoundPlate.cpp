@@ -780,7 +780,7 @@ namespace game {
 		);
 
 		// The labels, as the map labels its places: a circled number, the name in a paper halo, the state in mono under
-		// it. They print at the plate's scale down to three quarters, then stay put, so they read at 1280 by 800.
+		// it. They print at the plate's scale down to three quarters, then stay put, so they read on a small plate.
 		const float labelScale = std::clamp(map.unit, 0.75F, 1.0F);
 		// A mono label sits on a paper tag as well as its halo, as the TypeScript's did: at 13 px the faces' distance range
 		// holds a halo of about a pixel, too little to read over the hatch or a roof's ribs.

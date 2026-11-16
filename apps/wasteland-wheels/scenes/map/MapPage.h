@@ -2,8 +2,8 @@
 
 // The page the area map and the run route share (area-map-atlas-panels.md, Layout): one atlas sheet with the section
 // tabs hanging from it, the map's plate on the left under its heading with a status line beneath, and a 360 px column
-// of legend boxes on the right over the one primary, pinned at its foot. The body scrolls, whole, when the window is too
-// short for it at the ui's scale, so the heading, the boxes and the primary keep their size (DDB-602's squeeze).
+// of legend boxes on the right over the one primary, pinned at its foot. The body scrolls, whole, when the frame is too
+// short for it, so the heading, the boxes and the primary keep their size (DDB-602's squeeze).
 
 #include "atlas/SectionTabs.h"
 #include "atlas/Sheet.h"

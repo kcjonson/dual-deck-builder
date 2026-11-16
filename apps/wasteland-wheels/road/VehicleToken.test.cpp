@@ -149,7 +149,7 @@ namespace {
 			sheet.addChild<VehicleToken>({.id = "unmanned", .data = unmanned});
 			sheet.addChild<VehicleToken>({.id = "big", .data = player(), .scale = VehicleToken::kMaxScale});
 		});
-		EXPECT_EQ(lintAt(1280, 800), "");
+		EXPECT_EQ(lintCanvases(), "");
 		EXPECT_EQ(find("rig")->getSize(), (Foundation::Vec2{VehicleToken::kWidth, VehicleToken::kHeight}));
 		EXPECT_EQ(find("carrying")->getSize(), (Foundation::Vec2{VehicleToken::kWidth, VehicleToken::kPassengerHeight}));
 		EXPECT_EQ(find("hauler")->getSize(), (Foundation::Vec2{VehicleToken::kWidth, VehicleToken::kHeight}));
@@ -157,8 +157,6 @@ namespace {
 			find("big")->getSize(),
 			(Foundation::Vec2{VehicleToken::kWidth * VehicleToken::kMaxScale, VehicleToken::kHeight * VehicleToken::kMaxScale})
 		);
-		EXPECT_EQ(lintAt(1440, 900), "");
-		EXPECT_EQ(lintAt(1920, 1080), "");
 		const auto artOf = [this](const char* id) {
 			nlohmann::json described;
 			find(id)->describe(described);

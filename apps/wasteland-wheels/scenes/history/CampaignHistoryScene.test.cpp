@@ -1,5 +1,5 @@
 // Campaign history: past campaigns newest first, each with its ending, its days and its seed, scrolling past what fits;
-// it lints 0 at the sizes the game opens at.
+// it lints 0 on every canvas.
 
 #include "GameTesting.h"
 #include "atlas/ContentsEntry.h"
@@ -31,9 +31,7 @@ namespace {
 		ASSERT_NE(first, nullptr);
 		EXPECT_EQ(first->getLabel(), "Starved");
 		EXPECT_EQ(first->getLine(), "0 strongholds taken / Seed 1000");
-		EXPECT_EQ(lintAt(1280, 800), "");
-		EXPECT_EQ(lintAt(1440, 900), "");
-		EXPECT_EQ(lintAt(1920, 1080), "");
+		EXPECT_EQ(lintCanvases(), "");
 	}
 
 } // namespace

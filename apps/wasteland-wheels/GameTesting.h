@@ -8,9 +8,11 @@
 #include "BaseShader.h"
 #include "Fonts.h"
 #include "GameContext.h"
+#include "InterfaceScale.h"
 #include "atlas/AtlasTheme.h"
 #include "atlas/Icons.h"
 #include "atlas/Paper.h"
+#include "atlas/Sheet.h"
 #include "scenes/GameScene.h"
 #include "scenes/Scenes.h"
 
@@ -20,18 +22,22 @@
 #include <rules/campaign/CampaignMap.h>
 #include <rules/campaign/CampaignTesting.h>
 #include <rules/map/MapPipeline.h>
+#include <testing/HeadlessLayout.h>
 #include <ui/Component.h>
 #include <ui/Context.h>
-#include <ui/debug/LayoutLint.h>
 
 #include <gtest/gtest.h>
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
+#include <array>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
+#include <initializer_list>
 #include <memory>
 #include <optional>
 #include <random>
@@ -124,6 +130,8 @@ namespace game::testing {
 	  protected:
 		[[nodiscard]] const ui::Theme& sceneTheme() const override { return atlas::theme(); }
 
+		void background(ui::Ref<ui::Component> layer) override { atlas::layTable(layer); }
+
 		void enter() override {
 			if (!ui().icons().has("food")) {
 				ui().icons().add(icons::iconAtlas());
@@ -142,13 +150,16 @@ namespace game::testing {
 			context.reset();
 		}
 
-		// The App at 1280x800 with every scene added and none on the stack yet; seeds count from 1. With , the game's
-		// fonts load, so text measures as it draws, for a test that lays a scene out to lint it.
+		// The App in a 1920x1080 window, the canvas at 100%, held to the game's minimum, with every scene added and none on
+		// the stack yet; seeds count from 1. With `faces`, the game's fonts load, so text measures as it draws, for a test
+		// that lays a scene out to lint it.
 		void start(MapMakers makers = fixtureMakers(), bool faces = false) {
-			auto headless = std::make_unique<app::HeadlessPlatform>(1280, 800);
+			auto headless = std::make_unique<app::HeadlessPlatform>(1920, 1080);
+			headless->setMinimumSize(kMinWindowWidth, kMinWindowHeight);
 			platform = headless.get();
 			app = app::App::create(
 				{.applicationName = "wasteland-wheels-tests",
+				 .uiScale = uiScaleConfig(),
 				 .baseShader = base_shader::source(),
 				 .fontAtlases = faces ? fonts::atlases() : std::span<const Renderer::FontAtlasSource>(),
 				 .defaultFont = fonts::kBody,
@@ -219,6 +230,9 @@ namespace game::testing {
 			return nullptr;
 		}
 
+		// A point of the ui, in ui px, as the pointer position the platform reports there, in the window's logical pixels.
+		[[nodiscard]] Foundation::Vec2 inWindow(Foundation::Vec2 point) const { return point * app->uiLayoutScale(); }
+
 		// A press and a release in the middle of the component with the id, which has to be the topmost hit there, then a
 		// frame; false, with a failure, when it isn't there or something covers it.
 		bool press(std::string_view id) {
@@ -234,13 +248,12 @@ namespace game::testing {
 				ADD_FAILURE() << id << " isn't the topmost hit at its middle in " << top();
 				return false;
 			}
-			platform->push({.type = foundation::InputEvent::Type::PointerMove, .position = middle});
+			const Foundation::Vec2 at = inWindow(middle);
+			platform->push({.type = foundation::InputEvent::Type::PointerMove, .position = at});
 			platform->push(
-				{.type = foundation::InputEvent::Type::PointerDown, .mouseButton = foundation::MouseButton::Left, .position = middle}
+				{.type = foundation::InputEvent::Type::PointerDown, .mouseButton = foundation::MouseButton::Left, .position = at}
 			);
-			platform->push(
-				{.type = foundation::InputEvent::Type::PointerUp, .mouseButton = foundation::MouseButton::Left, .position = middle}
-			);
+			platform->push({.type = foundation::InputEvent::Type::PointerUp, .mouseButton = foundation::MouseButton::Left, .position = at});
 			frame();
 			return true;
 		}
@@ -257,8 +270,8 @@ namespace game::testing {
 			}
 			const Foundation::Rect start = source->screenBounds();
 			const Foundation::Rect end = target->screenBounds();
-			const Foundation::Vec2 a{start.x + start.width * 0.5F, start.y + start.height * 0.5F};
-			const Foundation::Vec2 b{end.x + end.width * 0.5F, end.y + end.height * 0.5F};
+			const Foundation::Vec2 a = inWindow({start.x + start.width * 0.5F, start.y + start.height * 0.5F});
+			const Foundation::Vec2 b = inWindow({end.x + end.width * 0.5F, end.y + end.height * 0.5F});
 			platform->push({.type = foundation::InputEvent::Type::PointerMove, .position = a});
 			platform->push(
 				{.type = foundation::InputEvent::Type::PointerDown, .mouseButton = foundation::MouseButton::Left, .position = a}
@@ -288,22 +301,99 @@ namespace game::testing {
 
 		[[nodiscard]] rules::campaign::Campaign& played() { return context->session->campaign; }
 
-		// The top scene laid out at a window size and the ui's scale, and linted: each violation a line, empty when there are
-		// none.
-		[[nodiscard]] std::string lintAt(int width, int height, float scale = 1.0F) {
-			app->setUiScale(scale);
-			platform->resize(width, height);
-			frame();
-			frame();
-			const ui::LintResult result =
-				ui::lint(app->scenes().top()->ui(), {static_cast<float>(width) / scale, static_cast<float>(height) / scale});
-			std::ostringstream found;
-			for (const ui::LintViolation& violation : result.violations) {
-				const Foundation::Rect& box = violation.bounds;
-				found << ui::lintRuleName(violation.rule) << " " << violation.path << " at " << box.x << "," << box.y << " " << box.width
-					  << "x" << box.height << (violation.otherPath.empty() ? "" : " against " + violation.otherPath) << "\n";
+		// One of Interface Scaling's canvases, reached as a player reaches it: a window in device pixels at an interface size.
+		struct Canvas {
+			std::string_view name; // the canvas's size in ui px
+			int				 width;
+			int				 height;
+			float			 interfaceSize;
+		};
+		static constexpr std::array<Canvas, 7> kCanvases{{
+			{.name = "1600x900", .width = 1920, .height = 1080, .interfaceSize = 1.2F},
+			{.name = "1920x1080", .width = 1920, .height = 1080, .interfaceSize = 1.0F},
+			{.name = "1920x1200", .width = 1920, .height = 1200, .interfaceSize = 1.0F},
+			{.name = "1920x1440", .width = 1920, .height = 1440, .interfaceSize = 1.0F},
+			{.name = "2600x1080", .width = 2600, .height = 1080, .interfaceSize = 1.0F},
+			{.name = "2600x1350", .width = 2600, .height = 1350, .interfaceSize = 0.8F},
+			{.name = "2400x1440", .width = 2400, .height = 1440, .interfaceSize = 0.8F},
+		}};
+
+		// The top scene laid out on a canvas through the game's scale and frame, and linted by salal's helper: a line per
+		// violation, empty when there are none. The window keeps the size.
+		[[nodiscard]] std::string lintOn(const Canvas& canvas) {
+			app->setUiScale(canvas.interfaceSize);
+			return app::lintAt(*app, *platform, canvas.width, canvas.height);
+		}
+
+		// On the 1920x1080 canvas, the size the tests otherwise run at.
+		[[nodiscard]] std::string lint() { return lintOn(kCanvases[1]); }
+
+		// A 32:9 window at 100%, whose canvas is wider than the frame: the frame sits 2600 across in its middle.
+		static constexpr Canvas kPastTheFrame{.name = "3840x1080", .width = 5120, .height = 1440, .interfaceSize = 1.0F};
+
+		// The top scene is framed, its frame centred in the canvas, and something in its background covers the whole window:
+		// a line for each that isn't so, empty when all are.
+		[[nodiscard]] std::string backgroundCoversWindow() {
+			app::Scene&			   scene = *app->scenes().top();
+			ui::Context&		   context = scene.ui();
+			const Foundation::Vec2 canvas = context.getCanvas();
+			const Foundation::Rect frame = context.getFrame();
+			std::string			   found;
+			if (!scene.framed()) {
+				found += "it isn't framed\n";
 			}
-			return found.str();
+			const Foundation::Vec2 cap{uiScaleConfig().frameWidth, uiScaleConfig().frameHeight};
+			const Foundation::Vec2 size{std::min(canvas.x, cap.x), std::min(canvas.y, cap.y)};
+			if (frame.width != size.x || frame.height != size.y || std::abs(frame.x - (canvas.x - size.x) * 0.5F) > 1.0F ||
+				std::abs(frame.y - (canvas.y - size.y) * 0.5F) > 1.0F) {
+				found += "its frame is " + describe(frame) + " in a canvas of " + describe({0.0F, 0.0F, canvas.x, canvas.y}) + "\n";
+			}
+			const auto background = std::ranges::find_if(context.getRoots(), [&context](ui::ComponentId root) {
+				const ui::Component* component = context.find(root);
+				return component != nullptr && component->getId() == "background";
+			});
+			if (background == context.getRoots().end()) {
+				return found + "it has no background\n";
+			}
+			const auto covers = [&context, canvas](ui::ComponentId child) {
+				const ui::Component* component = context.find(child);
+				if (component == nullptr || !component->isShown()) {
+					return false;
+				}
+				const Foundation::Rect box = component->screenBounds();
+				return box.x <= 0.0F && box.y <= 0.0F && box.x + box.width >= canvas.x && box.y + box.height >= canvas.y;
+			};
+			if (std::ranges::none_of(context.find(*background)->getChildren(), covers)) {
+				found += "nothing in its background covers the window, " + describe({0.0F, 0.0F, canvas.x, canvas.y}) + "\n";
+			}
+			return found;
+		}
+
+		// On every canvas but those in `failing`, each line led by its canvas, with the window back at 1920x1080 and 100%
+		// after. `failing` names the canvases a scene doesn't hold together on yet; one that lints clean, or isn't a
+		// canvas, is a line too, so the list can't outlive its reason.
+		[[nodiscard]] std::string lintCanvases(std::initializer_list<std::string_view> failing = {}) {
+			std::string found;
+			for (const std::string_view name : failing) {
+				if (std::ranges::none_of(kCanvases, [name](const Canvas& canvas) { return canvas.name == name; })) {
+					found += std::string(name) + " isn't one of the canvases\n";
+				}
+			}
+			for (const Canvas& canvas : kCanvases) {
+				const bool		  expected = std::ranges::find(failing, canvas.name) != failing.end();
+				const std::string lines = lintOn(canvas);
+				if (expected && lines.empty()) {
+					found += std::string(canvas.name) + " is listed as failing and lints clean\n";
+				}
+				if (!expected && !lines.empty()) {
+					std::istringstream each(lines);
+					for (std::string line; std::getline(each, line);) {
+						found += std::string(canvas.name) + ": " + line + "\n";
+					}
+				}
+			}
+			(void)lint();
+			return found;
 		}
 
 		TempDir					   dir;
@@ -313,6 +403,12 @@ namespace game::testing {
 		uint32_t				   nextSeed = 1;
 
 	  private:
+		static std::string describe(const Foundation::Rect& box) {
+			std::ostringstream text;
+			text << box.x << "," << box.y << " " << box.width << "x" << box.height;
+			return text.str();
+		}
+
 		static ui::Component* findUnder(ui::Context& context, ui::ComponentId id, std::string_view wanted) {
 			ui::Component* component = context.find(id);
 			if (component == nullptr || !component->isShown()) {

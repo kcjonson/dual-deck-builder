@@ -35,6 +35,7 @@ namespace {
 		EXPECT_FLOAT_EQ(bands.dock.x, 160.0F);
 		EXPECT_FLOAT_EQ(bands.bleed, 160.0F);
 		EXPECT_FLOAT_EQ(bands.road.height, 1080.0F - 36.0F - 228.0F);
+		EXPECT_FLOAT_EQ(game::road::bandsFor({2600.0F, 1080.0F}, 620.0F).bleed, 500.0F + 620.0F) << "and on past the frame";
 	}
 
 	TEST(RoadLayout, AtTheReferenceASlotIs205By141) {

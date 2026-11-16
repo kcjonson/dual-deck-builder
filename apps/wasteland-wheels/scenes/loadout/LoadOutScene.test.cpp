@@ -73,9 +73,7 @@ namespace {
 		const auto* mark = dynamic_cast<const atlas::Highlight*>(find("escort_escort-1_mark"));
 		ASSERT_NE(mark, nullptr);
 		EXPECT_TRUE(mark->isMarked());
-		EXPECT_EQ(lintAt(1280, 800), "");
-		EXPECT_EQ(lintAt(1440, 900), "");
-		EXPECT_EQ(lintAt(1920, 1080), "");
+		EXPECT_EQ(lintCanvases(), "");
 	}
 
 	TEST_F(LoadOut, ASeatClearedIsFilledFromThePoolAndAnEscortLeftStaysHome) {
@@ -91,7 +89,7 @@ namespace {
 		ASSERT_TRUE(pressShown("escort_escort-2"));
 		EXPECT_EQ(state()["escorts"], nlohmann::json::array({"escort-1"}));
 		EXPECT_EQ(textOf("escort_escort-2_state"), "At home");
-		EXPECT_EQ(lintAt(1280, 800), "");
+		EXPECT_EQ(lint(), "");
 	}
 
 	TEST_F(LoadOut, CustomizeDealsTheDecksAndDoneComesBackCustomized) {
@@ -101,9 +99,7 @@ namespace {
 		ASSERT_EQ(top(), "customize");
 		ASSERT_TRUE(played().run.has_value()) << "the run decks are out";
 		EXPECT_EQ(played().run->seats[0].escortCards.size(), 2U) << "escort cards go to Driver 1";
-		EXPECT_EQ(lintAt(1280, 800), "");
-		EXPECT_EQ(lintAt(1440, 900), "");
-		EXPECT_EQ(lintAt(1920, 1080), "");
+		EXPECT_EQ(lintCanvases(), "");
 
 		ASSERT_TRUE(press("locker_headshot_borrow"));
 		EXPECT_EQ(rules::campaign::countOf(played().run->seats[0].borrowed, CardId{"headshot"}), 1);
@@ -125,7 +121,7 @@ namespace {
 		EXPECT_EQ(rules::campaign::countOf(played().run->seats[0].borrowed, CardId{"headshot"}), 1);
 		EXPECT_TRUE(played().run->seats[0].escortCards.empty());
 		EXPECT_EQ(played().run->seats[1].escortCards.size(), 1U) << "the card given to driver 2 stays there";
-		EXPECT_EQ(lintAt(1280, 800), "");
+		EXPECT_EQ(lint(), "");
 
 		ASSERT_TRUE(press("back"));
 		EXPECT_EQ(top(), "run_route");
@@ -142,9 +138,7 @@ namespace {
 		}
 		ASSERT_TRUE(press("seat_1_customize"));
 		ASSERT_EQ(top(), "customize");
-		EXPECT_EQ(lintAt(1280, 800), "");
-		EXPECT_EQ(lintAt(1440, 900), "");
-		EXPECT_EQ(lintAt(1920, 1080), "");
+		EXPECT_EQ(lintCanvases(), "");
 	}
 
 	TEST_F(LoadOut, StartRunLeavesWithTheCustomizedDeck) {

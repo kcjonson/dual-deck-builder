@@ -1,4 +1,4 @@
-// The pages that wait on a map, in the atlas: founding's progress lints 0 at the sizes the game opens at and its Cancel
+// The pages that wait on a map, in the atlas: founding's progress lints 0 on every canvas and its Cancel
 // is disabled once pressed; a save that can't be continued says why on a page that lints 0.
 
 #include "GameTesting.h"
@@ -19,9 +19,7 @@ namespace {
 		ASSERT_TRUE(frameUntil([this] {
 			return top() == scenes::kFounding && state()["progress"] == "Making the area map: terrain (1 of 9)";
 		}));
-		EXPECT_EQ(lintAt(1280, 800), "");
-		EXPECT_EQ(lintAt(1440, 900), "");
-		EXPECT_EQ(lintAt(1920, 1080), "");
+		EXPECT_EQ(lintCanvases(), "");
 		ASSERT_TRUE(press("cancel"));
 		EXPECT_TRUE(state()["cancelling"].get<bool>());
 		EXPECT_FALSE(enabled("cancel"));
@@ -40,9 +38,7 @@ namespace {
 		go(scenes::kMainMenu);
 		ASSERT_TRUE(press("continue"));
 		ASSERT_TRUE(frameUntil([this] { return top() == scenes::kLoading && !state()["failure"].get<std::string>().empty(); }));
-		EXPECT_EQ(lintAt(1280, 800), "");
-		EXPECT_EQ(lintAt(1440, 900), "");
-		EXPECT_EQ(lintAt(1920, 1080), "");
+		EXPECT_EQ(lintCanvases(), "");
 	}
 
 } // namespace

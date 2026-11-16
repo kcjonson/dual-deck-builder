@@ -5,6 +5,7 @@
 #include "Words.h"
 #include "atlas/AtlasTheme.h"
 #include "atlas/Icons.h"
+#include "atlas/Sheet.h"
 #include "scenes/GameScene.h"
 #include "scenes/result/ResultPage.h"
 
@@ -76,6 +77,8 @@ namespace game {
 
 		  protected:
 			const ui::Theme& sceneTheme() const override { return atlas::theme(); }
+
+			void background(ui::Ref<ui::Component> layer) override { atlas::layTable(layer); }
 
 			void enter() override {
 				if (!ui().icons().has("shield-mark")) {

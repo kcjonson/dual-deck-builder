@@ -99,6 +99,8 @@ namespace game {
 		  protected:
 			const ui::Theme& sceneTheme() const override { return atlas::theme(); }
 
+			void background(ui::Ref<ui::Component> layer) override { atlas::layTable(layer); }
+
 			void enter() override {
 				if (!ui().icons().has("food")) {
 					ui().icons().add(icons::iconAtlas());
